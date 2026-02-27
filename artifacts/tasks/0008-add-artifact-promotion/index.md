@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0008-add-artifact-promotion
-status: in-progress
+status: done
 agent:
 owner: manual
 created: 2026-02-22

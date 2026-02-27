@@ -130,8 +130,10 @@ artifacts/tasks/0011-add-pm-agent/
 └── project-manager.md → ../../agents/project-manager.md
 ```
 
-This makes it easy to see what a task produced without parsing
-frontmatter.
+This is a **traceability** symlink pointing to the canonical
+location in `artifacts/`. Discovery symlinks (e.g.
+`agents/<name>.md`) are created by `/openstation.done` after
+verification — not during task execution.
 
 ## Body Structure
 

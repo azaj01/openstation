@@ -69,6 +69,10 @@ Reads through symlinks are transparent — no special handling needed.
   - Other outputs → `artifacts/specs/`
 - Symlink artifacts into the task folder for traceability:
   `artifacts/tasks/NNNN-slug/<name>.md → ../../agents/<name>.md`
+- **Do NOT create discovery or promotion symlinks** (e.g.
+  `agents/<name>.md`). Only store the canonical file and the
+  task-folder traceability symlink. `/openstation.done` handles
+  promotion after verification.
 - See `docs/lifecycle.md` § "Artifact Storage" for naming
   conventions and categories.
 

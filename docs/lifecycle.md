@@ -89,6 +89,12 @@ When a task passes verification, `/openstation.done` moves the
 task folder to `tasks/done/`. Artifacts are already in
 `artifacts/` and do not need to be moved.
 
+Discovery symlinks (e.g. `agents/<name>.md`) are never created
+during task execution. Agents store artifacts in `artifacts/`
+and add traceability symlinks in the task folder — nothing more.
+`/openstation.done` handles promotion to discovery locations
+after verification passes.
+
 ### Routing Table (for new artifacts during task execution)
 
 | Artifact Type | Destination |

@@ -62,12 +62,42 @@ The `owner` field names who is responsible for verification.
 
 ## Sub-Tasks
 
-A task may be decomposed into sub-tasks:
+A task may be decomposed into sub-tasks. Sub-tasks are full
+tasks with their own canonical folder in `artifacts/tasks/`, but
+they are discovered through their parent rather than through
+lifecycle buckets.
 
-- Set `parent: <parent-task-name>` in the sub-task frontmatter.
-- All sub-tasks must reach `done` before the parent can proceed
-  to `review`.
-- Sub-tasks follow the same lifecycle as any other task.
+### Creating a Sub-Task
+
+1. Create the canonical folder: `artifacts/tasks/MMMM-sub-slug/`
+   with an `index.md` (same as any task).
+2. Set `parent: <parent-task-name>` in the sub-task frontmatter.
+3. Create a symlink **inside the parent folder** (not in a bucket):
+   `artifacts/tasks/NNNN-parent-slug/MMMM-sub-slug → ../MMMM-sub-slug`
+4. Add an entry to the parent's `## Subtasks` body section.
+
+### Symlink Convention
+
+Sub-tasks do **not** get bucket symlinks in `tasks/backlog/`,
+`tasks/current/`, or `tasks/done/`. Only the parent task has a
+bucket symlink. Sub-tasks are symlinked inside the parent folder:
+
+```
+artifacts/tasks/NNNN-parent-slug/
+├── index.md
+├── MMMM-sub-slug → ../MMMM-sub-slug
+└── PPPP-other-sub → ../PPPP-other-sub
+```
+
+### Blocking Rule
+
+All sub-tasks must reach `done` before the parent can proceed
+to `review`.
+
+### Lifecycle
+
+Sub-tasks follow the same status transitions as any other task.
+Their status is tracked in their own `index.md` frontmatter.
 
 ## Artifact Storage
 

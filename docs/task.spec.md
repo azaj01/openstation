@@ -40,6 +40,9 @@ tasks/<bucket>/NNNN-kebab-slug/  →  ../../artifacts/tasks/NNNN-kebab-slug/
 Moving a task between lifecycle stages = moving the symlink
 between buckets. The canonical folder never moves.
 
+> **Sub-tasks do not get bucket symlinks.** They are discovered
+> through their parent folder instead. See § Sub-tasks below.
+
 ## Naming
 
 ### Task ID
@@ -61,8 +64,48 @@ exactly: `NNNN-kebab-slug`.
 
 ### Sub-tasks
 
-Sub-tasks use the naming pattern `NNNN-parent-slug-sub-slug`
-and set `parent: <parent-task-name>` in frontmatter.
+Sub-tasks are full tasks with their own ID and canonical folder
+in `artifacts/tasks/`, but they are linked to a parent task
+instead of appearing independently in lifecycle buckets.
+
+#### Naming
+
+Sub-task folder name: `NNNN-kebab-slug` (same as any task).
+The slug should be descriptive of the sub-task's goal — it
+does not need to repeat the parent slug.
+
+#### `parent:` field
+
+Every sub-task sets `parent: <parent-task-name>` in its
+frontmatter. This is the only required link back to the parent.
+
+#### Symlink placement
+
+Sub-tasks do **not** get bucket symlinks in `tasks/backlog/`,
+`tasks/current/`, or `tasks/done/`. Instead, the parent task
+folder contains symlinks to each sub-task:
+
+```
+artifacts/tasks/NNNN-parent-slug/
+├── index.md
+├── MMMM-sub-slug → ../MMMM-sub-slug
+└── PPPP-other-sub → ../PPPP-other-sub
+```
+
+The symlink target is relative: `../MMMM-sub-slug` (sibling
+directory under `artifacts/tasks/`).
+
+#### Parent body section
+
+The parent's `index.md` should include a `## Subtasks` section
+listing the sub-tasks with priority groups. See the
+"Task with sub-tasks" example below.
+
+#### Status tracking
+
+Each sub-task tracks its own status in its `index.md`
+frontmatter. Discovery is through the parent — agents find
+sub-tasks by following the symlinks in the parent folder.
 
 ## Frontmatter Schema
 
@@ -274,6 +317,25 @@ could integrate with Obsidian as a plugin in the future. Focus on:
 
 ### Task with sub-tasks
 
+#### Folder structure
+
+```
+artifacts/tasks/
+├── 0006-adopt-spec-kit-patterns/
+│   ├── index.md
+│   ├── 0007-add-constitution → ../0007-add-constitution
+│   └── 0008-add-templates    → ../0008-add-templates
+├── 0007-add-constitution/
+│   └── index.md              # parent: 0006-adopt-spec-kit-patterns
+└── 0008-add-templates/
+    └── index.md              # parent: 0006-adopt-spec-kit-patterns
+```
+
+Note: no bucket symlinks exist for sub-tasks `0007` or `0008`.
+Only the parent `0006` has a bucket symlink in `tasks/`.
+
+#### Parent `index.md`
+
 ```markdown
 ---
 kind: task
@@ -303,14 +365,33 @@ philosophy.
 2. **Add templates** — Create `templates/` with structured
    templates for tasks, agents, and research artifacts.
 
-### MEDIUM Priority
-
-3. **Add handoff suggestions** — Add `handoffs` field to skill
-   frontmatter suggesting the next command.
-
 ## Verification
 
 - [ ] Constitution file exists and is referenced in manual
 - [ ] Templates directory exists with task, agent, and research templates
-- [ ] Skills include handoffs in frontmatter where appropriate
+```
+
+#### Sub-task `index.md` (example: `0007-add-constitution`)
+
+```markdown
+---
+kind: task
+name: 0007-add-constitution
+status: backlog
+agent: author
+owner: user
+parent: 0006-adopt-spec-kit-patterns
+created: 2026-02-21
+---
+
+# Add Constitution File
+
+## Requirements
+
+Create `constitution.md` at vault root with versioned project
+principles.
+
+## Verification
+
+- [ ] Constitution file exists and is referenced in manual
 ```

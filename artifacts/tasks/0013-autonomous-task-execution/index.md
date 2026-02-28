@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0013-autonomous-task-execution
-status: review
+status: in-progress
 agent: researcher
 owner: manual
 created: 2026-02-27
@@ -65,6 +65,12 @@ specs, create `openstation-run.sh` launcher, establish
 
 **Defer:** Agent Teams integration, Agent SDK migration, per-task
 permission fields in frontmatter.
+
+## Subtasks
+
+- `0018-autonomous-execution-research` — research (done)
+- `0019-autonomous-execution-spec` — implementation spec (ready)
+- `0020-autonomous-execution-impl` — implementation (ready)
 
 ## Verification
 

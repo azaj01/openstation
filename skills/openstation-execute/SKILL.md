@@ -93,10 +93,20 @@ between `## Requirements` and `## Verification`.
 
 ### 5. Create Sub-Tasks (if needed)
 
-If a task requires decomposition, use `/openstation.create` to
-create sub-tasks and set `parent: <current-task-name>` in their
-frontmatter. See `docs/lifecycle.md` § "Sub-Tasks" for
-blocking rules and lifecycle dependency.
+If a task requires decomposition:
+
+1. Use `/openstation.create` to create each sub-task. This gives
+   each sub-task its own canonical folder in `artifacts/tasks/`.
+2. Set `parent: <current-task-name>` in each sub-task's frontmatter.
+3. Create a symlink **inside the parent task folder** (not in a
+   lifecycle bucket):
+   `artifacts/tasks/NNNN-parent/MMMM-sub → ../MMMM-sub`
+4. Remove any bucket symlink that `/openstation.create` may have
+   created for the sub-task (sub-tasks do not get bucket symlinks).
+5. Add an entry to the parent's `## Subtasks` body section.
+
+See `docs/lifecycle.md` § "Sub-Tasks" for blocking rules and
+the full symlink convention.
 
 ## Completing a Task
 

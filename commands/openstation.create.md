@@ -24,10 +24,7 @@ Generate a new task spec from a description.
    - If no prefixed folders exist, start at `0001`.
 4. The folder name becomes `<ID>-<slug>` and the `name` field
    matches `<ID>-<slug>`.
-5. Create `artifacts/tasks/<ID>-<slug>/index.md` with this structure,
-   then create a symlink `tasks/backlog/<ID>-<slug>` →
-   `../../artifacts/tasks/<ID>-<slug>` (see `docs/lifecycle.md`
-   for status definitions and lifecycle rules):
+5. Create `artifacts/tasks/<ID>-<slug>/index.md` with this structure:
 
    ```markdown
    ---
@@ -50,9 +47,25 @@ Generate a new task spec from a description.
    - [ ] <Verification items derived from requirements>
    ```
 
-6. Ask the user:
+6. **Symlink placement** — depends on whether this is a sub-task:
+
+   **Regular task** (no parent): create a bucket symlink:
+   `tasks/backlog/<ID>-<slug> → ../../artifacts/tasks/<ID>-<slug>`
+
+   **Sub-task** (parent specified in `$ARGUMENTS` or by user):
+   - Add `parent: <parent-task-name>` to the frontmatter.
+   - Do **not** create a bucket symlink.
+   - Create a symlink inside the parent folder:
+     `artifacts/tasks/<parent-slug>/<ID>-<slug> → ../<ID>-<slug>`
+   - Add an entry to the parent's `## Subtasks` body section.
+
+   See `docs/lifecycle.md` § "Sub-Tasks" and `docs/task.spec.md`
+   § "Sub-tasks" for the full convention.
+
+7. Ask the user:
    - Should an agent be assigned? If yes, which one?
    - Should the status be changed from `backlog` to `ready`?
-     If yes, move the symlink to `tasks/current/`.
-7. Update the frontmatter with their answers.
-8. Confirm the file was created and show the path.
+     If yes, move the symlink to `tasks/current/` (regular tasks
+     only — sub-tasks never get bucket symlinks).
+8. Update the frontmatter with their answers.
+9. Confirm the file was created and show the path.

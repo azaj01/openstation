@@ -82,6 +82,11 @@ tasks/current/0009-install-script/       # symlink → ../../artifacts/tasks/000
 Moving a task between stages = moving the symlink between
 `backlog/`, `current/`, `done/`.
 
+**Sub-tasks** live in `artifacts/tasks/` like any task but do not
+get bucket symlinks. Instead they are symlinked inside the parent
+folder: `artifacts/tasks/NNNN-parent/MMMM-sub → ../MMMM-sub`.
+See `docs/task.spec.md` § Sub-tasks for details.
+
 ## Spec Format
 
 All specs use YAML frontmatter with a `kind` field (`task` or

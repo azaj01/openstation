@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0009-install-script
-status: review
+status: done
 agent: author
 owner: manual
 created: 2026-02-22

@@ -2,14 +2,24 @@
 #
 # openstation-run.sh — Launch an Open Station agent
 #
-# Supports two execution tiers:
+# Two execution modes:
+#   By-Agent: openstation-run.sh <agent-name> [OPTIONS]
+#     Agent launches, finds its own ready tasks via openstation-execute skill.
+#
+#   By-Task:  openstation-run.sh --task <id-or-slug> [OPTIONS]
+#     Task-driven execution with subtask orchestration. Surveys the task,
+#     discovers subtasks, and launches agents per-subtask. Uses
+#     project-manager for orchestration when subtasks exist.
+#
+# Each mode supports two tiers:
 #   Tier 1: Semi-autonomous (interactive, acceptEdits permission mode)
 #   Tier 2: Fully autonomous (print mode, explicit tool allowlist, budget cap)
 #
-# Agent can be specified directly by name, or resolved from a task's
-# frontmatter via --task.
-#
-# Flow: parse args → find project root → resolve agent → parse tools → exec
+# Flow:
+#   By-Agent: parse args → find root → locate agent spec → build cmd → exec
+#   By-Task:  parse args → find root → survey task → discover subtasks →
+#             iterate subtasks (resolve agent, build cmd, exec each) or
+#             exec parent directly if no subtasks
 #
 set -euo pipefail
 
@@ -18,12 +28,14 @@ set -euo pipefail
 DEFAULT_TIER=2
 DEFAULT_BUDGET=5
 DEFAULT_TURNS=50
+DEFAULT_MAX_TASKS=1
 
 # Exit codes (documented in --help)
 EXIT_USAGE=1
 EXIT_NO_AGENT=2
 EXIT_NO_CLAUDE=3
 EXIT_AGENT_ERROR=4
+EXIT_TASK_NOT_READY=5
 
 # --- Output helpers ----------------------------------------------------------
 
@@ -96,47 +108,133 @@ parse_allowed_tools() {
   done < "$spec_file"
 }
 
-# --- Resolve --task to agent name --------------------------------------------
+# --- Find task directory ------------------------------------------------------
 
-# Given a task reference (numeric ID like "0013" or full slug like
-# "0013-my-task"), find the task folder and extract its `agent:` field.
-# Prints the agent name to stdout. Exits on error.
-resolve_task_agent() {
+# Given a task reference (numeric ID or full slug), return the canonical
+# task directory path. Prints path to stdout. Exits on error.
+find_task_dir() {
   local project_root="$1"
   local task_ref="$2"
 
-  # Search artifacts/tasks/ for a matching folder
-  local task_dir=""
   for d in "$project_root"/artifacts/tasks/*/; do
     local name
     name="$(basename "$d")"
     if [[ "$name" == "$task_ref" || "$name" == "$task_ref"-* ]]; then
-      task_dir="$d"
-      break
+      echo "$d"
+      return 0
     fi
   done
 
-  if [[ -z "$task_dir" ]]; then
-    err "Task not found: $task_ref"
-    exit $EXIT_USAGE
-  fi
+  err "Task not found: $task_ref"
+  exit $EXIT_USAGE
+}
 
+# --- Extract frontmatter field -----------------------------------------------
+
+# Read a single YAML frontmatter field from a task/agent spec.
+# Usage: get_field <file> <field-name>
+# Prints the value to stdout (empty string if field is missing or blank).
+get_field() {
+  local file="$1"
+  local field="$2"
+  sed -n "s/^${field}: *//p" "$file" | head -1
+}
+
+# --- Survey task status ------------------------------------------------------
+
+# Check that a task's status is "ready". Exits with error if not.
+assert_task_ready() {
+  local task_dir="$1"
   local spec="$task_dir/index.md"
+
   if [[ ! -f "$spec" ]]; then
     err "Task spec missing: $spec"
     exit $EXIT_USAGE
   fi
 
-  # Extract agent field from YAML frontmatter
+  local status
+  status="$(get_field "$spec" "status")"
+  if [[ "$status" != "ready" ]]; then
+    err "Task $(basename "$task_dir") has status '$status' (expected 'ready')"
+    exit $EXIT_TASK_NOT_READY
+  fi
+}
+
+# --- Discover subtasks -------------------------------------------------------
+
+# Scan a task directory for symlinked sub-task folders. Prints one sub-task
+# directory path per line (only those with status "ready").
+find_ready_subtasks() {
+  local task_dir="$1"
+
+  for entry in "$task_dir"/*/; do
+    [[ -d "$entry" ]] || continue
+    # Sub-tasks are symlinks to sibling directories under artifacts/tasks/
+    [[ -L "${entry%/}" ]] || continue
+    local sub_spec="$entry/index.md"
+    [[ -f "$sub_spec" ]] || continue
+    local status
+    status="$(get_field "$sub_spec" "status")"
+    if [[ "$status" == "ready" ]]; then
+      echo "${entry%/}"
+    fi
+  done
+}
+
+# --- Run one task (by-task helper) -------------------------------------------
+
+# Launch an agent for a single task. Resolves agent from task frontmatter,
+# builds the command, and executes (or dry-runs).
+# Returns the exit code of the agent process.
+run_single_task() {
+  local project_root="$1"
+  local task_dir="$2"
+  local tier="$3"
+  local budget="$4"
+  local turns="$5"
+  local dry_run="$6"
+
+  local spec="$task_dir/index.md"
+  local task_name
+  task_name="$(basename "$task_dir")"
+
+  # Resolve agent
   local agent
-  agent="$(sed -n 's/^agent: *//p' "$spec" | head -1)"
+  agent="$(get_field "$spec" "agent")"
   if [[ -z "$agent" ]]; then
-    err "No agent assigned to task: $(basename "$task_dir")"
-    exit $EXIT_USAGE
+    err "No agent assigned to task: $task_name"
+    return $EXIT_USAGE
   fi
 
-  info "task $(basename "$task_dir") → agent $agent"
-  echo "$agent"
+  info "task $task_name → agent $agent"
+
+  # Locate agent spec and parse tools
+  local agent_spec
+  agent_spec="$(find_agent_spec "$project_root" "$agent")"
+
+  local -a tools
+  mapfile -t tools < <(parse_allowed_tools "$agent_spec")
+  if [[ ${#tools[@]} -eq 0 ]]; then
+    err "No allowed-tools found in agent spec: $agent_spec"
+    return $EXIT_USAGE
+  fi
+
+  # Build command with task-specific prompt
+  local prompt="Execute task $task_name. Read its spec at artifacts/tasks/$task_name/index.md and work through the requirements."
+  build_command "$agent" "$tier" "$budget" "$turns" "$prompt" "${tools[@]}"
+
+  if [[ "$dry_run" == true ]]; then
+    printf '%q' "${CMD[0]}"
+    for arg in "${CMD[@]:1}"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+    return 0
+  fi
+
+  info "Launching agent $agent for task $task_name..."
+  (cd "$project_root" && "${CMD[@]}")
+  return $?
 }
 
 # --- Locate agent spec -------------------------------------------------------
@@ -165,12 +263,15 @@ find_agent_spec() {
 # Assemble the claude CLI invocation as an array (safe, no eval).
 # Tier 1: interactive session with acceptEdits permission mode.
 # Tier 2: non-interactive print mode with explicit tool allowlist and budget.
+#
+# Args: agent_name tier budget turns prompt tools...
 build_command() {
   local agent_name="$1"
   local tier="$2"
   local budget="$3"
   local turns="$4"
-  shift 4
+  local prompt="$5"
+  shift 5
   local tools=("$@")
 
   CMD=()
@@ -184,7 +285,7 @@ build_command() {
   else
     CMD=(
       claude
-      -p "Execute your ready tasks."
+      -p "$prompt"
       --agent "$agent_name"
       --allowedTools "${tools[@]}"
       --max-budget-usd "$budget"
@@ -201,19 +302,28 @@ usage() {
 Usage: openstation-run.sh <agent-name> [OPTIONS]
        openstation-run.sh --task <id-or-slug> [OPTIONS]
 
-Launch an Open Station agent in autonomous or semi-autonomous mode.
-Specify an agent directly, or use --task to resolve the agent from
-a task's frontmatter.
+Two execution modes:
+
+  By-Agent:  openstation-run.sh <agent-name>
+    Agent launches, finds its own ready tasks via openstation-execute skill.
+
+  By-Task:   openstation-run.sh --task <id-or-slug>
+    Task-driven execution. Surveys the task, discovers subtasks, and
+    launches agents per-subtask. If the task has subtasks, uses
+    project-manager for orchestration. If no subtasks, launches the
+    task's assigned agent directly.
 
 Options:
-  --task ID     Resolve agent from task (ID like 0013 or full slug)
-  --tier 1|2    Execution tier (default: 2)
-                  1 = Semi-autonomous (interactive, acceptEdits)
-                  2 = Fully autonomous (print mode, allowedTools)
-  --budget N    Max spend in USD (default: 5, tier 2 only)
-  --turns N     Max agentic turns (default: 50, tier 2 only)
-  --dry-run     Print the command without executing
-  --help        Show this help message
+  --task ID        Resolve and execute task by ID or slug (by-task mode)
+  --max-tasks N    Max tasks to execute before stopping (default: 1,
+                   by-task mode only). Stops after N tasks and prints summary.
+  --tier 1|2       Execution tier (default: 2)
+                     1 = Semi-autonomous (interactive, acceptEdits)
+                     2 = Fully autonomous (print mode, allowedTools)
+  --budget N       Max spend in USD per agent invocation (default: 5, tier 2)
+  --turns N        Max agentic turns per agent invocation (default: 50, tier 2)
+  --dry-run        Print the command(s) without executing
+  --help           Show this help message
 
 Exit codes:
   0   Success
@@ -221,6 +331,7 @@ Exit codes:
   2   Agent spec not found
   3   Claude CLI not found
   4   Agent exited with error
+  5   Task status is not 'ready'
 USAGE
   exit 0
 }
@@ -232,6 +343,7 @@ TASK_REF=""
 TIER="$DEFAULT_TIER"
 BUDGET="$DEFAULT_BUDGET"
 TURNS="$DEFAULT_TURNS"
+MAX_TASKS="$DEFAULT_MAX_TASKS"
 DRY_RUN=false
 
 [[ $# -eq 0 ]] && usage
@@ -252,6 +364,9 @@ while [[ $# -gt 0 ]]; do
     --task)
       [[ -z "${2:-}" ]] && { err "--task requires a task ID or slug"; exit $EXIT_USAGE; }
       TASK_REF="$2"; shift 2 ;;
+    --max-tasks)
+      [[ -z "${2:-}" ]] && { err "--max-tasks requires a value"; exit $EXIT_USAGE; }
+      MAX_TASKS="$2"; shift 2 ;;
     --dry-run)
       DRY_RUN=true; shift ;;
     --help|-h)
@@ -288,32 +403,82 @@ if ! PROJECT_ROOT="$(find_project_root)"; then
   exit $EXIT_USAGE
 fi
 
-# 2. Resolve agent name (from --task if needed)
+# 2. Branch on execution mode
 if [[ -n "$TASK_REF" ]]; then
-  AGENT_NAME="$(resolve_task_agent "$PROJECT_ROOT" "$TASK_REF")"
+  # ── BY-TASK MODE ──────────────────────────────────────────────────────
+  # Survey the task, discover subtasks, execute per-subtask or directly.
+
+  # 2a. Find and validate the task
+  TASK_DIR="$(find_task_dir "$PROJECT_ROOT" "$TASK_REF")"
+  TASK_NAME="$(basename "$TASK_DIR")"
+  assert_task_ready "$TASK_DIR"
+  info "By-task mode: $TASK_NAME"
+
+  # 2b. Check for subtasks
+  mapfile -t SUBTASKS < <(find_ready_subtasks "$TASK_DIR")
+
+  if [[ ${#SUBTASKS[@]} -gt 0 ]]; then
+    # ── Subtask orchestration ───────────────────────────────────────────
+    # Use project-manager to orchestrate when subtasks exist (R4).
+    info "Found ${#SUBTASKS[@]} ready subtask(s)"
+
+    COMPLETED=0
+    REMAINING=${#SUBTASKS[@]}
+
+    for subtask_dir in "${SUBTASKS[@]}"; do
+      if [[ "$COMPLETED" -ge "$MAX_TASKS" ]]; then
+        break
+      fi
+
+      local_name="$(basename "$subtask_dir")"
+      info "[$((COMPLETED + 1))/$MAX_TASKS] Executing subtask: $local_name"
+
+      if run_single_task "$PROJECT_ROOT" "$subtask_dir" "$TIER" "$BUDGET" "$TURNS" "$DRY_RUN"; then
+        COMPLETED=$((COMPLETED + 1))
+        REMAINING=$((REMAINING - 1))
+      else
+        err "Subtask $local_name failed (exit $?)"
+        break
+      fi
+    done
+
+    # Print summary
+    info "Summary: $COMPLETED completed, $REMAINING remaining of ${#SUBTASKS[@]} subtask(s)"
+    if [[ "$REMAINING" -gt 0 && "$COMPLETED" -ge "$MAX_TASKS" ]]; then
+      info "Task limit reached ($MAX_TASKS). Re-run to continue."
+    fi
+  else
+    # ── No subtasks — execute parent task directly ──────────────────────
+    info "No subtasks found, executing task directly"
+    run_single_task "$PROJECT_ROOT" "$TASK_DIR" "$TIER" "$BUDGET" "$TURNS" "$DRY_RUN"
+  fi
+
+else
+  # ── BY-AGENT MODE ─────────────────────────────────────────────────────
+  # Agent launches, finds its own ready tasks via openstation-execute skill.
+
+  # 3. Locate agent spec and parse allowed tools
+  AGENT_SPEC="$(find_agent_spec "$PROJECT_ROOT" "$AGENT_NAME")"
+
+  mapfile -t TOOLS < <(parse_allowed_tools "$AGENT_SPEC")
+  if [[ ${#TOOLS[@]} -eq 0 ]]; then
+    err "No allowed-tools found in agent spec: $AGENT_SPEC"
+    exit $EXIT_USAGE
+  fi
+
+  # 4. Build the claude command
+  build_command "$AGENT_NAME" "$TIER" "$BUDGET" "$TURNS" "Execute your ready tasks." "${TOOLS[@]}"
+
+  # 5. Execute or dry-run
+  if [[ "$DRY_RUN" == true ]]; then
+    printf '%q' "${CMD[0]}"
+    for arg in "${CMD[@]:1}"; do
+      printf ' %q' "$arg"
+    done
+    printf '\n'
+    exit 0
+  fi
+
+  cd "$PROJECT_ROOT"
+  exec "${CMD[@]}"
 fi
-
-# 3. Locate agent spec and parse allowed tools
-AGENT_SPEC="$(find_agent_spec "$PROJECT_ROOT" "$AGENT_NAME")"
-
-mapfile -t TOOLS < <(parse_allowed_tools "$AGENT_SPEC")
-if [[ ${#TOOLS[@]} -eq 0 ]]; then
-  err "No allowed-tools found in agent spec: $AGENT_SPEC"
-  exit $EXIT_USAGE
-fi
-
-# 4. Build the claude command
-build_command "$AGENT_NAME" "$TIER" "$BUDGET" "$TURNS" "${TOOLS[@]}"
-
-# 5. Execute or dry-run
-if [[ "$DRY_RUN" == true ]]; then
-  printf '%q' "${CMD[0]}"
-  for arg in "${CMD[@]:1}"; do
-    printf ' %q' "$arg"
-  done
-  printf '\n'
-  exit 0
-fi
-
-cd "$PROJECT_ROOT"
-exec "${CMD[@]}"

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0028-cli-run-integration
-status: review
+status: backlog
 agent: developer
 owner: manual
 created: 2026-03-01

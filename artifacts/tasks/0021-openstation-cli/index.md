@@ -39,20 +39,20 @@ scriptable commands.
 
 ## Subtasks
 
-### Phase 1 — Research
+### Phase 1 — Research (done)
 
 1. **0022-cli-feature-research** — Research CLI design decisions:
    language choice, argument parsing, root detection strategy
 
-### Phase 2 — Spec
+### Phase 2 — Spec (review)
 
-2. **0023-cli-feature-spec** — Write detailed technical spec for
-   `list` and `show` commands, file layout, error handling
+2. **0023-cli-feature-spec** — Technical spec for `list` and
+   `show` commands, file layout, error handling, testing strategy
 
 ### Phase 3 — Implementation
 
-3. **0024-cli-implementation** — Implement the CLI per spec, with
-   tests and zero external dependencies
+3. **0024-cli-implementation** — Implement `list` and `show`
+   per spec, with integration tests and zero dependencies
 
 ## Verification
 

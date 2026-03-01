@@ -21,8 +21,22 @@ Show agent details and instruct the user how to launch it.
    them in a short list.
 4. If no ready tasks exist, report: "No ready tasks for agent
    <name>." and stop.
-5. Instruct the user to launch the agent:
+5. Instruct the user to launch the agent using `openstation-run.sh`:
 
+   **Tier 2 (fully autonomous, default):**
    ```
-   claude --agent <name>
+   ./openstation-run.sh <name>
    ```
+
+   **Tier 1 (semi-autonomous, interactive):**
+   ```
+   ./openstation-run.sh <name> --tier 1
+   ```
+
+   **Launch by task (resolves agent from task frontmatter):**
+   ```
+   ./openstation-run.sh --task <id-or-slug>
+   ```
+
+   Run `./openstation-run.sh --help` for all options (--budget,
+   --turns, --dry-run).

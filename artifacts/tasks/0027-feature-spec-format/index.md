@@ -1,9 +1,11 @@
 ---
 kind: task
 name: 0027-feature-spec-format
-status: in-progress
+status: done
 agent: architect
 owner: manual
+artifacts:
+  - docs/spec.spec.md
 created: 2026-03-01
 ---
 

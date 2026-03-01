@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0021-openstation-cli
-status: backlog
+status: in-progress
 agent: researcher
 owner: manual
 created: 2026-02-28

@@ -267,7 +267,7 @@ elif [[ "$TIER" == "2" ]]; then
   # Tier 2: Fully autonomous — print mode with allowlist
   CMD=(
     claude
-    -p
+    -p "Execute your ready tasks."
     --agent "$AGENT_NAME"
     --allowedTools
   )

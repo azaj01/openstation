@@ -326,9 +326,9 @@ printf 'Configuring hooks in .claude/settings.json...\n'
 
 SETTINGS_FILE=".claude/settings.json"
 
-# The hook entries we need to ensure exist
-HOOK_WRITE_EDIT='{"matcher":"Write|Edit","type":"command","command":"bash .openstation/hooks/validate-write-path.sh"}'
-HOOK_BASH='{"matcher":"Bash","type":"command","command":"bash .openstation/hooks/block-destructive-git.sh"}'
+# The hook entries we need to ensure exist (new matcher format)
+HOOK_WRITE_EDIT='{"matcher":{"tools":["Write","Edit"]},"hooks":[{"type":"command","command":"bash .openstation/hooks/validate-write-path.sh"}]}'
+HOOK_BASH='{"matcher":{"tools":["Bash"]},"hooks":[{"type":"command","command":"bash .openstation/hooks/block-destructive-git.sh"}]}'
 
 if command -v jq &>/dev/null; then
   # jq available — proper JSON merge
@@ -338,12 +338,12 @@ if command -v jq &>/dev/null; then
     existing='{}'
   fi
 
-  # Merge: ensure hooks.PreToolUse contains our entries (deduplicated by command)
+  # Merge: ensure hooks.PreToolUse contains our entries (deduplicated by hook command)
   updated="$(echo "$existing" | jq --argjson h1 "$HOOK_WRITE_EDIT" --argjson h2 "$HOOK_BASH" '
     .hooks //= {} |
     .hooks.PreToolUse //= [] |
-    # Remove any existing entries with our commands (to avoid duplicates)
-    .hooks.PreToolUse |= [.[] | select(.command != $h1.command and .command != $h2.command)] |
+    # Remove any existing entries with our hook commands (to avoid duplicates)
+    .hooks.PreToolUse |= [.[] | select(.hooks[0].command != $h1.hooks[0].command and .hooks[0].command != $h2.hooks[0].command)] |
     # Append our entries
     .hooks.PreToolUse += [$h1, $h2]
   ')"
@@ -369,14 +369,22 @@ else
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
-        "type": "command",
-        "command": "bash .openstation/hooks/validate-write-path.sh"
+        "matcher": { "tools": ["Write", "Edit"] },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .openstation/hooks/validate-write-path.sh"
+          }
+        ]
       },
       {
-        "matcher": "Bash",
-        "type": "command",
-        "command": "bash .openstation/hooks/block-destructive-git.sh"
+        "matcher": { "tools": ["Bash"] },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .openstation/hooks/block-destructive-git.sh"
+          }
+        ]
       }
     ]
   }

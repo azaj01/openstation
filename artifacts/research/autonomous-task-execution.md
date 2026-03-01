@@ -96,9 +96,13 @@ non-blocking execution.
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
-        "type": "command",
-        "command": "python3 scripts/check-write-path.py \"$TOOL_INPUT\""
+        "matcher": { "tools": ["Write", "Edit"] },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/check-write-path.py \"$TOOL_INPUT\""
+          }
+        ]
       }
     ]
   }
@@ -293,9 +297,13 @@ runtime, independent of `--allowedTools`:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit",
-        "type": "command",
-        "command": "python3 .openstation/hooks/validate-write-path.py"
+        "matcher": { "tools": ["Write", "Edit"] },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .openstation/hooks/validate-write-path.py"
+          }
+        ]
       }
     ]
   }
@@ -310,9 +318,13 @@ runtime, independent of `--allowedTools`:
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "type": "command",
-        "command": "python3 .openstation/hooks/block-destructive-git.py"
+        "matcher": { "tools": ["Bash"] },
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .openstation/hooks/block-destructive-git.py"
+          }
+        ]
       }
     ]
   }

@@ -367,14 +367,22 @@ The `allowed-tools` field goes after `skills` in frontmatter.
      "hooks": {
        "PreToolUse": [
          {
-           "matcher": "Write|Edit",
-           "type": "command",
-           "command": "bash .openstation/hooks/validate-write-path.sh"
+           "matcher": { "tools": ["Write", "Edit"] },
+           "hooks": [
+             {
+               "type": "command",
+               "command": "bash .openstation/hooks/validate-write-path.sh"
+             }
+           ]
          },
          {
-           "matcher": "Bash",
-           "type": "command",
-           "command": "bash .openstation/hooks/block-destructive-git.sh"
+           "matcher": { "tools": ["Bash"] },
+           "hooks": [
+             {
+               "type": "command",
+               "command": "bash .openstation/hooks/block-destructive-git.sh"
+             }
+           ]
          }
        ]
      }

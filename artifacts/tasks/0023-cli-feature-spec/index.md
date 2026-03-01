@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0023-cli-feature-spec
-status: backlog
+status: ready
 agent: architect
 owner: manual
 parent: 0021-openstation-cli

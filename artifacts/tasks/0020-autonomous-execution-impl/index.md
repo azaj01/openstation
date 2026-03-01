@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0020-autonomous-execution-impl
-status: review
+status: done
 agent: author
 owner: manual
 parent: 0013-autonomous-task-execution

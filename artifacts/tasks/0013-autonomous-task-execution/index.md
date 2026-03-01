@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0013-autonomous-task-execution
-status: in-progress
+status: done
 agent: researcher
 owner: manual
 created: 2026-02-27

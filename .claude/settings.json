@@ -5,7 +5,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": { "tools": ["Write", "Edit"] },
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
@@ -14,7 +14,7 @@
         ]
       },
       {
-        "matcher": { "tools": ["Bash"] },
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",

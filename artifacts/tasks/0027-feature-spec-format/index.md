@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0027-feature-spec-format
-status: ready
+status: in-progress
 agent: architect
 owner: manual
 created: 2026-03-01

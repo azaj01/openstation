@@ -5,6 +5,16 @@ description: Research agent for gathering, analyzing, and synthesizing informati
 model: claude-sonnet-4-6
 skills:
   - openstation-execute
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - WebSearch
+  - WebFetch
+  - Write
+  - Edit
+  - "Bash(ls *)"
+  - "Bash(readlink *)"
 ---
 
 # Researcher

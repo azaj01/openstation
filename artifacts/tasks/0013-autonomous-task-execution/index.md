@@ -11,13 +11,21 @@ created: 2026-02-27
 
 ## Requirements
 
-- Define an execution mode where agents can run tasks autonomously (without interactive user prompts) or in a detached/background session
-- Specify how an agent discovers and picks up ready tasks when launched in autonomous mode
-- Define guardrails for autonomous execution: what actions require human approval vs. what can proceed automatically
-- Support detached execution where the agent runs in the background (e.g., via `claude --agent <name> --detached` or similar mechanism)
-- Provide a way to monitor progress and review results of detached runs
-- Integrate with the existing task lifecycle — autonomous agents must still follow status transitions (ready → in-progress → review → done/failed)
-- Document the autonomous execution workflow and any new CLI flags or configuration
+- Define execution modes where agents can run tasks with reduced
+  or zero interactive prompts (Tier 1: semi-autonomous, Tier 2:
+  fully autonomous)
+- Specify how an agent discovers and picks up ready tasks when
+  launched in autonomous mode
+- Define guardrails for autonomous execution: what actions require
+  human approval vs. what can proceed automatically
+- Integrate with the existing task lifecycle — autonomous agents
+  must still follow status transitions (ready → in-progress →
+  review → done/failed)
+- Document the autonomous execution workflow and any new CLI flags
+  or configuration
+
+**Out of scope:** Tier 3 (detached/background execution via
+nohup/tmux). Deferred to a future task.
 
 ## Findings
 
@@ -55,16 +63,16 @@ full research document.
 
 ## Recommendations
 
-**Now:** Document tiers, add `--allowedTools` recipes to agent
-specs, create `openstation-run.sh` launcher, establish
-`.openstation/logs/` convention.
+**Now:** Document Tier 1 & 2, add `--allowedTools` recipes to
+agent specs, create `openstation-run.sh` launcher (foreground
+only), add `PreToolUse` hook guardrails.
 
-**Soon:** Add `PreToolUse` hook guardrails, extend
-`/openstation.dispatch` with autonomous invocation support, add
-`Stop` hook for completion notifications.
+**Soon:** Extend `/openstation.dispatch` with autonomous
+invocation support.
 
-**Defer:** Agent Teams integration, Agent SDK migration, per-task
-permission fields in frontmatter.
+**Defer:** Tier 3 (detached/background via nohup/tmux), Agent
+Teams integration, Agent SDK migration, per-task permission
+fields in frontmatter.
 
 ## Subtasks
 
@@ -74,10 +82,10 @@ permission fields in frontmatter.
 
 ## Verification
 
-- [ ] Autonomous mode is defined and documented
+- [ ] Semi-autonomous mode (Tier 1) is defined and documented
+- [ ] Fully autonomous mode (Tier 2) is defined and documented
 - [ ] Agents can execute ready tasks without interactive prompts
-- [ ] Detached/background execution mechanism is specified
+- [ ] Per-agent `--allowedTools` recipes are documented
 - [ ] Guardrails for autonomous actions are documented
-- [ ] Progress monitoring and result review workflow exists
 - [ ] Task lifecycle transitions are preserved in autonomous mode
 - [ ] Integration with existing `openstation-execute` skill is maintained

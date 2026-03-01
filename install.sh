@@ -28,6 +28,11 @@ AGENTS=(
   author.md
 )
 
+HOOKS=(
+  validate-write-path.sh
+  block-destructive-git.sh
+)
+
 MARKER_START="<!-- openstation:start -->"
 MARKER_END="<!-- openstation:end -->"
 
@@ -154,6 +159,7 @@ DIRS=(
   .openstation/agents
   .openstation/skills
   .openstation/commands
+  .openstation/hooks
   .claude
 )
 for dir in "${DIRS[@]}"; do
@@ -205,6 +211,24 @@ info ".openstation/docs/lifecycle.md"
 
 fetch_file "docs/task.spec.md" ".openstation/docs/task.spec.md"
 info ".openstation/docs/task.spec.md"
+
+# --- Deploy hooks (always overwrite — AS-owned) ---------------------------
+
+printf 'Installing hooks...\n'
+
+for hook in "${HOOKS[@]}"; do
+  fetch_file "hooks/$hook" ".openstation/hooks/$hook"
+  chmod +x ".openstation/hooks/$hook"
+  info ".openstation/hooks/$hook"
+done
+
+# --- Deploy launcher (always overwrite — AS-owned) ------------------------
+
+printf 'Installing launcher...\n'
+
+fetch_file "openstation-run.sh" ".openstation/openstation-run.sh"
+chmod +x ".openstation/openstation-run.sh"
+info ".openstation/openstation-run.sh"
 
 # --- Download example agents (skip if exist) -----------------------------
 
@@ -294,6 +318,72 @@ fi
 if [[ ! -e ".claude/skills" ]]; then
   ln -s "../.openstation/skills" ".claude/skills"
   info ".claude/skills → ../.openstation/skills"
+fi
+
+# --- Merge hook config into .claude/settings.json ------------------------
+
+printf 'Configuring hooks in .claude/settings.json...\n'
+
+SETTINGS_FILE=".claude/settings.json"
+
+# The hook entries we need to ensure exist
+HOOK_WRITE_EDIT='{"matcher":"Write|Edit","type":"command","command":"bash .openstation/hooks/validate-write-path.sh"}'
+HOOK_BASH='{"matcher":"Bash","type":"command","command":"bash .openstation/hooks/block-destructive-git.sh"}'
+
+if command -v jq &>/dev/null; then
+  # jq available — proper JSON merge
+  if [[ -f "$SETTINGS_FILE" ]]; then
+    existing="$(cat "$SETTINGS_FILE")"
+  else
+    existing='{}'
+  fi
+
+  # Merge: ensure hooks.PreToolUse contains our entries (deduplicated by command)
+  updated="$(echo "$existing" | jq --argjson h1 "$HOOK_WRITE_EDIT" --argjson h2 "$HOOK_BASH" '
+    .hooks //= {} |
+    .hooks.PreToolUse //= [] |
+    # Remove any existing entries with our commands (to avoid duplicates)
+    .hooks.PreToolUse |= [.[] | select(.command != $h1.command and .command != $h2.command)] |
+    # Append our entries
+    .hooks.PreToolUse += [$h1, $h2]
+  ')"
+
+  echo "$updated" > "$SETTINGS_FILE"
+  info "Merged hook config into $SETTINGS_FILE"
+else
+  # No jq — create or overwrite settings with hooks
+  if [[ -f "$SETTINGS_FILE" ]]; then
+    # Check if hooks are already present
+    if grep -q 'validate-write-path.sh' "$SETTINGS_FILE" && grep -q 'block-destructive-git.sh' "$SETTINGS_FILE"; then
+      skip "Hook entries already in $SETTINGS_FILE"
+    else
+      warn "Cannot merge hooks without jq. Please install jq or add hooks manually."
+      warn "Required hooks for $SETTINGS_FILE:"
+      printf '  %s\n' "$HOOK_WRITE_EDIT"
+      printf '  %s\n' "$HOOK_BASH"
+    fi
+  else
+    # No existing file — safe to create from scratch
+    cat > "$SETTINGS_FILE" <<'SETTINGS_JSON'
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "type": "command",
+        "command": "bash .openstation/hooks/validate-write-path.sh"
+      },
+      {
+        "matcher": "Bash",
+        "type": "command",
+        "command": "bash .openstation/hooks/block-destructive-git.sh"
+      }
+    ]
+  }
+}
+SETTINGS_JSON
+    info "Created $SETTINGS_FILE with hook config"
+  fi
 fi
 
 # --- Update CLAUDE.md ----------------------------------------------------

@@ -8,6 +8,14 @@ description: >-
 model: claude-sonnet-4-6
 skills:
   - openstation-execute
+allowed-tools:
+  - Read
+  - Glob
+  - Grep
+  - Write
+  - Edit
+  - "Bash(ls *)"
+  - "Bash(readlink *)"
 ---
 
 # Architect

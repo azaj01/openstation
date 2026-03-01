@@ -18,14 +18,10 @@ EXIT_AGENT_ERROR=4
 usage() {
   cat <<'USAGE'
 Usage: openstation-run.sh <agent-name> [OPTIONS]
-       openstation-run.sh --task <id-or-slug> [OPTIONS]
 
 Launch an Open Station agent in autonomous or semi-autonomous mode.
-Specify an agent directly, or use --task to resolve the agent from
-a task's frontmatter.
 
 Options:
-  --task ID     Resolve agent from task (ID like 0013 or full slug)
   --tier 1|2    Execution tier (default: 2)
                   1 = Semi-autonomous (interactive, acceptEdits)
                   2 = Fully autonomous (print mode, allowedTools)
@@ -36,7 +32,7 @@ Options:
 
 Exit codes:
   0   Success
-  1   Usage error (bad args, missing allowed-tools, no agent in task)
+  1   Usage error (bad args, missing allowed-tools)
   2   Agent spec not found
   3   Claude CLI not found
   4   Agent exited with error
@@ -102,7 +98,6 @@ parse_allowed_tools() {
 # --- Parse arguments ---------------------------------------------------------
 
 AGENT_NAME=""
-TASK_REF=""
 TIER="$DEFAULT_TIER"
 BUDGET="$DEFAULT_BUDGET"
 TURNS="$DEFAULT_TURNS"
@@ -142,14 +137,6 @@ while [[ $# -gt 0 ]]; do
       TURNS="$2"
       shift 2
       ;;
-    --task)
-      if [[ -z "${2:-}" ]]; then
-        err "--task requires a task ID or slug"
-        exit $EXIT_USAGE
-      fi
-      TASK_REF="$2"
-      shift 2
-      ;;
     --dry-run)
       DRY_RUN=true
       shift
@@ -172,13 +159,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -n "$AGENT_NAME" && -n "$TASK_REF" ]]; then
-  err "Specify either an agent name or --task, not both"
-  exit $EXIT_USAGE
-fi
-
-if [[ -z "$AGENT_NAME" && -z "$TASK_REF" ]]; then
-  err "Agent name or --task is required"
+if [[ -z "$AGENT_NAME" ]]; then
+  err "Agent name is required"
   exit $EXIT_USAGE
 fi
 
@@ -195,41 +177,6 @@ PROJECT_ROOT=""
 if ! PROJECT_ROOT="$(find_project_root)"; then
   err "Could not find Open Station project root"
   exit $EXIT_USAGE
-fi
-
-# --- Resolve --task to agent name --------------------------------------------
-
-if [[ -n "$TASK_REF" ]]; then
-  # Find task folder matching the ref (numeric ID or full slug)
-  TASK_DIR=""
-  for d in "$PROJECT_ROOT"/artifacts/tasks/*/; do
-    basename="$(basename "$d")"
-    # Match by full slug or numeric prefix
-    if [[ "$basename" == "$TASK_REF" ]] || [[ "$basename" == "$TASK_REF"-* ]]; then
-      TASK_DIR="$d"
-      break
-    fi
-  done
-
-  if [[ -z "$TASK_DIR" ]]; then
-    err "Task not found: $TASK_REF"
-    exit $EXIT_USAGE
-  fi
-
-  TASK_SPEC="$TASK_DIR/index.md"
-  if [[ ! -f "$TASK_SPEC" ]]; then
-    err "Task spec missing: $TASK_SPEC"
-    exit $EXIT_USAGE
-  fi
-
-  # Extract agent field from frontmatter
-  AGENT_NAME="$(sed -n 's/^agent: *//p' "$TASK_SPEC" | head -1)"
-  if [[ -z "$AGENT_NAME" ]]; then
-    err "No agent assigned to task: $(basename "$TASK_DIR")"
-    exit $EXIT_USAGE
-  fi
-
-  printf '\033[1;34minfo:\033[0m task %s → agent %s\n' "$(basename "$TASK_DIR")" "$AGENT_NAME" >&2
 fi
 
 # Locate agent spec — try installed path first, then source repo

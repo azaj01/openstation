@@ -16,8 +16,7 @@ Supported filters:
 - `status:<value>` — filter by status (backlog, ready, in-progress, review, done, failed)
 - `agent:<value>` — filter by assigned agent
 
-If no arguments provided, show all tasks **except** `done` and
-`failed`. To include them, pass `status:done` or `status:all`.
+If no arguments provided, show all tasks.
 
 ## Procedure
 
@@ -25,10 +24,7 @@ If no arguments provided, show all tasks **except** `done` and
    `tasks/done/`) for task folders containing an `index.md`
    (bucket entries are symlinks that resolve transparently).
 2. Parse YAML frontmatter from each `index.md`.
-3. Apply any filters from `$ARGUMENTS`. By default, exclude tasks
-   with `status: done` or `status: failed` unless a `status:`
-   filter is explicitly provided (use `status:all` to show
-   everything).
+3. Apply any filters from `$ARGUMENTS`.
 4. Display a markdown table with columns:
    | ID | Task | Status | Agent | Owner | Created |
    The ID column shows the 4-digit numeric prefix extracted from the

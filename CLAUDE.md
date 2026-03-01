@@ -130,3 +130,40 @@ ownership model, artifact storage, and promotion routing.
 - `.claude/commands` → `commands/` for slash command discovery
 - `skills/` contains agent-only skills (not user-invocable)
 - `commands/` contains user-invocable slash commands
+
+<!-- openstation:start -->
+# Open Station
+
+Task management system for coding AI agents. Pure convention —
+markdown specs + skills, zero runtime dependencies.
+
+## Vault Structure
+
+```
+.openstation/
+├── docs/              — Project documentation (lifecycle, task spec)
+├── tasks/             — Lifecycle buckets (contain symlinks)
+│   ├── backlog/       —   Not yet ready for agents
+│   ├── current/       —   Active work (ready → in-progress → review)
+│   └── done/          —   Completed tasks
+├── artifacts/         — Canonical artifact storage (source of truth)
+│   ├── tasks/         —   Task folders (canonical location, never move)
+│   ├── agents/        —   Agent specs (canonical location)
+│   ├── research/      —   Research outputs
+│   └── specs/         —   Specifications & designs
+├── agents/            — Agent discovery (symlinks → artifacts/agents/)
+├── skills/            — Agent skills (not user-invocable)
+└── commands/          — User-invocable slash commands
+```
+
+## Quick Start
+
+Create a task:  `/openstation.create <description>`
+List tasks:     `/openstation.list`
+Update a task:  `/openstation.update <name> field:value`
+Run an agent:   `claude --agent <name>`
+Complete task:  `/openstation.done <name>`
+
+See `.openstation/docs/lifecycle.md` for lifecycle rules and
+`.openstation/docs/task.spec.md` for task format.
+<!-- openstation:end -->

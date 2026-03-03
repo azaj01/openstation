@@ -7,6 +7,7 @@ description: >-
 model: claude-sonnet-4-6
 skills:
   - openstation-execute
+tools: Read, Glob, Grep, Write, Edit, Bash
 allowed-tools:
   - Read
   - Glob
@@ -17,6 +18,7 @@ allowed-tools:
   - "Bash(python3 *)"
   - "Bash(pip *)"
   - "Bash(pytest *)"
+  - "Bash(openstation *)"
   - "Bash(ls *)"
   - "Bash(readlink *)"
   - "Bash(mkdir *)"

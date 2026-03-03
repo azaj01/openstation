@@ -30,6 +30,23 @@ commands/          — User-invocable slash commands
 Task entries in buckets are symlinks to `artifacts/tasks/`.
 Reads through symlinks are transparent — no special handling needed.
 
+## CLI Tool
+
+The `openstation` CLI provides scriptable access to the task vault.
+Prefer it for discovery and inspection:
+
+```
+openstation list [--status <s>] [--agent <name>]
+openstation show <task>
+```
+
+If the CLI is not on `$PATH`, try `python3 bin/openstation` (source
+repo) or `python3 .openstation/bin/openstation` (installed project).
+Fall back to direct file reads when the CLI is unavailable.
+
+> **Note:** The CLI is currently read-only. Status transitions
+> (`in-progress`, `review`) still require direct frontmatter edits.
+
 ## On Startup
 
 1. Determine your agent name from your agent spec (`name` field in
@@ -38,7 +55,9 @@ Reads through symlinks are transparent — no special handling needed.
    transitions, ownership, artifact routing, guardrails).
 3. Read `docs/task.spec.md` for task format (fields, naming,
    body structure, editing guardrails).
-4. Scan `tasks/current/` for task folders containing an `index.md`
+4. Run `openstation list --status ready --agent <your-name>` to find
+   assigned ready tasks. If the CLI is unavailable, fall back to
+   scanning `tasks/current/` for task folders containing an `index.md`
    where `agent` matches your name AND `status` is `ready`.
 5. If multiple ready tasks exist, pick the one with the earliest
    `created` date.
@@ -49,18 +68,32 @@ Reads through symlinks are transparent — no special handling needed.
 
 ### 1. Load Context
 
-- Read the task's `index.md` completely — note requirements and
+- Run `openstation show <task-name>` to load the full task spec
+  (or read the task's `index.md` directly). Note requirements and
   verification checklist.
 - Set `status: in-progress` in the task frontmatter.
 
-### 2. Work Through Requirements
+### 2. Evaluate Complexity (optional)
+
+If the task is too large for a single pass, decompose it into
+sub-tasks before starting work. Signs a task needs decomposition:
+
+- Multiple independent deliverables
+- Requirements span different domains or skills
+- Estimated effort exceeds what one agent session can handle
+
+If decomposition is needed, skip to step 6 (Create Sub-Tasks),
+set `status: review`, and stop. The owner will promote the
+sub-tasks for execution.
+
+### 3. Work Through Requirements
 
 - Follow the requirements section of the task spec.
 - Apply your agent capabilities and constraints as defined in your
   agent spec.
 - Break complex work into logical steps.
 
-### 3. Store Artifacts
+### 4. Store Artifacts
 
 - Store artifacts in `artifacts/<category>/` (the canonical
   location). Routing:
@@ -76,7 +109,7 @@ Reads through symlinks are transparent — no special handling needed.
 - See `docs/lifecycle.md` § "Artifact Storage" for naming
   conventions and categories.
 
-### 4. Record Findings
+### 5. Record Findings
 
 After completing the work, add a `## Findings` section to
 `index.md` summarizing what you discovered or produced. Place it
@@ -91,7 +124,7 @@ between `## Requirements` and `## Verification`.
   (e.g., pure implementation tasks with nothing to summarize
   beyond the code itself).
 
-### 5. Create Sub-Tasks (if needed)
+### 6. Create Sub-Tasks (if needed)
 
 If a task requires decomposition:
 
@@ -107,6 +140,12 @@ If a task requires decomposition:
 
 See `docs/lifecycle.md` § "Sub-Tasks" for blocking rules and
 the full symlink convention.
+
+### 7. Update Documentation
+
+If your changes affect behavior, conventions, or structures
+documented in `docs/` or `CLAUDE.md`, update those files to
+stay in sync. Skip this step if no documentation is affected.
 
 ## Completing a Task
 

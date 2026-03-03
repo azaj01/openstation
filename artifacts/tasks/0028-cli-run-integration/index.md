@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0028-cli-run-integration
-status: backlog
+status: ready
 agent: developer
 owner: manual
 created: 2026-03-01
@@ -57,15 +57,24 @@ Refactored `openstation-run.sh` with the following improvements:
 completing first. The shell script remains the canonical run
 mechanism until then.
 
+## Subtasks
+
+### P0
+
+1. **Spec: CLI run subcommand** (0038-cli-run-spec) — Define
+   the interface, execution model, and error handling for the
+   `openstation run` subcommand. Agent: researcher.
+
+### P1
+
+2. **Implement CLI run subcommand** (0039-cli-run-implement) —
+   Build the `run` subcommand in Python based on the spec,
+   port shell logic, update dispatch command. Agent: developer.
+   Depends on 0038.
+
 ## Verification
 
-- [ ] `openstation-run.sh` has clear section headers and inline
-      comments explaining non-obvious logic
-- [ ] Complex conditionals are simplified or broken into named
-      helper functions
-- [ ] All existing flags (`--task`, `--tier`, `--budget`,
-      `--turns`, `--dry-run`) still work correctly
-- [ ] `/openstation.dispatch` correctly references the run
-      mechanism
-- [ ] Tier 1 (interactive) and Tier 2 (autonomous) execution
-      paths both function as before
+- [ ] Spec produced and approved (0038)
+- [ ] `openstation run` subcommand implemented and functional (0039)
+- [ ] All existing flags work via the new CLI path
+- [ ] `/openstation.dispatch` references the new run command

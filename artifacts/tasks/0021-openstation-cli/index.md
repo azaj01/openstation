@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0021-openstation-cli
-status: in-progress
+status: done
 agent: researcher
 owner: manual
 created: 2026-02-28
@@ -56,11 +56,11 @@ scriptable commands.
 
 ## Verification
 
-- [ ] `openstation list` shows non-done tasks with status, agent, owner
-- [ ] `openstation list --status ready` filters correctly
-- [ ] `openstation list --status all` includes done/failed tasks
-- [ ] `openstation list --agent researcher` filters by agent
-- [ ] `openstation show <task>` prints full task spec
-- [ ] `openstation show` with invalid task prints an error message
-- [ ] Works in both source repo and `.openstation/` installed projects
-- [ ] No external dependencies required
+- [x] `openstation list` shows non-done tasks with status, agent, owner
+- [x] `openstation list --status ready` filters correctly
+- [x] `openstation list --status all` includes done/failed tasks
+- [x] `openstation list --agent researcher` filters by agent
+- [x] `openstation show <task>` prints full task spec
+- [x] `openstation show` with invalid task prints an error message
+- [x] Works in both source repo and `.openstation/` installed projects
+- [x] No external dependencies required

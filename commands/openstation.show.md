@@ -18,6 +18,29 @@ Examples:
 
 ## Procedure
 
+Run this exact Bash command:
+
+```bash
+openstation show <task>
+```
+
+Replace `<task>` with `$ARGUMENTS`. The CLI supports exact match
+and prefix match (e.g., `0010` resolves to
+`0010-refactor-commands-lifecycle`).
+
+**IMPORTANT: Run the command exactly as shown above. Do not modify
+the command in any way. Do not add `2>&1`, `2>/dev/null`,
+`|| echo`, or any other shell operators.**
+
+The CLI prints the full `index.md` content (frontmatter + body).
+After displaying it, also report:
+- The canonical location (e.g., `artifacts/tasks/0010-refactor-commands-lifecycle/index.md`)
+- The bucket the task is in (backlog, current, or done)
+
+### Fallback: Manual File Reads
+
+Only if `openstation` is not installed:
+
 1. Parse the task name from `$ARGUMENTS`.
 2. Locate the task folder across all buckets:
    - Search `tasks/backlog/`, `tasks/current/`, and `tasks/done/`

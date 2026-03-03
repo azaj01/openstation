@@ -24,15 +24,52 @@ Generate a new task spec from a description.
    - If no prefixed folders exist, start at `0001`.
 4. The folder name becomes `<ID>-<slug>` and the `name` field
    matches `<ID>-<slug>`.
-5. Create `artifacts/tasks/<ID>-<slug>/index.md` with this structure:
+5. **Interview** — ask the user (via AskUserQuestion) to refine
+   the spec before writing anything. Do not create files until the
+   interview is complete.
+
+   a. **What type of work?** — ask the user to classify:
+      research, authoring (specs/docs), implementation, or other.
+      This informs the agent suggestion in step (d).
+
+   b. **Requirements** — expand the description into a concrete
+      requirements draft. Present the draft to the user and ask if
+      anything is missing or needs changing. Iterate (re-ask) until
+      the user approves the requirements.
+
+   c. **Verification criteria** — propose verification items
+      derived from the approved requirements. Ask the user to
+      confirm or adjust.
+
+   d. **Agent & owner** — suggest an agent based on work type:
+      `researcher` for research, `author` for authoring,
+      `developer` for implementation. Ask the user to confirm or
+      pick a different agent. Ask who verifies (default: `user`).
+
+   e. **Decomposition** — if the requirements suggest multiple
+      independent deliverables or span different domains, propose
+      breaking the task into sub-tasks. List the suggested
+      sub-tasks and ask the user to confirm. If accepted, create
+      each sub-task using the standard sub-task convention
+      (canonical folder + parent symlink, no bucket symlink).
+      See `docs/lifecycle.md` § "Sub-Tasks" and
+      `docs/task.spec.md` § "Sub-tasks" for the full convention.
+      If the task is simple and self-contained, skip this step.
+
+   f. **Ready to start?** — ask whether the task should go
+      straight to `ready` (status: ready, symlink in
+      `tasks/current/`) or stay in `backlog`.
+
+6. Create `artifacts/tasks/<ID>-<slug>/index.md` using interview
+   answers:
 
    ```markdown
    ---
    kind: task
    name: <ID>-<slug>
-   status: backlog
-   agent:
-   owner: manual
+   status: <backlog or ready, from step 5f>
+   agent: <from step 5d>
+   owner: <from step 5d, default: user>
    created: <today's date YYYY-MM-DD>
    ---
 
@@ -40,17 +77,20 @@ Generate a new task spec from a description.
 
    ## Requirements
 
-   <Expand the description into concrete requirements>
+   <Approved requirements from step 5b>
 
    ## Verification
 
-   - [ ] <Verification items derived from requirements>
+   - [ ] <Approved verification items from step 5c>
    ```
 
-6. **Symlink placement** — depends on whether this is a sub-task:
+7. **Symlink placement** — depends on whether this is a sub-task:
 
    **Regular task** (no parent): create a bucket symlink:
-   `tasks/backlog/<ID>-<slug> → ../../artifacts/tasks/<ID>-<slug>`
+   - If status is `backlog`:
+     `tasks/backlog/<ID>-<slug> → ../../artifacts/tasks/<ID>-<slug>`
+   - If status is `ready`:
+     `tasks/current/<ID>-<slug> → ../../artifacts/tasks/<ID>-<slug>`
 
    **Sub-task** (parent specified in `$ARGUMENTS` or by user):
    - Add `parent: <parent-task-name>` to the frontmatter.
@@ -62,10 +102,8 @@ Generate a new task spec from a description.
    See `docs/lifecycle.md` § "Sub-Tasks" and `docs/task.spec.md`
    § "Sub-tasks" for the full convention.
 
-7. Ask the user:
-   - Should an agent be assigned? If yes, which one?
-   - Should the status be changed from `backlog` to `ready`?
-     If yes, move the symlink to `tasks/current/` (regular tasks
-     only — sub-tasks never get bucket symlinks).
-8. Update the frontmatter with their answers.
+8. If sub-tasks were accepted in step 5e, create each sub-task
+   now (folder, `index.md`, parent symlink) following the same
+   template. Do **not** create bucket symlinks for sub-tasks.
+
 9. Confirm the file was created and show the path.

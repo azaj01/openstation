@@ -8,12 +8,14 @@ description: >-
 model: claude-sonnet-4-6
 skills:
   - openstation-execute
+tools: Read, Glob, Grep, Write, Edit, Bash
 allowed-tools:
   - Read
   - Glob
   - Grep
   - Write
   - Edit
+  - "Bash(openstation *)"
   - "Bash(ls *)"
   - "Bash(readlink *)"
 ---

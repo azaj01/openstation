@@ -5,21 +5,59 @@ description: List all tasks with status, agent, and dates. Supports filters via 
 
 # List Tasks
 
-Scan all task folders across `tasks/backlog/`, `tasks/current/`,
-and `tasks/done/` and display them as a markdown table.
+Display tasks from the Open Station vault as a readable table.
 
 ## Input
 
 `$ARGUMENTS` — optional space-separated filters in `key:value` format.
 
 Supported filters:
-- `status:<value>` — filter by status (backlog, ready, in-progress, review, done, failed)
+- `status:<value>` — filter by status (backlog, ready, in-progress, review, done, failed, all)
 - `agent:<value>` — filter by assigned agent
 
 If no arguments provided, show all tasks **except** `done` and
 `failed`. To include them, pass `status:done` or `status:all`.
 
 ## Procedure
+
+Run this exact Bash command (translate filters from `$ARGUMENTS`):
+
+```bash
+# No filters:
+openstation list
+
+# With status filter:
+openstation list --status ready
+
+# With agent filter:
+openstation list --agent researcher
+
+# Combined:
+openstation list --status ready --agent researcher
+```
+
+**IMPORTANT: Run the command exactly as shown above. Do not modify
+the command in any way. Do not add `2>&1`, `2>/dev/null`,
+`|| echo`, or any other shell operators.**
+
+| Filter | CLI flag |
+|--------|----------|
+| `status:<value>` | `--status <value>` |
+| `agent:<value>` | `--agent <value>` |
+| _(no status filter)_ | _(default: excludes done/failed)_ |
+
+Display the CLI output directly — it produces an aligned table
+sorted by ID.
+
+After the table, show summary counts:
+```
+Total: N | backlog: N | ready: N | in-progress: N | review: N | done: N | failed: N
+```
+Only include statuses that have at least one task.
+
+### Fallback: Manual Scan
+
+Only if `openstation` is not installed:
 
 1. Scan each status bucket (`tasks/backlog/`, `tasks/current/`,
    `tasks/done/`) for task folders containing an `index.md`
@@ -35,8 +73,4 @@ If no arguments provided, show all tasks **except** `done` and
    folder name (e.g., `0003`). The Owner column shows the `owner`
    field value (default `manual` if absent).
 5. Sort by ID (ascending) as primary sort.
-6. Below the table, show summary counts:
-   ```
-   Total: N | backlog: N | ready: N | in-progress: N | review: N | done: N | failed: N
-   ```
-   Only include statuses that have at least one task.
+6. Below the table, show summary counts.

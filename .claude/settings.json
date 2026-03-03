@@ -1,4 +1,9 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(openstation *)"
+    ]
+  },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
   },

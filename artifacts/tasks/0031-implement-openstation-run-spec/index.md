@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0031-implement-openstation-run-spec
-status: ready
+status: done
 agent: developer
 owner: project-manager
 created: 2026-03-01

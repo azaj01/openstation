@@ -3,68 +3,79 @@ kind: spec
 name: cli-feature-spec
 task: 0023-cli-feature-spec
 created: 2026-03-01
+status: approved
 ---
 
-# OpenStation CLI — Feature Spec
+# OpenStation CLI
 
-Technical specification for the `openstation` CLI tool. Based on
-research from `0022-cli-feature-research`.
+Single-file Python CLI providing deterministic, scriptable
+read-only access to the Open Station task vault.
 
-## Overview
+## Problem
 
-A single-file Python 3.8+ CLI (`openstation`) that provides two
-read-only commands: `list` and `show`. Replaces the prompt-driven
-slash commands with deterministic, scriptable equivalents.
-Uses stdlib only — no external dependencies.
+Slash commands (`/openstation.list`, `/openstation.show`) require
+an active Claude session and produce non-deterministic output.
+Agents and humans need a scriptable CLI that reads the vault
+directly — usable in shell pipelines, CI, and without an LLM.
 
----
-
-## File Layout
-
-### Source Location
+## Architecture
 
 ```
-bin/openstation          # Single-file Python script (source repo)
+CLI invocation
+│
+├─ parse args ──► subcommand (list | show)
+│
+├─ find_root()
+│   └─ walk up from CWD
+│       ├─ .openstation/ dir → installed project (prefix=".openstation")
+│       └─ agents/ + install.sh → source repo (prefix="")
+│
+├─ tasks_dir = root / prefix / "artifacts" / "tasks"
+│
+├─ LIST path
+│   ├─ scan tasks_dir/*/index.md
+│   ├─ parse_frontmatter() per file
+│   ├─ resolve_bucket() via symlink check
+│   ├─ apply filters (--status, --agent)
+│   ├─ sort by ID ascending
+│   └─ format_table() → stdout
+│
+└─ SHOW path
+    ├─ resolve_task() by exact or prefix match
+    ├─ read index.md
+    └─ raw content → stdout
 ```
 
-The script has a shebang (`#!/usr/bin/env python3`) and is
-executable. No package structure — one file for the entire CLI.
-
-### Installation
-
-`install.sh` copies the script to the target project:
+### Data Flow
 
 ```
-.openstation/bin/openstation
+artifacts/tasks/*/index.md
+        │
+        ▼
+  parse_frontmatter()     ─► dict of key:value pairs
+        │
+        ▼
+  resolve_bucket()        ─► check tasks/{backlog,current,done}/ symlinks
+        │
+        ▼
+  filter + sort           ─► ordered task list
+        │
+        ▼
+  format_table()          ─► stdout (list) or raw output (show)
 ```
-
-Users add `.openstation/bin` to their PATH, or invoke directly.
 
 ### Vault Root Detection
 
-Walk up from CWD to find the project root. Matches the existing
-`openstation-run.sh` pattern.
+Walk up from CWD to find the project root. Two detection patterns,
+matching `openstation-run.sh`:
 
-```
-def find_root(start) -> (root_path, prefix):
-    for each ancestor of start:
-        if .openstation/ exists   → return (ancestor, ".openstation")
-        if agents/ + install.sh  → return (ancestor, "")
-    error: "not in an Open Station project"
-```
+1. `.openstation/` directory → installed project (takes precedence)
+2. `agents/` dir + `install.sh` file → source repo
 
-**Precedence**: `.openstation/` wins if both are present (the
-installed structure is canonical).
+Returns `(root_path, prefix)`. All paths derive from:
+`tasks_dir = root / prefix / "artifacts" / "tasks"`
 
-Once root and prefix are known, all paths derive from:
-
-```
-tasks_dir  = root / prefix / "artifacts" / "tasks"
-```
-
----
-
-## Task Discovery
+### Task Discovery
 
 Scan `{tasks_dir}/*/index.md`. For each file:
 
@@ -90,27 +101,38 @@ Handles the flat `key: value` format used by task specs. Does not
 handle nested YAML, multi-line values, or list fields beyond
 `artifacts:` (which can be ignored for list/show).
 
----
+## Components
 
-## Commands
+| # | Component | Location | Purpose |
+|---|-----------|----------|---------|
+| C1 | CLI script | `bin/openstation` | Single-file Python 3.8+ entry point |
+| C2 | `list` command | (in C1) | Filtered task table to stdout |
+| C3 | `show` command | (in C1) | Raw task spec to stdout |
+| C4 | Root detector | (in C1) | `find_root()` — walks up from CWD |
+| C5 | Frontmatter parser | (in C1) | `parse_frontmatter()` — `str.split(':', 1)` |
+| C6 | Bucket resolver | (in C1) | `resolve_bucket()` — checks symlinks |
+| C7 | Integration tests | `tests/test_cli.py` | Subprocess-based tests with temp fixtures |
 
-### `openstation list`
+### C1: CLI Script
 
-List tasks as a formatted table.
+Single-file Python script with shebang (`#!/usr/bin/env python3`).
+No package structure. External packages allowed when they add clear value.
 
-**Synopsis**:
+**Source**: `bin/openstation`
+**Installed**: `.openstation/bin/openstation` (copied by `install.sh`)
+
+### C2: `list` Command
+
 ```
 openstation list [--status <status>] [--agent <name>]
 ```
 
-**Flags**:
-
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--status` | string | `active` | Filter by status. Special values: `active` (excludes done/failed), `all` (no filter) |
+| `--status` | string | `active` | Filter by status. Special: `active` (excludes done/failed), `all` (no filter) |
 | `--agent` | string | none | Filter by agent name (exact match) |
 
-**Output**: Markdown table to stdout.
+**Output**: Formatted table to stdout.
 
 ```
 ID     Name                         Status       Agent       Owner
@@ -119,68 +141,112 @@ ID     Name                         Status       Agent       Owner
 0023   cli-feature-spec             ready        architect   manual
 ```
 
-**Column widths**: Auto-sized to content, with minimum widths:
-- ID: 4, Name: 10, Status: 7, Agent: 5, Owner: 5
+- Column widths auto-sized to content, minimums: ID 4, Name 10, Status 7, Agent 5, Owner 5
+- Sort: by ID ascending (numeric)
+- Default: exclude `done`/`failed` (equivalent to `--status active`)
+- Filters combine with AND
 
-**Sort order**: By ID ascending (numeric).
+**Exit codes**: 0 success, 1 usage error, 2 not in project
 
-**Default behavior**: Exclude tasks with `status: done` or
-`status: failed`. Equivalent to `--status active`.
+### C3: `show` Command
 
-**Filter logic**: Filters combine with AND. `--status ready
---agent researcher` shows only tasks that are both ready AND
-assigned to researcher.
-
-**Exit codes**:
-- 0: Success (even if no tasks match)
-- 1: Usage error (invalid flags)
-- 2: Not in an Open Station project
-
----
-
-### `openstation show`
-
-Display the full task spec (frontmatter + body).
-
-**Synopsis**:
 ```
 openstation show <task>
 ```
 
-**Arguments**:
-
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
-| `task` | string | yes | Task ID (e.g., `0023`) or full slug (e.g., `0023-cli-feature-spec`) |
+| `task` | string | yes | Task ID (`0023`) or full slug (`0023-cli-feature-spec`) |
 
-**Task resolution**: Match against folder names in `artifacts/tasks/`:
+**Resolution**: match against folder names in `artifacts/tasks/`:
 - Exact match: `0023-cli-feature-spec`
 - Prefix match: `0023` matches `0023-cli-feature-spec`
-- If multiple folders match a prefix, error with the list of matches
+- Multiple prefix matches → error with list of matches
 
 **Output**: Raw content of `index.md` to stdout.
 
-**Exit codes**:
-- 0: Success
-- 1: Usage error (no task argument)
-- 2: Not in an Open Station project
-- 3: Task not found
-- 4: Ambiguous match (multiple tasks match prefix)
+**Exit codes**: 0 success, 1 usage error, 2 not in project, 3 not found, 4 ambiguous
 
----
+### C7: Integration Tests
+
+Subprocess-based tests using `tempfile.mkdtemp()` to create
+disposable vault structures. Each test creates minimal
+directory/file fixtures, runs the CLI via `subprocess.run()`,
+and asserts on stdout, stderr, and exit code.
+
+**File**: `tests/test_cli.py`
+
+**Categories**:
+
+1. **List command** — default excludes done/failed, `--status`
+   filters, `--agent` filters, combined filters, empty results,
+   broken symlinks skipped
+2. **Show command** — by slug, by ID prefix, ambiguous prefix
+   (exit 4), not found (exit 3), missing index.md
+3. **Root detection** — `.openstation/` in parent, source repo
+   root, error when not in project
+
+**Running**:
+```bash
+python3 -m pytest tests/test_cli.py        # if pytest available
+python3 -m unittest tests.test_cli          # stdlib fallback
+```
+
+## Verification
+
+| Component | Criterion |
+|-----------|-----------|
+| C1 | Script is executable with Python 3.8+ shebang |
+| C2 | `openstation list` shows non-done tasks with status, agent, owner |
+| C2 | `--status ready` filters correctly |
+| C2 | `--status all` includes done/failed tasks |
+| C2 | `--agent researcher` filters by agent |
+| C2 | Combined filters work with AND logic |
+| C3 | `openstation show <slug>` prints full task spec |
+| C3 | `openstation show <id>` resolves prefix match |
+| C3 | Ambiguous prefix → exit 4 with match list |
+| C3 | Not found → exit 3 |
+| C4 | Finds `.openstation/` in ancestor directory |
+| C4 | Finds source repo root (agents/ + install.sh) |
+| C4 | Errors when not in a project |
+| C6 | Broken symlinks skipped silently in list |
+| C6 | Missing index.md skipped in list, error in show |
+| C7 | All test categories pass |
+
+## Design Decisions
+
+### DD-1: Single-file Python, not multi-module
+
+One file at `bin/openstation` with no package structure. The CLI
+has two commands and ~200 lines of logic — a package would add
+complexity without benefit. Matches the `openstation-run.sh`
+pattern of self-contained scripts.
+
+### DD-2: Frontmatter parsing strategy
+
+Frontmatter is parsed with `str.split(':', 1)` — handles the
+flat `key: value` format used by task specs. A full YAML parser
+(PyYAML) may be used if task specs grow to need nested YAML, list
+fields, or multi-line values. For now the simple parser suffices.
+
+### DD-3: Symlink-based bucket resolution
+
+Instead of maintaining a status→bucket mapping, the CLI checks
+which `tasks/{bucket}/` symlink exists for each task. This is
+the source of truth — the symlink location defines the lifecycle
+stage regardless of the frontmatter `status` field.
+
+### DD-4: Read-only idempotency
+
+Both commands are pure reads. Running them any number of times
+produces identical output for the same vault state. No side effects.
+
+### DD-5: Error format matches openstation-run.sh
+
+All errors print `error: <message>` to stderr. No stack traces
+or debug info. Consistent with the existing shell launcher.
 
 ## Error Handling
-
-### Error Format
-
-All errors print to stderr:
-
-```
-error: <message>
-```
-
-No stack traces or debug info in normal mode. Matches the
-existing `openstation-run.sh` error format.
 
 ### Error Categories
 
@@ -189,77 +255,27 @@ existing `openstation-run.sh` error format.
 | 0 | Success | Command completed (even with empty results) |
 | 1 | Usage error | Missing arguments, invalid flags |
 | 2 | Project error | Not in an Open Station project |
-| 3 | Not found | Task not found |
-| 4 | Ambiguous | Multiple tasks match a prefix |
+| 3 | Not found | Task not found (show only) |
+| 4 | Ambiguous | Multiple tasks match a prefix (show only) |
 
-### Broken Symlinks
+### Edge Cases
 
-When a bucket symlink points to a non-existent folder:
-- `list`: Skip the entry silently (don't crash)
-- `show`: Print `error: task folder missing (broken symlink)`
+**Broken symlinks**: `list` skips silently; `show` prints
+`error: task folder missing (broken symlink)`.
 
-### Missing `index.md`
+**Missing `index.md`**: `list` skips the entry; `show` prints
+`error: task spec missing`.
 
-If a task folder exists but has no `index.md`:
-- `list`: Skip the entry
-- `show`: Print `error: task spec missing`
+## Dependencies
 
----
+| Dependency | Required | Purpose |
+|------------|----------|---------|
+| Python 3.8+ | yes | Runtime |
+| `os`, `sys`, `pathlib` | yes | File system operations |
+| `argparse` | yes | Argument parsing (stdlib) |
+| `unittest`, `tempfile`, `subprocess` | test only | Integration tests |
 
-## Idempotency
-
-Both commands are read-only. Running them any number of times
-produces identical output for the same vault state. No side
-effects.
-
----
-
-## Testing Strategy
-
-### Approach: Integration Tests with Temp Fixtures
-
-Use Python `unittest` with `tempfile.mkdtemp()` to create
-disposable vault structures. Each test creates the minimal
-directory/file structure it needs, runs the CLI as a subprocess,
-and asserts on stdout, stderr, and exit code.
-
-### Test File Location
-
-```
-tests/test_cli.py       # All CLI tests in one file
-```
-
-Uses `subprocess.run()` to invoke `bin/openstation` as a child
-process — tests the actual script, not imported functions.
-
-### Test Categories
-
-**1. List command**
-- Default output excludes done/failed
-- `--status ready` filters correctly
-- `--status all` includes everything
-- `--agent <name>` filters by agent
-- Combined filters (`--status ready --agent researcher`)
-- Empty result (no tasks match) → exit 0, empty table
-- Broken symlinks are skipped
-
-**2. Show command**
-- Show by full slug
-- Show by numeric ID prefix
-- Ambiguous prefix (multiple matches) → exit 4
-- Task not found → exit 3
-- Missing index.md → error message
-
-**3. Root detection**
-- Finds `.openstation/` in parent directory
-- Finds source repo root (agents/ + install.sh)
-- Errors when not in a project
-
-### Running Tests
-
-```bash
-python3 -m pytest tests/test_cli.py        # if pytest available
-python3 -m unittest tests.test_cli          # stdlib fallback
-```
-
-Both work — no pytest dependency required.
+External packages may be added via `requirements.txt` when they
+provide clear value (e.g., `PyYAML` for robust frontmatter parsing,
+`rich` for terminal formatting). Prefer stdlib when the stdlib
+solution is adequate.

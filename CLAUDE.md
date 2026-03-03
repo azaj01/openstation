@@ -1,7 +1,8 @@
 # Open Station
 
-Task management system for coding AI agents. Pure convention —
-markdown specs + skills, zero runtime dependencies.
+Task management system for coding AI agents. Convention-first —
+markdown specs + skills, minimal dependencies. Adding packages
+or modules to existing components is fine; stay minimal.
 
 ## Vault Structure
 
@@ -134,8 +135,9 @@ ownership model, artifact storage, and promotion routing.
 <!-- openstation:start -->
 # Open Station
 
-Task management system for coding AI agents. Pure convention —
-markdown specs + skills, zero runtime dependencies.
+Task management system for coding AI agents. Convention-first —
+markdown specs + skills, minimal dependencies. Adding packages
+or modules to existing components is fine; stay minimal.
 
 ## Vault Structure
 

@@ -1,10 +1,27 @@
 #!/usr/bin/env python3
-"""OpenStation CLI — read-only access to the Open Station task vault."""
+"""OpenStation CLI — manage the Open Station task vault."""
 
 import argparse
 import os
+import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+
+# --- Constants ---------------------------------------------------------------
+
+EXIT_OK = 0
+EXIT_USAGE = 1
+EXIT_NO_AGENT = 2
+EXIT_NO_CLAUDE = 3
+EXIT_AGENT_ERROR = 4
+EXIT_TASK_NOT_READY = 5
+
+DEFAULT_TIER = 2
+DEFAULT_BUDGET = 5
+DEFAULT_TURNS = 50
+DEFAULT_MAX_TASKS = 1
 
 
 def err(msg):
@@ -161,6 +178,342 @@ def resolve_task(root, prefix, query):
     return None, f"task not found: {query}", 3
 
 
+# --- Run subcommand helpers --------------------------------------------------
+
+
+def tasks_dir_path(root, prefix):
+    """Return the Path to artifacts/tasks/ for the given root and prefix."""
+    if prefix:
+        return Path(root) / prefix / "artifacts" / "tasks"
+    return Path(root) / "artifacts" / "tasks"
+
+
+def find_agent_spec(root, prefix, agent_name):
+    """Locate an agent's markdown spec file.
+
+    Checks installed path (.openstation/agents/) first, then source repo
+    path (agents/). Returns Path or None.
+    """
+    candidates = []
+    if prefix:
+        candidates.append(Path(root) / prefix / "agents" / f"{agent_name}.md")
+    candidates.append(Path(root) / "agents" / f"{agent_name}.md")
+    for p in candidates:
+        # Resolve symlinks transparently
+        if p.exists():
+            return p
+    return None
+
+
+def parse_allowed_tools(spec_path):
+    """Extract the allowed-tools list from an agent spec's frontmatter.
+
+    Reads line by line, finds the `allowed-tools:` key, and collects
+    subsequent YAML list items until the next non-list line or end of
+    frontmatter. Returns a list of tool strings.
+    """
+    tools = []
+    in_list = False
+    try:
+        text = Path(spec_path).read_text(encoding="utf-8")
+    except OSError:
+        return tools
+
+    for line in text.splitlines():
+        # Stop at end of frontmatter
+        if in_list and line.strip() == "---":
+            break
+        # Detect start of the allowed-tools list
+        if line.startswith("allowed-tools:"):
+            in_list = True
+            continue
+        if in_list:
+            # A non-list-item line means we've left the block
+            if not re.match(r"^\s*-\s+", line):
+                break
+            # Extract value: strip leading "  - " then remove quotes
+            value = re.sub(r"^\s*-\s+", "", line)
+            value = value.strip().strip("\"'")
+            tools.append(value)
+    return tools
+
+
+def build_command(agent_name, tier, budget, turns, prompt, tools):
+    """Assemble the claude CLI argv for the given tier.
+
+    Tier 1: interactive session with acceptEdits permission mode.
+    Tier 2: autonomous print mode with explicit tool allowlist and budget.
+    Returns a list of strings (command + arguments).
+    """
+    if tier == 1:
+        return [
+            "claude",
+            "--agent", agent_name,
+            "--permission-mode", "acceptEdits",
+        ]
+    # Tier 2 (autonomous)
+    cmd = [
+        "claude",
+        "-p", prompt,
+        "--agent", agent_name,
+        "--allowedTools",
+    ]
+    cmd.extend(tools)
+    cmd.extend([
+        "--max-budget-usd", str(budget),
+        "--max-turns", str(turns),
+        "--output-format", "json",
+    ])
+    return cmd
+
+
+def assert_task_ready(spec_path, task_name):
+    """Validate that a task's status is 'ready'. Returns (ok, status)."""
+    try:
+        text = Path(spec_path).read_text(encoding="utf-8")
+    except OSError:
+        return False, "missing"
+    fm = parse_frontmatter(text)
+    status = fm.get("status", "")
+    return status == "ready", status
+
+
+def find_ready_subtasks(task_dir, force=False):
+    """Scan a task directory for symlinked sub-task folders.
+
+    Returns a list of (subtask_dir, subtask_name) tuples.
+    When force=True, returns all subtasks regardless of status;
+    otherwise only those with status 'ready'.
+    """
+    results = []
+    task_dir = Path(task_dir)
+    if not task_dir.is_dir():
+        return results
+    for entry in sorted(task_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        # Sub-tasks are symlinks to sibling directories
+        if not entry.is_symlink():
+            continue
+        spec = entry / "index.md"
+        if not spec.is_file():
+            continue
+        if force:
+            results.append((entry, entry.name))
+        else:
+            try:
+                text = spec.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            fm = parse_frontmatter(text)
+            if fm.get("status") == "ready":
+                results.append((entry, entry.name))
+    return results
+
+
+def info(msg):
+    """Print an info message to stderr."""
+    print(f"info: {msg}", file=sys.stderr)
+
+
+def run_single_task(root, prefix, task_dir, tier, budget, turns, dry_run):
+    """Execute one task: resolve agent, build command, launch.
+
+    Returns the exit code.
+    """
+    task_dir = Path(task_dir)
+    task_name = task_dir.name
+    spec = task_dir / "index.md"
+
+    # Resolve agent from task frontmatter
+    try:
+        text = spec.read_text(encoding="utf-8")
+    except OSError:
+        err(f"Task spec missing: {spec}")
+        return EXIT_USAGE
+    fm = parse_frontmatter(text)
+    agent = fm.get("agent", "")
+    if not agent:
+        err(f"No agent assigned to task: {task_name}")
+        return EXIT_USAGE
+
+    info(f"task {task_name} → agent {agent}")
+
+    # Locate agent spec and parse tools
+    agent_spec = find_agent_spec(root, prefix, agent)
+    if agent_spec is None:
+        err(f"Agent spec not found: {agent}")
+        return EXIT_NO_AGENT
+
+    tools = parse_allowed_tools(agent_spec)
+    if not tools:
+        err(f"No allowed-tools found in agent spec: {agent_spec}")
+        return EXIT_USAGE
+
+    # Build command with task-specific prompt
+    prompt = (
+        f"Execute task {task_name}. Read its spec at "
+        f"artifacts/tasks/{task_name}/index.md and work through "
+        f"the requirements."
+    )
+    cmd = build_command(agent, tier, budget, turns, prompt, tools)
+
+    if dry_run:
+        print(shlex_join(cmd))
+        return EXIT_OK
+
+    info(f"Launching agent {agent} for task {task_name}...")
+    result = subprocess.run(cmd, cwd=str(root))
+    return result.returncode if result.returncode == 0 else EXIT_AGENT_ERROR
+
+
+def shlex_join(cmd):
+    """Join a command list into a shell-safe string."""
+    import shlex
+    return " ".join(shlex.quote(arg) for arg in cmd)
+
+
+def cmd_run(args, root, prefix):
+    """Handle the run subcommand."""
+    agent_name = args.agent
+    task_ref = args.task
+
+    # Mutual exclusion: exactly one of agent or --task
+    if agent_name and task_ref:
+        err("Specify either an agent name or --task, not both")
+        return EXIT_USAGE
+    if not agent_name and not task_ref:
+        err("Agent name or --task is required")
+        return EXIT_USAGE
+
+    # Check claude is available
+    if not shutil.which("claude"):
+        err("claude CLI not found on $PATH")
+        return EXIT_NO_CLAUDE
+
+    tier = args.tier
+    budget = args.budget
+    turns = args.turns
+    dry_run = args.dry_run
+    force = args.force
+    max_tasks = args.max_tasks
+
+    if task_ref:
+        # --- BY-TASK MODE ---
+        task_name, error, code = resolve_task(root, prefix, task_ref)
+        if error:
+            err(error)
+            return code
+
+        tdir = tasks_dir_path(root, prefix) / task_name
+        spec = tdir / "index.md"
+
+        if not force:
+            ok, status = assert_task_ready(spec, task_name)
+            if not ok:
+                err(f"Task {task_name} has status '{status}' (expected 'ready')")
+                return EXIT_TASK_NOT_READY
+
+        info(f"Task collection: {task_name}")
+
+        # Discover ready subtasks
+        subtasks = find_ready_subtasks(tdir, force=force)
+
+        if subtasks:
+            info(f"Found {len(subtasks)} ready subtask(s)")
+            completed = 0
+            remaining = len(subtasks)
+
+            for sub_dir, sub_name in subtasks:
+                if completed >= max_tasks:
+                    break
+                info(f"[{completed + 1}/{max_tasks}] Executing subtask: {sub_name}")
+                rc = run_single_task(root, prefix, sub_dir, tier, budget, turns, dry_run)
+                if rc == EXIT_OK:
+                    completed += 1
+                    remaining -= 1
+                else:
+                    err(f"Subtask {sub_name} failed (exit {rc})")
+                    break
+
+            info(f"Summary: {completed} completed, {remaining} remaining of {len(subtasks)} subtask(s)")
+            if remaining > 0 and completed >= max_tasks:
+                info(f"Task limit reached ({max_tasks}). Re-run to continue.")
+            return EXIT_OK if completed > 0 else EXIT_AGENT_ERROR
+        else:
+            # No subtasks — run parent task directly
+            info("No subtasks found, executing task directly")
+            return _exec_or_run(root, prefix, tdir, agent_name, tier, budget, turns, dry_run)
+    else:
+        # --- BY-AGENT MODE ---
+        agent_spec = find_agent_spec(root, prefix, agent_name)
+        if agent_spec is None:
+            err(f"Agent spec not found: {agent_name}")
+            return EXIT_NO_AGENT
+
+        tools = parse_allowed_tools(agent_spec)
+        if not tools:
+            err(f"No allowed-tools found in agent spec: {agent_spec}")
+            return EXIT_USAGE
+
+        prompt = "Execute your ready tasks."
+        cmd = build_command(agent_name, tier, budget, turns, prompt, tools)
+
+        if dry_run:
+            print(shlex_join(cmd))
+            return EXIT_OK
+
+        # By-agent: exec replaces the process (no post-exec work)
+        os.chdir(str(root))
+        os.execvp(cmd[0], cmd)
+        # execvp does not return on success
+        return EXIT_OK  # unreachable, but satisfies type checkers
+
+
+def _exec_or_run(root, prefix, task_dir, agent_name_override, tier, budget, turns, dry_run):
+    """Execute a single task, using execvp when possible (no queue to iterate)."""
+    task_dir = Path(task_dir)
+    task_name = task_dir.name
+    spec = task_dir / "index.md"
+
+    try:
+        text = spec.read_text(encoding="utf-8")
+    except OSError:
+        err(f"Task spec missing: {spec}")
+        return EXIT_USAGE
+    fm = parse_frontmatter(text)
+    agent = fm.get("agent", "")
+    if not agent:
+        err(f"No agent assigned to task: {task_name}")
+        return EXIT_USAGE
+
+    agent_spec = find_agent_spec(root, prefix, agent)
+    if agent_spec is None:
+        err(f"Agent spec not found: {agent}")
+        return EXIT_NO_AGENT
+
+    tools = parse_allowed_tools(agent_spec)
+    if not tools:
+        err(f"No allowed-tools found in agent spec: {agent_spec}")
+        return EXIT_USAGE
+
+    prompt = (
+        f"Execute task {task_name}. Read its spec at "
+        f"artifacts/tasks/{task_name}/index.md and work through "
+        f"the requirements."
+    )
+    cmd = build_command(agent, tier, budget, turns, prompt, tools)
+
+    if dry_run:
+        print(shlex_join(cmd))
+        return EXIT_OK
+
+    # Single task, no queue — exec replaces process
+    os.chdir(str(root))
+    os.execvp(cmd[0], cmd)
+    return EXIT_OK  # unreachable
+
+
 def cmd_show(args, root, prefix):
     """Handle the show subcommand."""
     task_name, error, code = resolve_task(root, prefix, args.task)
@@ -190,7 +543,7 @@ def cmd_show(args, root, prefix):
 def main():
     parser = argparse.ArgumentParser(
         prog="openstation",
-        description="Read-only CLI for the Open Station task vault.",
+        description="CLI for the Open Station task vault.",
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -204,6 +557,26 @@ def main():
     # show
     show_p = sub.add_parser("show", help="Show a task spec")
     show_p.add_argument("task", help="Task ID or slug (e.g. 0023 or 0023-cli-feature-spec)")
+
+    # run
+    run_p = sub.add_parser("run", help="Launch an agent")
+    run_p.add_argument("agent", nargs="?", default=None,
+                       help="Agent name (by-agent mode)")
+    run_p.add_argument("--task", default=None,
+                       help="Task ID or slug (by-task mode)")
+    run_p.add_argument("--tier", type=int, default=DEFAULT_TIER,
+                       choices=[1, 2],
+                       help="Execution tier (default: 2)")
+    run_p.add_argument("--budget", type=float, default=DEFAULT_BUDGET,
+                       help="Max USD per invocation (tier 2, default: 5)")
+    run_p.add_argument("--turns", type=int, default=DEFAULT_TURNS,
+                       help="Max turns per invocation (tier 2, default: 50)")
+    run_p.add_argument("--max-tasks", type=int, default=DEFAULT_MAX_TASKS,
+                       help="Max subtasks to execute (by-task, default: 1)")
+    run_p.add_argument("--force", action="store_true",
+                       help="Skip task status checks")
+    run_p.add_argument("--dry-run", action="store_true",
+                       help="Print command without executing")
 
     args = parser.parse_args()
 
@@ -220,6 +593,8 @@ def main():
         return cmd_list(args, root, prefix) or 0
     elif args.command == "show":
         return cmd_show(args, root, prefix)
+    elif args.command == "run":
+        return cmd_run(args, root, prefix)
     return 0
 
 

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0028-cli-run-integration
-status: ready
+status: done
 agent: developer
 owner: manual
 created: 2026-03-01
@@ -74,7 +74,7 @@ mechanism until then.
 
 ## Verification
 
-- [ ] Spec produced and approved (0038)
-- [ ] `openstation run` subcommand implemented and functional (0039)
-- [ ] All existing flags work via the new CLI path
-- [ ] `/openstation.dispatch` references the new run command
+- [x] Spec produced and approved (0038)
+- [x] `openstation run` subcommand implemented and functional (0039)
+- [x] All existing flags work via the new CLI path
+- [x] `/openstation.dispatch` references the new run command

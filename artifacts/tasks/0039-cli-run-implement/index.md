@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0039-cli-run-implement
-status: ready
+status: done
 agent: developer
 owner: manual
 parent: 0028-cli-run-integration
@@ -41,11 +41,11 @@ produced by 0038-cli-run-spec. Specifically:
 
 ## Verification
 
-- [ ] `openstation run <agent>` launches an agent session
-- [ ] All flags (`--task`, `--tier`, `--budget`, `--turns`,
+- [x] `openstation run <agent>` launches an agent session
+- [x] All flags (`--task`, `--tier`, `--budget`, `--turns`,
       `--dry-run`) work correctly
-- [ ] Tier 1 and tier 2 execution paths both function
-- [ ] `/openstation.dispatch` references the new run command
-- [ ] Streaming output works for tier 2 execution
-- [ ] Existing `openstation-run.sh` tests (if any) still pass
+- [x] Tier 1 and tier 2 execution paths both function
+- [x] `/openstation.dispatch` references the new run command
+- [x] Streaming output works for tier 2 execution
+- [x] Existing `openstation-run.sh` tests (if any) still pass
       or are migrated

@@ -1,5 +1,83 @@
 # Changelog
 
+## v0.3.0
+
+Python CLI with read and run commands. Autonomous agent execution
+with tiered launch model. New architect and developer agents.
+
+### CLI
+
+- **`openstation` Python CLI** — Single-file CLI (`bin/openstation`)
+  with `list`, `show`, and `run` subcommands. Replaces ad-hoc
+  shell scripts with a unified entry point.
+- **`openstation run`** — Launch agents via `openstation run <agent>`
+  (by-agent) or `openstation run --task <id>` (by-task). Supports
+  `--tier` (1/2), `--budget`, `--turns`, `--max-tasks`, `--force`,
+  `--dry-run`. Uses `os.execvp` for single launches, `subprocess.run`
+  for task queues.
+- **`openstation list`** — Tabular task listing with `--status` and
+  `--agent` filters. Excludes done/failed by default.
+- **`openstation show`** — Display full task spec by ID or slug
+  with prefix matching.
+- **Test suite** — 39 tests covering all CLI subcommands
+  (`tests/test_cli.py`).
+
+### Autonomous Execution
+
+- **Tiered launch model** — Tier 1 (interactive with
+  `--permission-mode acceptEdits`) and Tier 2 (autonomous with
+  budget/turns limits and `--output-format json`).
+- **`openstation-run.sh`** — Shell launcher with `--task` mode
+  (subtask orchestration), `--force` flag, agent resolution,
+  allowed-tools parsing, and live streaming progress.
+- **By-task orchestration** — `--task` flag resolves a parent task,
+  discovers ready subtasks, and launches agents sequentially with
+  `--max-tasks` limit.
+
+### Agents
+
+- **Architect agent** — Design and specification agent for feature
+  specs and system architecture.
+- **Developer agent** — Python implementation agent for CLI and
+  tooling work.
+
+### Specs & Docs
+
+- **Feature spec format** (`docs/feature-spec.md`) — Standardized
+  format for feature specifications with problem, architecture,
+  components, and design decisions.
+- **CLI feature spec** (`artifacts/specs/cli-feature-spec.md`) —
+  Spec for the Python CLI design (single-file, zero-dependency).
+- **CLI run spec** (`artifacts/specs/cli-run-spec.md`) — Spec for
+  the `run` subcommand interface, execution model, and error
+  handling.
+- **Autonomous execution spec** — Research and design for the
+  tiered agent launch model.
+- **Subtask conventions** — Codified subtask symlink placement,
+  `parent:` field, and status tracking across all docs.
+
+### Commands
+
+- **Updated `/openstation.dispatch`** — Now references
+  `openstation run` with tier 1, tier 2, and `--task` launch
+  instructions.
+- **Updated `/openstation.list`** — Delegates to `openstation list`
+  CLI with fallback to manual scan.
+- **Updated `/openstation.show`** — Delegates to `openstation show`
+  CLI with fallback to manual file read.
+- **Updated `/openstation.create`** — Streamlined for CLI
+  integration.
+
+### Install
+
+- Updated `install.sh` to install `bin/openstation` CLI.
+- Execute skill updated with CLI-aware agent workflows.
+
+### Fix
+
+- Removed stale `.openstation/` directory from source repo.
+- Fixed Claude Code hook matcher format (regex string, not object).
+
 ## v0.2.1
 
 Unified artifact promotion flow. Agent specs now follow the same

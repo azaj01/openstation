@@ -201,9 +201,11 @@ assert_task_ready() {
 }
 
 # Scan a task directory for symlinked sub-task folders. Prints one sub-task
-# directory path per line (only those with status "ready").
+# directory path per line. When force=true, returns all subtasks regardless
+# of status; otherwise only those with status "ready".
 find_ready_subtasks() {
   local task_dir="$1"
+  local force="${2:-false}"
 
   for entry in "$task_dir"/*/; do
     [[ -d "$entry" ]] || continue
@@ -211,10 +213,14 @@ find_ready_subtasks() {
     [[ -L "${entry%/}" ]] || continue
     local sub_spec="$entry/index.md"
     [[ -f "$sub_spec" ]] || continue
-    local status
-    status="$(get_field "$sub_spec" "status")"
-    if [[ "$status" == "ready" ]]; then
+    if [[ "$force" == true ]]; then
       echo "${entry%/}"
+    else
+      local status
+      status="$(get_field "$sub_spec" "status")"
+      if [[ "$status" == "ready" ]]; then
+        echo "${entry%/}"
+      fi
     fi
   done
 }
@@ -299,6 +305,7 @@ Options:
                      2 = Autonomous (print mode, allowedTools, budget)
   --budget N       Max spend in USD per agent invocation (default: 5, tier 2)
   --turns N        Max agentic turns per agent invocation (default: 50, tier 2)
+  --force          Skip status checks (execute tasks in any status)
   --dry-run        Print the command(s) without executing
   --help           Show this help message
 
@@ -308,7 +315,7 @@ Exit codes:
   2   Agent spec not found
   3   Claude CLI not found
   4   Agent exited with error
-  5   Task status is not 'ready'
+  5   Task status is not 'ready' (bypassed with --force)
 USAGE
   exit 0
 }
@@ -322,6 +329,7 @@ BUDGET="$DEFAULT_BUDGET"
 TURNS="$DEFAULT_TURNS"
 MAX_TASKS="$DEFAULT_MAX_TASKS"
 DRY_RUN=false
+FORCE=false
 
 [[ $# -eq 0 ]] && usage
 
@@ -346,6 +354,8 @@ while [[ $# -gt 0 ]]; do
       MAX_TASKS="$2"; shift 2 ;;
     --dry-run)
       DRY_RUN=true; shift ;;
+    --force)
+      FORCE=true; shift ;;
     --help|-h)
       usage ;;
     -*)
@@ -388,11 +398,13 @@ if [[ -n "$TASK_REF" ]]; then
   # Collect: find and validate the task
   TASK_DIR="$(find_task_dir "$PROJECT_ROOT" "$TASK_REF")"
   TASK_NAME="$(basename "$TASK_DIR")"
-  assert_task_ready "$TASK_DIR"
+  if [[ "$FORCE" != true ]]; then
+    assert_task_ready "$TASK_DIR"
+  fi
   info "Task collection: $TASK_NAME"
 
   # Collect: discover ready subtasks
-  mapfile -t SUBTASKS < <(find_ready_subtasks "$TASK_DIR")
+  mapfile -t SUBTASKS < <(find_ready_subtasks "$TASK_DIR" "$FORCE")
 
   if [[ ${#SUBTASKS[@]} -gt 0 ]]; then
     # ── Execute: iterate subtask queue ─────────────────────────────────

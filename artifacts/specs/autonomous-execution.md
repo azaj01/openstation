@@ -196,6 +196,7 @@ Options:
   --tier 1|2    Execution tier (default: 2)
   --budget N    Max spend in USD (default: 5)
   --turns N     Max agentic turns (default: 50)
+  --force       Skip status checks (execute tasks in any status)
   --dry-run     Print the command without executing
   --help        Show usage
 
@@ -205,6 +206,7 @@ Exit codes:
   2   Agent spec not found
   3   Claude CLI not found
   4   Agent exited with error
+  5   Task status is not 'ready' (bypassed with --force)
 ```
 
 ### Behavior

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0024-cli-implementation
-status: ready
+status: review
 agent: developer
 owner: manual
 parent: 0021-openstation-cli

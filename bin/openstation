@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""OpenStation CLI — read-only access to the Open Station task vault."""
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+
+def err(msg):
+    print(f"error: {msg}", file=sys.stderr)
+
+
+def find_root(start=None):
+    """Walk up from start dir to find an Open Station project root.
+
+    Returns (root_path, prefix) where prefix is ".openstation" for
+    installed projects or "" for the source repo.
+    """
+    d = Path(start or os.getcwd()).resolve()
+    while True:
+        # Source repo (agents/ + install.sh) takes precedence — an
+        # .openstation/ dir here is a stale local install artifact.
+        if (d / "agents").is_dir() and (d / "install.sh").is_file():
+            return d, ""
+        if (d / ".openstation").is_dir():
+            return d, ".openstation"
+        parent = d.parent
+        if parent == d:
+            break
+        d = parent
+    return None, None
+
+
+def parse_frontmatter(text):
+    """Parse YAML frontmatter from text using simple str.partition."""
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    fields = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, sep, value = line.partition(":")
+        if sep:
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def resolve_bucket(root, prefix, task_name):
+    """Check which tasks/{bucket}/ symlink exists for a task."""
+    tasks_base = Path(root) / prefix / "tasks" if prefix else Path(root) / "tasks"
+    for bucket in ("backlog", "current", "done"):
+        link = tasks_base / bucket / task_name
+        if link.is_symlink() or link.exists():
+            return bucket
+    return None
+
+
+def discover_tasks(root, prefix):
+    """Scan artifacts/tasks/*/index.md and return task dicts."""
+    tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
+    tasks = []
+    if not tasks_dir.is_dir():
+        return tasks
+    for entry in sorted(tasks_dir.iterdir()):
+        if not entry.is_dir():
+            continue
+        index = entry / "index.md"
+        if not index.is_file():
+            continue
+        try:
+            text = index.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        fm = parse_frontmatter(text)
+        if fm.get("kind") != "task":
+            continue
+        task_name = entry.name
+        bucket = resolve_bucket(root, prefix, task_name)
+        tasks.append({
+            "id": task_name.split("-", 1)[0],
+            "name": task_name,
+            "status": fm.get("status", ""),
+            "agent": fm.get("agent", ""),
+            "owner": fm.get("owner", ""),
+            "bucket": bucket,
+        })
+    return tasks
+
+
+def format_table(tasks):
+    """Format tasks as an aligned table."""
+    if not tasks:
+        return ""
+    headers = ["ID", "Name", "Status", "Agent", "Owner"]
+    keys = ["id", "name", "status", "agent", "owner"]
+    mins = [4, 10, 7, 5, 5]
+
+    # Compute column widths
+    widths = [max(mins[i], len(headers[i])) for i in range(len(headers))]
+    for t in tasks:
+        for i, k in enumerate(keys):
+            widths[i] = max(widths[i], len(str(t.get(k, ""))))
+
+    def fmt_row(values):
+        parts = []
+        for i, v in enumerate(values):
+            parts.append(str(v).ljust(widths[i]))
+        return "   ".join(parts)
+
+    lines = [fmt_row(headers)]
+    lines.append(fmt_row(["-" * widths[i] for i in range(len(headers))]))
+    for t in tasks:
+        lines.append(fmt_row([t.get(k, "") for k in keys]))
+    return "\n".join(lines)
+
+
+def cmd_list(args, root, prefix):
+    """Handle the list subcommand."""
+    tasks = discover_tasks(root, prefix)
+
+    # Filter by status
+    status_filter = args.status
+    if status_filter == "active":
+        tasks = [t for t in tasks if t["status"] not in ("done", "failed")]
+    elif status_filter != "all":
+        tasks = [t for t in tasks if t["status"] == status_filter]
+
+    # Filter by agent
+    if args.agent:
+        tasks = [t for t in tasks if t["agent"] == args.agent]
+
+    # Sort by ID ascending
+    tasks.sort(key=lambda t: t["id"])
+
+    output = format_table(tasks)
+    if output:
+        print(output)
+
+
+def resolve_task(root, prefix, query):
+    """Resolve a task query to a folder name. Returns (name, error_msg, exit_code)."""
+    tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
+    if not tasks_dir.is_dir():
+        return None, "artifacts/tasks directory not found", 3
+
+    entries = sorted(e.name for e in tasks_dir.iterdir() if e.is_dir())
+
+    # Exact match
+    if query in entries:
+        return query, None, 0
+
+    # Prefix match
+    matches = [e for e in entries if e.startswith(query)]
+    if len(matches) == 1:
+        return matches[0], None, 0
+    if len(matches) > 1:
+        match_list = "\n".join(f"  {m}" for m in matches)
+        return None, f"ambiguous task '{query}', matches:\n{match_list}", 4
+    return None, f"task not found: {query}", 3
+
+
+def cmd_show(args, root, prefix):
+    """Handle the show subcommand."""
+    task_name, error, code = resolve_task(root, prefix, args.task)
+    if error:
+        err(error)
+        return code
+
+    tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
+    index = tasks_dir / task_name / "index.md"
+
+    if not index.exists():
+        # Check if it's a broken symlink scenario
+        if index.is_symlink():
+            err("task folder missing (broken symlink)")
+        else:
+            err("task spec missing")
+        return 3
+
+    try:
+        print(index.read_text(encoding="utf-8"), end="")
+    except OSError as e:
+        err(f"cannot read task: {e}")
+        return 3
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="openstation",
+        description="Read-only CLI for the Open Station task vault.",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # list
+    list_p = sub.add_parser("list", help="List tasks")
+    list_p.add_argument("--status", default="active",
+                        help="Filter by status (default: active, use 'all' for everything)")
+    list_p.add_argument("--agent", default="",
+                        help="Filter by agent name (exact match)")
+
+    # show
+    show_p = sub.add_parser("show", help="Show a task spec")
+    show_p.add_argument("task", help="Task ID or slug (e.g. 0023 or 0023-cli-feature-spec)")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        return 1
+
+    root, prefix = find_root()
+    if root is None:
+        err("not in an Open Station project")
+        return 2
+
+    if args.command == "list":
+        return cmd_list(args, root, prefix) or 0
+    elif args.command == "show":
+        return cmd_show(args, root, prefix)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

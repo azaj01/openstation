@@ -36,6 +36,14 @@ HOOKS=(
 MARKER_START="<!-- openstation:start -->"
 MARKER_END="<!-- openstation:end -->"
 
+# --- Source repo guard ----------------------------------------------------
+
+if [[ -d "agents" && -f "install.sh" ]]; then
+  printf '\033[1;31merror:\033[0m Cannot install into the source repo itself.\n' >&2
+  printf '       Run this from a target project directory instead.\n' >&2
+  exit 1
+fi
+
 # --- Helpers -------------------------------------------------------------
 
 info()  { printf '  \033[1;32m✓\033[0m %s\n' "$1"; }

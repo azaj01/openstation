@@ -38,6 +38,7 @@ skills, and documentation.
 
 ## Constraints
 
+- Always call `openstation` directly — never `python3 bin/openstation`
 - Never gather external information — read only the vault. If you
   need information that isn't in the vault, create a research
   sub-task for the researcher agent.

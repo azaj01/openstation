@@ -11,8 +11,6 @@ frontmatter and a markdown body.
 
 ## File Location
 
-### Canonical Location
-
 Every task folder lives permanently in `artifacts/tasks/`:
 
 ```
@@ -20,28 +18,12 @@ artifacts/tasks/NNNN-kebab-slug/
 └── index.md
 ```
 
-Task folders are created here once and never move.
+Task folders are created here once and never move. Lifecycle
+buckets (`tasks/backlog/`, `tasks/current/`, `tasks/done/`)
+contain symlinks to these canonical folders.
 
-### Bucket Symlinks
-
-Lifecycle buckets contain folder-level symlinks that point back
-to the canonical location:
-
-```
-tasks/<bucket>/NNNN-kebab-slug/  →  ../../artifacts/tasks/NNNN-kebab-slug/
-```
-
-| Bucket | Statuses held |
-|--------|---------------|
-| `tasks/backlog/` | `backlog` |
-| `tasks/current/` | `ready`, `in-progress`, `review` |
-| `tasks/done/` | `done`, `failed` |
-
-Moving a task between lifecycle stages = moving the symlink
-between buckets. The canonical folder never moves.
-
-> **Sub-tasks do not get bucket symlinks.** They are discovered
-> through their parent folder instead. See § Sub-tasks below.
+See `artifacts/specs/storage-query-layer.md` §§ 2a, 3 for the
+full symlink model and bucket-to-status mapping.
 
 ## Naming
 
@@ -65,8 +47,10 @@ exactly: `NNNN-kebab-slug`.
 ### Sub-tasks
 
 Sub-tasks are full tasks with their own ID and canonical folder
-in `artifacts/tasks/`, but they are linked to a parent task
-instead of appearing independently in lifecycle buckets.
+in `artifacts/tasks/`, linked to a parent task instead of
+appearing independently in lifecycle buckets. See
+`artifacts/specs/storage-query-layer.md` § 5 for the full
+sub-task storage model (symlink placement, discovery).
 
 #### Naming
 
@@ -79,33 +63,11 @@ does not need to repeat the parent slug.
 Every sub-task sets `parent: <parent-task-name>` in its
 frontmatter. This is the only required link back to the parent.
 
-#### Symlink placement
-
-Sub-tasks do **not** get bucket symlinks in `tasks/backlog/`,
-`tasks/current/`, or `tasks/done/`. Instead, the parent task
-folder contains symlinks to each sub-task:
-
-```
-artifacts/tasks/NNNN-parent-slug/
-├── index.md
-├── MMMM-sub-slug → ../MMMM-sub-slug
-└── PPPP-other-sub → ../PPPP-other-sub
-```
-
-The symlink target is relative: `../MMMM-sub-slug` (sibling
-directory under `artifacts/tasks/`).
-
 #### Parent body section
 
 The parent's `index.md` should include a `## Subtasks` section
 listing the sub-tasks with priority groups. See the
 "Task with sub-tasks" example below.
-
-#### Status tracking
-
-Each sub-task tracks its own status in its `index.md`
-frontmatter. Discovery is through the parent — agents find
-sub-tasks by following the symlinks in the parent folder.
 
 ## Frontmatter Schema
 
@@ -164,19 +126,8 @@ location in `artifacts/`, not discovery symlinks. Examples:
 - `artifacts/agents/project-manager.md` (not `agents/project-manager.md`)
 - `artifacts/research/obsidian-plugin-api.md` (not a symlink path)
 
-During execution, agents should also symlink artifacts into the
-task folder for traceability:
-
-```
-artifacts/tasks/0011-add-pm-agent/
-├── index.md
-└── project-manager.md → ../../agents/project-manager.md
-```
-
-This is a **traceability** symlink pointing to the canonical
-location in `artifacts/`. Discovery symlinks (e.g.
-`agents/<name>.md`) are created by `/openstation.done` after
-verification — not during task execution.
+See `artifacts/specs/storage-query-layer.md` §§ 2d, 4 for
+traceability symlinks and artifact routing.
 
 ## Body Structure
 

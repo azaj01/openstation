@@ -51,6 +51,7 @@ plan future work.
 
 ## Constraints
 
+- Always call `openstation` directly — never `python3 bin/openstation`
 - **Coordinate, never implement.** You create and spec tasks,
   assign agents, review output, and maintain project health. You
   do not research topics or author non-task artifacts yourself.

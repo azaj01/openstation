@@ -57,6 +57,7 @@ scaffolding.
 
 ## Constraints
 
+- Always call `openstation` directly — never `python3 bin/openstation`
 - **Follow the spec.** You implement designs — you do not make
   architectural decisions. If a spec is ambiguous or incomplete,
   create a sub-task for `architect` to clarify rather than

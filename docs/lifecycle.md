@@ -42,14 +42,8 @@ failed → in-progress     (agent reworks)
 
 Moving a task between lifecycle stages = moving the symlink,
 not the folder. The canonical folder in `artifacts/tasks/` never
-moves. See `docs/task.spec.md` § File Location for the
-bucket-to-status mapping.
-
-### Symlink Move Procedure
-
-1. Delete the symlink from the source bucket.
-2. Create a new symlink in the target bucket:
-   `tasks/<target>/NNNN-slug → ../../artifacts/tasks/NNNN-slug/`
+moves. See `artifacts/specs/storage-query-layer.md` § 3 for
+bucket-to-status mapping and the symlink move procedure.
 
 ## Ownership
 
@@ -63,31 +57,11 @@ The `owner` field names who is responsible for verification.
 ## Sub-Tasks
 
 A task may be decomposed into sub-tasks. Sub-tasks are full
-tasks with their own canonical folder in `artifacts/tasks/`, but
-they are discovered through their parent rather than through
-lifecycle buckets.
-
-### Creating a Sub-Task
-
-1. Create the canonical folder: `artifacts/tasks/MMMM-sub-slug/`
-   with an `index.md` (same as any task).
-2. Set `parent: <parent-task-name>` in the sub-task frontmatter.
-3. Create a symlink **inside the parent folder** (not in a bucket):
-   `artifacts/tasks/NNNN-parent-slug/MMMM-sub-slug → ../MMMM-sub-slug`
-4. Add an entry to the parent's `## Subtasks` body section.
-
-### Symlink Convention
-
-Sub-tasks do **not** get bucket symlinks in `tasks/backlog/`,
-`tasks/current/`, or `tasks/done/`. Only the parent task has a
-bucket symlink. Sub-tasks are symlinked inside the parent folder:
-
-```
-artifacts/tasks/NNNN-parent-slug/
-├── index.md
-├── MMMM-sub-slug → ../MMMM-sub-slug
-└── PPPP-other-sub → ../PPPP-other-sub
-```
+tasks with their own canonical folder in `artifacts/tasks/`,
+discovered through their parent rather than through lifecycle
+buckets. See `artifacts/specs/storage-query-layer.md` § 5 for
+the full sub-task storage model (creation procedure, symlink
+conventions).
 
 ### Blocking Rule
 
@@ -101,70 +75,18 @@ Their status is tracked in their own `index.md` frontmatter.
 
 ## Artifact Storage
 
-Artifacts are outputs produced during task execution (research
-notes, code, reports, etc.). Store them in `artifacts/<category>/`:
-
-- `artifacts/tasks/` — Task folders (canonical location for all tasks)
-- `artifacts/agents/` — Agent specs (canonical location)
-- `artifacts/research/` — Research outputs (from researcher agent)
-- `artifacts/specs/` — Specifications and designs
-- Additional categories can be added as needed
-
-Artifacts are written directly to `artifacts/` during task
-execution. They stay there permanently — they never move.
+Artifacts are outputs produced during task execution. They are
+stored permanently in `artifacts/<category>/` and never move.
+See `artifacts/specs/storage-query-layer.md` §§ 1, 4 for the
+canonical storage model, category directories, and routing table.
 
 ## Artifact Promotion
 
 When a task passes verification, `/openstation.done` moves the
-task folder to `tasks/done/`. Artifacts are already in
+task symlink to `tasks/done/`. Artifacts are already in
 `artifacts/` and do not need to be moved.
 
-Discovery symlinks (e.g. `agents/<name>.md`) are never created
-during task execution. Agents store artifacts in `artifacts/`
-and add traceability symlinks in the task folder — nothing more.
-`/openstation.done` handles promotion to discovery locations
-after verification passes.
-
-### Routing Table (for new artifacts during task execution)
-
-| Artifact Type | Destination |
-|---------------|-------------|
-| task creation | `artifacts/tasks/` |
-| `researcher` output | `artifacts/research/` |
-| agent spec | `artifacts/agents/` |
-| other agent output | `artifacts/specs/` |
-
-### Agent Promotion
-
-When a task produces an agent spec in `artifacts/agents/`,
-`/openstation.done` creates a discovery symlink:
-
-    agents/<name>.md → ../artifacts/agents/<name>.md
-
-This makes the agent available via `claude --agent <name>`
-without moving the canonical file.
-
-## Directory Purposes
-
-```
-docs/              — Project documentation (lifecycle, task spec, README)
-tasks/             — Lifecycle buckets (contain symlinks, not real folders)
-  backlog/         —   Not yet ready for agents
-  current/         —   Active work (ready → in-progress → review)
-  done/            —   Completed tasks
-artifacts/         — Canonical artifact storage (source of truth)
-  tasks/           —   Task folders (canonical location, never move)
-  agents/          —   Agent specs (canonical location)
-  research/        —   Research outputs
-  specs/           —   Specifications & designs
-agents/            — Agent discovery (symlinks → artifacts/agents/)
-skills/            — Agent skills (not user-invocable)
-commands/          — User-invocable slash commands
-docs/lifecycle.md  — This file (lifecycle rules)
-docs/task.spec.md  — Task format specification
-```
-
-Task bucket entries are symlinks to `artifacts/tasks/`. Agents
-read through symlinks transparently. `tasks/current/` should
-only contain active work — completed tasks are moved to
-`tasks/done/` via `/openstation.done`.
+Discovery symlinks (e.g. `agents/<name>.md`) are created by
+`/openstation.done` after verification — never during task
+execution. See `artifacts/specs/storage-query-layer.md` § 2c
+for the discovery symlink model.

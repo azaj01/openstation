@@ -40,9 +40,10 @@ openstation list [--status <s>] [--agent <name>]
 openstation show <task>
 ```
 
-If the CLI is not on `$PATH`, try `python3 bin/openstation` (source
-repo) or `python3 .openstation/bin/openstation` (installed project).
-Fall back to direct file reads when the CLI is unavailable.
+**Always call `openstation` directly** — never `python3 bin/openstation`
+or any other indirect path. The binary is on `$PATH` during agent
+sessions. Fall back to direct file reads only if the command is not
+found.
 
 > **Note:** The CLI is currently read-only. Status transitions
 > (`in-progress`, `review`) still require direct frontmatter edits.
@@ -96,18 +97,13 @@ sub-tasks for execution.
 ### 4. Store Artifacts
 
 - Store artifacts in `artifacts/<category>/` (the canonical
-  location). Routing:
-  - Agent specs → `artifacts/agents/`
-  - Research outputs → `artifacts/research/`
-  - Other outputs → `artifacts/specs/`
-- Symlink artifacts into the task folder for traceability:
-  `artifacts/tasks/NNNN-slug/<name>.md → ../../agents/<name>.md`
+  location) and symlink them into the task folder for
+  traceability.
 - **Do NOT create discovery or promotion symlinks** (e.g.
-  `agents/<name>.md`). Only store the canonical file and the
-  task-folder traceability symlink. `/openstation.done` handles
-  promotion after verification.
-- See `docs/lifecycle.md` § "Artifact Storage" for naming
-  conventions and categories.
+  `agents/<name>.md`). `/openstation.done` handles promotion
+  after verification.
+- See `artifacts/specs/storage-query-layer.md` §§ 2d, 4 for
+  routing, symlink conventions, and categories.
 
 ### 5. Record Findings
 
@@ -131,15 +127,12 @@ If a task requires decomposition:
 1. Use `/openstation.create` to create each sub-task. This gives
    each sub-task its own canonical folder in `artifacts/tasks/`.
 2. Set `parent: <current-task-name>` in each sub-task's frontmatter.
-3. Create a symlink **inside the parent task folder** (not in a
-   lifecycle bucket):
-   `artifacts/tasks/NNNN-parent/MMMM-sub → ../MMMM-sub`
-4. Remove any bucket symlink that `/openstation.create` may have
-   created for the sub-task (sub-tasks do not get bucket symlinks).
-5. Add an entry to the parent's `## Subtasks` body section.
+3. Symlink each sub-task inside the parent task folder and add
+   an entry to the parent's `## Subtasks` body section.
 
-See `docs/lifecycle.md` § "Sub-Tasks" for blocking rules and
-the full symlink convention.
+See `artifacts/specs/storage-query-layer.md` § 5 for the full
+sub-task storage model and `docs/lifecycle.md` § "Sub-Tasks"
+for blocking rules.
 
 ### 7. Update Documentation
 

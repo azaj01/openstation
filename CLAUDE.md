@@ -66,27 +66,16 @@ projects. In this source repo they live at the root.
 
 - **task.spec.md** — the shape (schema, naming, format)
 - **lifecycle.md** — the state machine (transitions, ownership, artifacts)
+- **storage-query-layer.md** — the storage model (canonical paths, symlinks, queries)
 - **execute skill** — the agent playbook (discovery, execution, completion)
 
 ## Task Structure
 
 Each task is a folder with an `index.md` inside, stored
-canonically in `artifacts/tasks/`:
-
-```
-artifacts/tasks/0009-install-script/
-└── index.md                             # canonical, never moves
-
-tasks/current/0009-install-script/       # symlink → ../../artifacts/tasks/0009-install-script
-```
-
-Moving a task between stages = moving the symlink between
-`backlog/`, `current/`, `done/`.
-
-**Sub-tasks** live in `artifacts/tasks/` like any task but do not
-get bucket symlinks. Instead they are symlinked inside the parent
-folder: `artifacts/tasks/NNNN-parent/MMMM-sub → ../MMMM-sub`.
-See `docs/task.spec.md` § Sub-tasks for details.
+canonically in `artifacts/tasks/`. Lifecycle buckets contain
+symlinks to these folders. See
+`artifacts/specs/storage-query-layer.md` for the full storage
+and query model.
 
 ## Spec Format
 
@@ -96,18 +85,12 @@ minimum `kind` and `name` fields.
 
 ## Creating a New Task
 
-1. Create a folder in `artifacts/tasks/` named `NNNN-kebab-case-name`
-   where `NNNN` is the next available 4-digit auto-incrementing ID
-2. Create `index.md` inside with frontmatter: `kind: task`,
-   `name: NNNN-kebab-case-name`, `status: backlog`, `agent`,
-   `owner: manual`, `created`
-3. Create a symlink: `tasks/backlog/NNNN-slug` →
-   `../../artifacts/tasks/NNNN-slug`
-4. Write Requirements and Verification sections in the body
-5. Set `status: ready` and move symlink to `tasks/current/` when
-   the task is ready for an agent
+Use `/openstation.create` to create tasks interactively — it
+handles ID assignment, folder creation, and symlink placement.
 
-Use `/openstation.create` to auto-assign the next ID.
+For manual creation, see `docs/task.spec.md` for the format
+and `artifacts/specs/storage-query-layer.md` § 3 for symlink
+placement.
 
 ## Dispatching an Agent
 
@@ -166,6 +149,8 @@ Update a task:  `/openstation.update <name> field:value`
 Run an agent:   `claude --agent <name>`
 Complete task:  `/openstation.done <name>`
 
-See `.openstation/docs/lifecycle.md` for lifecycle rules and
-`.openstation/docs/task.spec.md` for task format.
+See `.openstation/docs/lifecycle.md` for lifecycle rules,
+`.openstation/docs/task.spec.md` for task format, and
+`.openstation/artifacts/specs/storage-query-layer.md` for the
+storage and query model.
 <!-- openstation:end -->

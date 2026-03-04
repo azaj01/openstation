@@ -52,7 +52,7 @@ Generate a new task spec from a description.
       sub-tasks and ask the user to confirm. If accepted, create
       each sub-task using the standard sub-task convention
       (canonical folder + parent symlink, no bucket symlink).
-      See `artifacts/specs/storage-query-layer.md` § 5 for the
+      See `docs/storage-query-layer.md` § 5 for the
       sub-task storage model.
       If the task is simple and self-contained, skip this step.
 
@@ -99,7 +99,7 @@ Generate a new task spec from a description.
      `artifacts/tasks/<parent-slug>/<ID>-<slug> → ../<ID>-<slug>`
    - Add an entry to the parent's `## Subtasks` body section.
 
-   See `artifacts/specs/storage-query-layer.md` § 5 for the
+   See `docs/storage-query-layer.md` § 5 for the
    full sub-task storage convention.
 
 8. If sub-tasks were accepted in step 5e, create each sub-task

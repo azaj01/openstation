@@ -29,21 +29,14 @@ failed → in-progress     (agent reworks)
   `/openstation.update` does not change status — it only edits
   metadata fields (agent, owner, parent, etc.).
 - `backlog → ready` is only allowed via `/openstation.ready`,
-  which validates requirements and moves the folder.
+  which validates requirements and updates the status.
 - `review → done` is only allowed via `/openstation.done`, which
-  archives the task in one step.
+  completes the task in one step.
 - `review → failed` is only allowed via `/openstation.reject`,
-  which records the rejection reason and archives the task.
+  which records the rejection reason and marks the task failed.
 - Agents must NOT self-verify their own work. After completing
   requirements, set `status: review` and stop. Only the
   designated `owner` may transition to `done` or `failed`.
-
-## Bucket Mapping
-
-Moving a task between lifecycle stages = moving the symlink,
-not the folder. The canonical folder in `artifacts/tasks/` never
-moves. See `artifacts/specs/storage-query-layer.md` § 3 for
-bucket-to-status mapping and the symlink move procedure.
 
 ## Ownership
 
@@ -58,10 +51,9 @@ The `owner` field names who is responsible for verification.
 
 A task may be decomposed into sub-tasks. Sub-tasks are full
 tasks with their own canonical folder in `artifacts/tasks/`,
-discovered through their parent rather than through lifecycle
-buckets. See `artifacts/specs/storage-query-layer.md` § 5 for
-the full sub-task storage model (creation procedure, symlink
-conventions).
+discovered through their parent rather than independently.
+See `docs/storage-query-layer.md` § 4 for the full
+sub-task storage model (creation procedure, symlink conventions).
 
 ### Blocking Rule
 
@@ -77,16 +69,16 @@ Their status is tracked in their own `index.md` frontmatter.
 
 Artifacts are outputs produced during task execution. They are
 stored permanently in `artifacts/<category>/` and never move.
-See `artifacts/specs/storage-query-layer.md` §§ 1, 4 for the
+See `docs/storage-query-layer.md` §§ 1, 3 for the
 canonical storage model, category directories, and routing table.
 
 ## Artifact Promotion
 
-When a task passes verification, `/openstation.done` moves the
-task symlink to `tasks/done/`. Artifacts are already in
+When a task passes verification, `/openstation.done` sets
+`status: done` in frontmatter. Artifacts are already in
 `artifacts/` and do not need to be moved.
 
 Discovery symlinks (e.g. `agents/<name>.md`) are created by
 `/openstation.done` after verification — never during task
-execution. See `artifacts/specs/storage-query-layer.md` § 2c
+execution. See `docs/storage-query-layer.md` § 2b
 for the discovery symlink model.

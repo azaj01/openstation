@@ -102,7 +102,7 @@ sub-tasks for execution.
 - **Do NOT create discovery or promotion symlinks** (e.g.
   `agents/<name>.md`). `/openstation.done` handles promotion
   after verification.
-- See `artifacts/specs/storage-query-layer.md` §§ 2d, 4 for
+- See `docs/storage-query-layer.md` §§ 2d, 4 for
   routing, symlink conventions, and categories.
 
 ### 5. Record Findings
@@ -130,7 +130,7 @@ If a task requires decomposition:
 3. Symlink each sub-task inside the parent task folder and add
    an entry to the parent's `## Subtasks` body section.
 
-See `artifacts/specs/storage-query-layer.md` § 5 for the full
+See `docs/storage-query-layer.md` § 5 for the full
 sub-task storage model and `docs/lifecycle.md` § "Sub-Tasks"
 for blocking rules.
 

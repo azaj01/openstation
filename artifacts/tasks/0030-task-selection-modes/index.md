@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0030-task-selection-modes
-status: review
+status: done
 agent: author
 owner: manual
 created: 2026-03-01
@@ -113,10 +113,10 @@ Implemented two-mode architecture in `openstation-run.sh`:
 
 ## Verification
 
-- [ ] `openstation-run.sh researcher` launches by-agent mode (unchanged behavior)
-- [ ] `openstation-run.sh --task 0030 --dry-run` shows by-task mode command
-- [ ] By-task mode checks task status is `ready`, errors if not
-- [ ] By-task mode discovers and iterates subtasks
-- [ ] `--max-tasks` flag defaults to 1 and limits execution count
-- [ ] `docs/openstation-run.md` updated with two-mode architecture
-- [ ] Exit codes documented for new failure cases
+- [x] `openstation-run.sh researcher` launches by-agent mode (unchanged behavior)
+- [x] `openstation-run.sh --task 0030 --dry-run` shows by-task mode command
+- [x] By-task mode checks task status is `ready`, errors if not
+- [x] By-task mode discovers and iterates subtasks
+- [x] `--max-tasks` flag defaults to 1 and limits execution count
+- [x] `docs/openstation-run.md` updated with two-mode architecture
+- [x] Exit codes documented for new failure cases

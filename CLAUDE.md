@@ -8,10 +8,6 @@ or modules to existing components is fine; stay minimal.
 
 ```
 docs/              — Project documentation (lifecycle, task spec, README)
-tasks/             — Lifecycle buckets (contain symlinks, not real folders)
-  backlog/         —   Not yet ready for agents
-  current/         —   Active work (ready → in-progress → review)
-  done/            —   Completed tasks
 artifacts/         — Canonical artifact storage (source of truth)
   tasks/           —   Task folders (canonical location, never move)
   agents/          —   Agent specs (canonical location)
@@ -72,9 +68,8 @@ projects. In this source repo they live at the root.
 ## Task Structure
 
 Each task is a folder with an `index.md` inside, stored
-canonically in `artifacts/tasks/`. Lifecycle buckets contain
-symlinks to these folders. See
-`artifacts/specs/storage-query-layer.md` for the full storage
+canonically in `artifacts/tasks/`. See
+`docs/storage-query-layer.md` for the full storage
 and query model.
 
 ## Spec Format
@@ -86,11 +81,9 @@ minimum `kind` and `name` fields.
 ## Creating a New Task
 
 Use `/openstation.create` to create tasks interactively — it
-handles ID assignment, folder creation, and symlink placement.
+handles ID assignment and folder creation.
 
-For manual creation, see `docs/task.spec.md` for the format
-and `artifacts/specs/storage-query-layer.md` § 3 for symlink
-placement.
+For manual creation, see `docs/task.spec.md` for the format.
 
 ## Dispatching an Agent
 
@@ -127,10 +120,6 @@ or modules to existing components is fine; stay minimal.
 ```
 .openstation/
 ├── docs/              — Project documentation (lifecycle, task spec)
-├── tasks/             — Lifecycle buckets (contain symlinks)
-│   ├── backlog/       —   Not yet ready for agents
-│   ├── current/       —   Active work (ready → in-progress → review)
-│   └── done/          —   Completed tasks
 ├── artifacts/         — Canonical artifact storage (source of truth)
 │   ├── tasks/         —   Task folders (canonical location, never move)
 │   ├── agents/        —   Agent specs (canonical location)
@@ -151,6 +140,6 @@ Complete task:  `/openstation.done <name>`
 
 See `.openstation/docs/lifecycle.md` for lifecycle rules,
 `.openstation/docs/task.spec.md` for task format, and
-`.openstation/artifacts/specs/storage-query-layer.md` for the
+`.openstation/docs/storage-query-layer.md` for the
 storage and query model.
 <!-- openstation:end -->

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0035-cli-agent-session
-status: ready
+status: backlog
 agent: developer
 owner: manual
 created: 2026-03-03

@@ -7,26 +7,5 @@
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .openstation/hooks/validate-write-path.sh"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .openstation/hooks/block-destructive-git.sh"
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

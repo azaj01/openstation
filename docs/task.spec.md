@@ -18,12 +18,7 @@ artifacts/tasks/NNNN-kebab-slug/
 └── index.md
 ```
 
-Task folders are created here once and never move. Lifecycle
-buckets (`tasks/backlog/`, `tasks/current/`, `tasks/done/`)
-contain symlinks to these canonical folders.
-
-See `artifacts/specs/storage-query-layer.md` §§ 2a, 3 for the
-full symlink model and bucket-to-status mapping.
+Task folders are created here once and never move.
 
 ## Naming
 
@@ -48,8 +43,8 @@ exactly: `NNNN-kebab-slug`.
 
 Sub-tasks are full tasks with their own ID and canonical folder
 in `artifacts/tasks/`, linked to a parent task instead of
-appearing independently in lifecycle buckets. See
-`artifacts/specs/storage-query-layer.md` § 5 for the full
+appearing independently. See
+`docs/storage-query-layer.md` § 4 for the full
 sub-task storage model (symlink placement, discovery).
 
 #### Naming
@@ -126,7 +121,7 @@ location in `artifacts/`, not discovery symlinks. Examples:
 - `artifacts/agents/project-manager.md` (not `agents/project-manager.md`)
 - `artifacts/research/obsidian-plugin-api.md` (not a symlink path)
 
-See `artifacts/specs/storage-query-layer.md` §§ 2d, 4 for
+See `docs/storage-query-layer.md` §§ 2c, 3 for
 traceability symlinks and artifact routing.
 
 ## Body Structure
@@ -282,8 +277,8 @@ artifacts/tasks/
     └── index.md              # parent: 0006-adopt-spec-kit-patterns
 ```
 
-Note: no bucket symlinks exist for sub-tasks `0007` or `0008`.
-Only the parent `0006` has a bucket symlink in `tasks/`.
+Note: sub-tasks `0007` and `0008` are discovered through their
+parent `0006`, not independently.
 
 #### Parent `index.md`
 

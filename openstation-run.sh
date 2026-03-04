@@ -284,20 +284,20 @@ run_single_task() {
 
 usage() {
   cat <<'USAGE'
-Usage: openstation-run.sh <agent-name> [OPTIONS]
-       openstation-run.sh --task <id-or-slug> [OPTIONS]
+Usage: openstation-run.sh <agent-or-task-id> [OPTIONS]
 
-Two collection strategies, one execution pipeline:
+Two collection strategies, one execution pipeline. The positional
+argument is auto-detected: numeric-prefix → task ID, otherwise → agent name.
 
   By-Agent:  openstation-run.sh <agent-name>
     Agent self-discovers tasks at runtime via openstation-execute skill.
 
-  By-Task:   openstation-run.sh --task <id-or-slug>
+  By-Task:   openstation-run.sh <task-id-or-slug>
     Script surveys the task tree, discovers ready subtasks, and executes
     agents per-subtask. Falls back to the parent task if no subtasks exist.
 
 Options:
-  --task ID        Execute task by ID or slug (by-task mode)
+  --task ID        Execute task by ID or slug (explicit, same as positional)
   --max-tasks N    Max tasks to execute before stopping (default: 1,
                    by-task mode only)
   --tier 1|2       Execution tier (default: 2)
@@ -362,7 +362,13 @@ while [[ $# -gt 0 ]]; do
       err "Unknown option: $1"; exit $EXIT_USAGE ;;
     *)
       [[ -n "$AGENT_NAME" ]] && { err "Unexpected argument: $1"; exit $EXIT_USAGE; }
-      AGENT_NAME="$1"; shift ;;
+      # Auto-detect: arg starting with a digit is a task ID
+      if [[ "$1" =~ ^[0-9] ]]; then
+        TASK_REF="$1"
+      else
+        AGENT_NAME="$1"
+      fi
+      shift ;;
   esac
 done
 

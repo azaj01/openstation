@@ -6,7 +6,7 @@ agent: author
 owner: user
 parent: 0041-storage-query-layer-spec
 artifacts:
-  - artifacts/specs/storage-query-layer.md
+  - docs/storage-query-layer.md
 created: 2026-03-04
 ---
 
@@ -14,7 +14,7 @@ created: 2026-03-04
 
 ## Requirements
 
-Write `artifacts/specs/storage-query-layer.md` as a standalone
+Write `docs/storage-query-layer.md` as a standalone
 retrospective spec covering all 13 topics from the parent task:
 
 **Storage Layer** (items 1-7): canonical storage model, symlink
@@ -30,7 +30,7 @@ Cross-check accuracy against `docs/lifecycle.md`,
 
 ## Verification
 
-- [x] Spec file exists at `artifacts/specs/storage-query-layer.md` with valid `kind: spec` frontmatter
+- [x] Spec file exists at `docs/storage-query-layer.md` with valid `kind: spec` frontmatter
 - [x] All 7 storage layer topics are covered
 - [x] All 6 query layer topics are covered
 - [x] Query patterns summary table is present

@@ -60,7 +60,7 @@ The spec should be written as a standalone document in
 ### P0
 
 1. **Create storage & query spec** (`0042-create-storage-query-spec`)
-   — write `artifacts/specs/storage-query-layer.md` covering all
+   — write `docs/storage-query-layer.md` covering all
    13 topics above.
 
 2. **Dedupe storage docs** (`0043-dedupe-storage-docs`) — update
@@ -69,9 +69,9 @@ The spec should be written as a standalone document in
 
 ## Verification
 
-- [ ] Spec file exists at `artifacts/specs/storage-query-layer.md` with valid `kind: spec` frontmatter
-- [ ] All 7 storage layer topics (items 1-7) are covered
-- [ ] All 6 query layer topics (items 8-13) are covered
-- [ ] Query patterns summary table is present and covers at least: find by status, find by agent, get artifacts, get sub-tasks, agent discovery
-- [ ] Design rationale section explains the symlink-over-move and convention-over-database choices
-- [ ] Spec is accurate against the current implementation (cross-checked with `docs/lifecycle.md`, `docs/task.spec.md`, and `install.sh`)
+- [x] Spec file exists at `docs/storage-query-layer.md` with valid `kind: spec` frontmatter
+- [x] All 7 storage layer topics (items 1-7) are covered
+- [x] All 6 query layer topics (items 8-13) are covered
+- [x] Query patterns summary table is present and covers at least: find by status, find by agent, get artifacts, get sub-tasks, agent discovery
+- [x] Design rationale section explains the symlink-over-move and convention-over-database choices
+- [x] Spec is accurate against the current implementation (cross-checked with `docs/lifecycle.md`, `docs/task.spec.md`, and `install.sh`)

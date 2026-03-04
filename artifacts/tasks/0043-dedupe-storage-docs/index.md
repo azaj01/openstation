@@ -13,7 +13,7 @@ created: 2026-03-04
 ## Requirements
 
 Audit existing docs that repeat storage/symlink/query instructions
-now covered by `artifacts/specs/storage-query-layer.md`. Replace
+now covered by `docs/storage-query-layer.md`. Replace
 duplicated content with references to the new canonical spec.
 
 Files to audit:

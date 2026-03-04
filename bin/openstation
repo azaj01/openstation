@@ -378,6 +378,11 @@ def cmd_run(args, root, prefix):
     agent_name = args.agent
     task_ref = args.task
 
+    # Auto-detect: positional arg starting with a digit is a task ID
+    if agent_name and not task_ref and re.match(r'^\d', agent_name):
+        task_ref = agent_name
+        agent_name = None
+
     # Mutual exclusion: exactly one of agent or --task
     if agent_name and task_ref:
         err("Specify either an agent name or --task, not both")
@@ -561,9 +566,9 @@ def main():
     # run
     run_p = sub.add_parser("run", help="Launch an agent")
     run_p.add_argument("agent", nargs="?", default=None,
-                       help="Agent name (by-agent mode)")
+                       help="Agent name or task ID (auto-detected: numeric prefix → task)")
     run_p.add_argument("--task", default=None,
-                       help="Task ID or slug (by-task mode)")
+                       help="Task ID or slug (explicit, same as positional)")
     run_p.add_argument("--tier", type=int, default=DEFAULT_TIER,
                        choices=[1, 2],
                        help="Execution tier (default: 2)")

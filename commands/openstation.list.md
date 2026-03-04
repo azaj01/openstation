@@ -15,8 +15,9 @@ Supported filters:
 - `status:<value>` — filter by status (backlog, ready, in-progress, review, done, failed, all)
 - `agent:<value>` — filter by assigned agent
 
-If no arguments provided, show all tasks **except** `done` and
-`failed`. To include them, pass `status:done` or `status:all`.
+If no arguments provided, show only `ready` and `in-progress`
+tasks. To see backlog tasks, pass `status:backlog`. To see
+everything, pass `status:all`.
 
 ## Procedure
 
@@ -44,7 +45,7 @@ the command in any way. Do not add `2>&1`, `2>/dev/null`,
 |--------|----------|
 | `status:<value>` | `--status <value>` |
 | `agent:<value>` | `--agent <value>` |
-| _(no status filter)_ | _(default: excludes done/failed)_ |
+| _(no status filter)_ | _(default: ready + in-progress only)_ |
 
 Display the CLI output directly — it produces an aligned table
 sorted by ID.
@@ -63,10 +64,10 @@ Only if `openstation` is not installed:
    `tasks/done/`) for task folders containing an `index.md`
    (bucket entries are symlinks that resolve transparently).
 2. Parse YAML frontmatter from each `index.md`.
-3. Apply any filters from `$ARGUMENTS`. By default, exclude tasks
-   with `status: done` or `status: failed` unless a `status:`
-   filter is explicitly provided (use `status:all` to show
-   everything).
+3. Apply any filters from `$ARGUMENTS`. By default, show only
+   tasks with `status: ready` or `status: in-progress` unless a
+   `status:` filter is explicitly provided (use `status:all` to
+   show everything).
 4. Display a markdown table with columns:
    | ID | Task | Status | Agent | Owner | Created |
    The ID column shows the 4-digit numeric prefix extracted from the

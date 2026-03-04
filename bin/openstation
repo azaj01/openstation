@@ -140,7 +140,7 @@ def cmd_list(args, root, prefix):
     # Filter by status
     status_filter = args.status
     if status_filter == "active":
-        tasks = [t for t in tasks if t["status"] not in ("done", "failed")]
+        tasks = [t for t in tasks if t["status"] in ("ready", "in-progress", "review")]
     elif status_filter != "all":
         tasks = [t for t in tasks if t["status"] == status_filter]
 
@@ -555,7 +555,7 @@ def main():
     # list
     list_p = sub.add_parser("list", help="List tasks")
     list_p.add_argument("--status", default="active",
-                        help="Filter by status (default: active, use 'all' for everything)")
+                        help="Filter by status (default: active = ready + in-progress + review, use 'all' for everything)")
     list_p.add_argument("--agent", default="",
                         help="Filter by agent name (exact match)")
 

@@ -11,11 +11,13 @@ created: 2026-03-04
 # Spec storage & query layer
 
 Rewrite `docs/storage-query-layer.md` and related documentation to
-reflect the new architecture: Obsidian CLI as primary query engine
-with filesystem fallback, no bucket symlinks.
+reflect the new architecture: Obsidian CLI with Dataview queries as
+the primary query engine, filesystem fallback for headless/CI, no
+bucket symlinks.
 
 Based on research in `artifacts/research/storage-layer-replacement.md`
-(task 0044).
+(task 0044). The chosen approach leverages Obsidian CLI combined with
+Dataview queries for task discovery and filtering.
 
 ## Requirements
 
@@ -23,16 +25,17 @@ Based on research in `artifacts/research/storage-layer-replacement.md`
 - Remove SS 2a (bucket symlinks) — bucket symlinks are eliminated
 - Remove SS 3 (lifecycle bucket mapping) — no more bucket-to-status
   mapping or symlink move procedures
-- Update SS 8 (find tasks by status) — show Obsidian CLI
-  `search query='[kind: task] [status: X]'` as primary, filesystem
-  `grep` as fallback
+- Update SS 8 (find tasks by status) — show Obsidian CLI with
+  Dataview queries (`search query='[kind: task] [status: X]'`) as
+  primary, filesystem `grep` as fallback
 - Update SS 11 (find tasks by agent) — same dual-path pattern
+  (Obsidian CLI + Dataview query primary, grep fallback)
 - Update SS 13 (query patterns summary) — replace bucket-based
-  operations with Obsidian CLI + fallback equivalents
+  operations with Obsidian CLI/Dataview + fallback equivalents
 - Update SS 6 (install layout) — remove `tasks/{backlog,current,done}`
   directories from the layout diagram
-- Update SS 7 (design rationale) — explain the Obsidian CLI
-  adoption rationale and the dual-path query model
+- Update SS 7 (design rationale) — explain the Obsidian CLI +
+  Dataview adoption rationale and the dual-path query model
 
 **`docs/lifecycle.md`:**
 - Remove "Bucket Mapping" section entirely
@@ -46,8 +49,8 @@ Based on research in `artifacts/research/storage-layer-replacement.md`
 **`CLAUDE.md`:**
 - Update vault structure diagram (remove `tasks/` bucket tree)
 - Update the managed `<!-- openstation:start -->` section similarly
-- Document Obsidian CLI as optional dependency (enhances
-  performance, not required)
+- Document Obsidian CLI + Dataview as optional dependency (enhances
+  query performance, not required — filesystem fallback always works)
 
 **Context to read:**
 - `artifacts/research/storage-layer-replacement.md` — full research

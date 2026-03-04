@@ -79,18 +79,31 @@ class TestListCommand(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.root = make_source_vault(self.tmpdir)
 
-    def test_list_default_excludes_done_and_failed(self):
+    def test_list_default_shows_only_active(self):
         make_task(self.root, "0001-alpha", status="ready", bucket="current")
         make_task(self.root, "0002-beta", status="done", bucket="done")
         make_task(self.root, "0003-gamma", status="failed", bucket="done")
         make_task(self.root, "0004-delta", status="in-progress", bucket="current")
+        make_task(self.root, "0005-epsilon", status="backlog", bucket="backlog")
+        make_task(self.root, "0006-zeta", status="review", bucket="current")
 
         out, _, rc = run_cli(["list"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
+        self.assertIn("0001", out)   # ready — included
+        self.assertIn("0004", out)   # in-progress — included
+        self.assertIn("0006", out)   # review — included
+        self.assertNotIn("0002", out)  # done — excluded
+        self.assertNotIn("0003", out)  # failed — excluded
+        self.assertNotIn("0005", out)  # backlog — excluded
+
+    def test_list_status_backlog(self):
+        make_task(self.root, "0001-alpha", status="backlog", bucket="backlog")
+        make_task(self.root, "0002-beta", status="ready", bucket="current")
+
+        out, _, rc = run_cli(["list", "--status", "backlog"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
         self.assertIn("0001", out)
-        self.assertIn("0004", out)
         self.assertNotIn("0002", out)
-        self.assertNotIn("0003", out)
 
     def test_list_status_ready(self):
         make_task(self.root, "0001-alpha", status="ready", bucket="current")

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0044-storage-layer-replacement
-status: review
+status: done
 agent: researcher
 owner: user
 artifacts:
@@ -91,9 +91,9 @@ Proceed with a phased implementation:
 
 ## Verification
 
-- [ ] Research artifact exists at `artifacts/research/storage-layer-replacement.md`
-- [ ] Current symlink architecture is summarized (what symlinks do, where they exist, what depends on them)
-- [ ] Dataview-style query approach is assessed with feasibility, trade-offs, and migration path
-- [ ] Obsidian CLI is evaluated for vault management capabilities relevant to our use case
-- [ ] Clear recommendation is provided (replace, hybrid, or keep) with rationale
-- [ ] If replacement is recommended, required changes are outlined (CLI, skill, docs, install script)
+- [x] Research artifact exists at `artifacts/research/storage-layer-replacement.md`
+- [x] Current symlink architecture is summarized (what symlinks do, where they exist, what depends on them)
+- [x] Dataview-style query approach is assessed with feasibility, trade-offs, and migration path
+- [x] Obsidian CLI is evaluated for vault management capabilities relevant to our use case
+- [x] Clear recommendation is provided (replace, hybrid, or keep) with rationale
+- [x] If replacement is recommended, required changes are outlined (CLI, skill, docs, install script)

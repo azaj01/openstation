@@ -50,10 +50,11 @@ The `owner` field names who is responsible for verification.
 ## Sub-Tasks
 
 A task may be decomposed into sub-tasks. Sub-tasks are full
-tasks with their own canonical folder in `artifacts/tasks/`,
-discovered through their parent rather than independently.
-See `docs/storage-query-layer.md` § 4 for the full
-sub-task storage model (creation procedure, symlink conventions).
+tasks with their own canonical file in `artifacts/tasks/`,
+linked to their parent via frontmatter fields (`parent` on the
+child, `subtasks` on the parent). See
+`docs/storage-query-layer.md` § 5 for the full sub-task
+storage model.
 
 ### Blocking Rule
 
@@ -63,7 +64,7 @@ to `review`.
 ### Lifecycle
 
 Sub-tasks follow the same status transitions as any other task.
-Their status is tracked in their own `index.md` frontmatter.
+Their status is tracked in their own frontmatter.
 
 ## Artifact Storage
 
@@ -78,7 +79,6 @@ When a task passes verification, `/openstation.done` sets
 `status: done` in frontmatter. Artifacts are already in
 `artifacts/` and do not need to be moved.
 
-Discovery symlinks (e.g. `agents/<name>.md`) are created by
-`/openstation.done` after verification — never during task
-execution. See `docs/storage-query-layer.md` § 2b
-for the discovery symlink model.
+For agent specs, `/openstation.done` also creates a discovery
+entry in `agents/` after verification — never during task
+execution. See `docs/storage-query-layer.md` § 2a.

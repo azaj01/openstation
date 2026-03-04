@@ -10,57 +10,65 @@ created: 2026-03-04
 
 # Implement storage layer replacement
 
-Update CLI, commands, execute skill, and install script to remove
-bucket symlink operations and adopt Obsidian CLI as the primary
-query engine with filesystem fallback.
-
-Based on research in `artifacts/research/storage-layer-replacement.md`
-(task 0044).
+Implement the storage model defined in `docs/storage-query-layer.md`
+(task 0046). Migrate tasks from folders (`NNNN-slug/index.md`) to
+single files (`NNNN-slug.md`), remove all symlinks except discovery,
+and update all code that reads/writes tasks.
 
 ## Requirements
 
-**CLI (`bin/openstation`):**
-- Replace `discover_tasks()` with Obsidian CLI calls:
-  `obsidian search vault=<name> query='[kind: task] ...' format=json`
-- Keep filesystem scanning (`artifacts/tasks/*/index.md` + YAML
-  parsing) as fallback when Obsidian is not running
-- Remove `resolve_bucket()` function and `bucket` key from task dicts
-- Detect Obsidian availability (try CLI, catch failure, fall back)
+### Migrate existing tasks to single files
 
-**Commands:**
-- `/openstation.create` — remove symlink creation steps (steps 7-8
-  for regular tasks). Keep frontmatter-only creation. Consider
-  using `obsidian create` + `obsidian property:set` when available.
-- `/openstation.ready` — remove symlink move step (step 8). Keep
-  frontmatter `status` edit only.
-- `/openstation.done` — remove symlink move step (step 5). Keep
-  frontmatter edit + artifact promotion logic.
-- `/openstation.reject` — remove symlink move step (step 6). Keep
-  frontmatter edit only.
+- Convert every `artifacts/tasks/NNNN-slug/index.md` to
+  `artifacts/tasks/NNNN-slug.md`
+- Remove the now-empty task folders
+- Delete all bucket symlinks (`tasks/backlog/`, `tasks/current/`,
+  `tasks/done/`) and their contents
+- Delete all sub-task symlinks from parent task folders
+- Delete all traceability symlinks from task folders
 
-**Execute skill (`skills/openstation-execute/`):**
-- Update fallback discovery from `tasks/current/` scan to
-  `artifacts/tasks/` scan with frontmatter status filter
-- Primary path can use `obsidian search query='[kind: task]
-  [status: ready] [agent: $AGENT]'` for faster task discovery
+### Update CLI (`bin/openstation`)
 
-**Install script (`install.sh`):**
-- Stop creating `tasks/{backlog,current,done}` directories and
-  `.gitkeep` files
-- Keep all `artifacts/` directory creation unchanged
+- Change `discover_tasks()` to scan `artifacts/tasks/*.md` instead
+  of `artifacts/tasks/*/index.md`
+- Remove `resolve_bucket()` and `bucket` key from task dicts
+- Update `cmd_create` to write a single file, not a folder
+- Update all task read/write paths to use `NNNN-slug.md`
 
-**Context to read:**
-- `artifacts/research/storage-layer-replacement.md` — full research
-  with Obsidian CLI command reference and mapping table
-- `bin/openstation` — current CLI source
-- `commands/` — current command specs
-- `skills/openstation-execute/SKILL.md` — current execute skill
+### Update commands
+
+- `/openstation.create` — create single file, no symlinks
+- `/openstation.ready` — frontmatter edit only, no symlink moves
+- `/openstation.done` — frontmatter edit only, keep agent
+  discovery symlink creation for agent specs
+- `/openstation.reject` — frontmatter edit only, no symlink moves
+
+### Update execute skill (`skills/openstation-execute/`)
+
+- Update task discovery paths from `*/index.md` to `*.md`
+- Remove any references to bucket directories
+
+### Update install script (`install.sh`)
+
+- Stop creating `tasks/{backlog,current,done}` directories
+- Keep `artifacts/` directory creation unchanged
+
+### Add `subtasks` field to parent tasks
+
+- Update existing parent tasks to include `subtasks` list in
+  frontmatter per `docs/storage-query-layer.md` § 3a
+
+**Spec to implement:** `docs/storage-query-layer.md`
+**Additional context:** `artifacts/research/storage-layer-replacement.md`
 
 ## Verification
 
-- [ ] `openstation list` works via Obsidian CLI when Obsidian is running
-- [ ] `openstation list` falls back to filesystem scan when Obsidian is not running
-- [ ] `/openstation.create` creates task without bucket symlink
-- [ ] `/openstation.ready`, `/openstation.done`, `/openstation.reject` edit frontmatter only (no symlink moves)
-- [ ] Execute skill discovers tasks from `artifacts/tasks/` (not `tasks/current/`)
-- [ ] `install.sh` no longer creates `tasks/{backlog,current,done}` directories
+- [ ] No task folders remain — all tasks are single `.md` files in `artifacts/tasks/`
+- [ ] No bucket directories (`tasks/backlog/`, `tasks/current/`, `tasks/done/`)
+- [ ] No sub-task or traceability symlinks anywhere
+- [ ] `openstation list` works with single-file tasks
+- [ ] `openstation create` creates a single file (not a folder)
+- [ ] Commands edit frontmatter only (no symlink operations)
+- [ ] Execute skill discovers tasks from `artifacts/tasks/*.md`
+- [ ] Parent tasks have `subtasks` frontmatter field
+- [ ] Existing tests pass (update as needed for new paths)

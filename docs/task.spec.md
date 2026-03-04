@@ -5,20 +5,19 @@ name: task-spec
 
 # Task Specification
 
-Defines the format for task in Open Station. A task is a
-unit of work — a folder containing an `index.md` file with YAML
-frontmatter and a markdown body.
+Defines the format for tasks in Open Station. A task is a
+unit of work — a single markdown file with YAML frontmatter
+and a markdown body.
 
 ## File Location
 
-Every task folder lives permanently in `artifacts/tasks/`:
+Every task file lives permanently in `artifacts/tasks/`:
 
 ```
-artifacts/tasks/NNNN-kebab-slug/
-└── index.md
+artifacts/tasks/NNNN-kebab-slug.md
 ```
 
-Task folders are created here once and never move.
+Task files are created here once and never move.
 
 ## Naming
 
@@ -34,22 +33,21 @@ Task folders are created here once and never move.
 - Descriptive of the task's goal
 - Combined with ID: `NNNN-kebab-slug`
 
-### Folder and `name` field
+### Filename and `name` field
 
-The folder name and the `name` frontmatter field must match
-exactly: `NNNN-kebab-slug`.
+The filename (without `.md`) and the `name` frontmatter field
+must match exactly: `NNNN-kebab-slug`.
 
 ### Sub-tasks
 
-Sub-tasks are full tasks with their own ID and canonical folder
-in `artifacts/tasks/`, linked to a parent task instead of
-appearing independently. See
-`docs/storage-query-layer.md` § 4 for the full
-sub-task storage model (symlink placement, discovery).
+Sub-tasks are full tasks with their own ID and canonical file
+in `artifacts/tasks/`, linked to a parent task via frontmatter
+fields. See `docs/storage-query-layer.md` § 5 for the
+full sub-task storage model.
 
 #### Naming
 
-Sub-task folder name: `NNNN-kebab-slug` (same as any task).
+Sub-task filename: `NNNN-kebab-slug.md` (same as any task).
 The slug should be descriptive of the sub-task's goal — it
 does not need to repeat the parent slug.
 
@@ -60,7 +58,7 @@ frontmatter. This is the only required link back to the parent.
 
 #### Parent body section
 
-The parent's `index.md` should include a `## Subtasks` section
+The parent task file should include a `## Subtasks` section
 listing the sub-tasks with priority groups. See the
 "Task with sub-tasks" example below.
 
@@ -69,11 +67,12 @@ listing the sub-tasks with priority groups. See the
 ```yaml
 ---
 kind: task              # Required. Always "task".
-name: NNNN-kebab-slug   # Required. Matches folder name.
+name: NNNN-kebab-slug   # Required. Matches filename (without .md).
 status: backlog         # Required. See Status Values below.
 agent:                  # Optional. Agent name assigned to execute.
 owner: user             # Required. Who verifies. Default: "user".
 parent:                 # Optional. Parent task name (for sub-tasks).
+subtasks:               # Optional. List of sub-task names (for parent tasks).
 artifacts:              # Optional. List of artifact paths produced.
 created: YYYY-MM-DD     # Required. Date the task was created.
 ---
@@ -91,11 +90,12 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `kind` | string | yes | — | Always `task` |
-| `name` | string | yes | — | `NNNN-kebab-slug`, matches folder name |
+| `name` | string | yes | — | `NNNN-kebab-slug`, matches filename (without `.md`) |
 | `status` | enum | yes | `backlog` | Current lifecycle stage |
 | `agent` | string | no | empty | Agent assigned to execute the task |
 | `owner` | string | yes | `user` | Who verifies: agent name or `user` |
 | `parent` | string | no | empty | Parent task name (for sub-tasks) |
+| `subtasks` | list | no | empty | Sub-task names (for parent tasks) |
 | `artifacts` | list | no | empty | Canonical paths to artifacts produced by this task |
 | `created` | date | yes | — | ISO 8601 date (`YYYY-MM-DD`) |
 
@@ -121,8 +121,21 @@ location in `artifacts/`, not discovery symlinks. Examples:
 - `artifacts/agents/project-manager.md` (not `agents/project-manager.md`)
 - `artifacts/research/obsidian-plugin-api.md` (not a symlink path)
 
-See `docs/storage-query-layer.md` §§ 2c, 3 for
-traceability symlinks and artifact routing.
+See `docs/storage-query-layer.md` §§ 3c, 4 for artifact
+associations and routing.
+
+### Artifact Provenance Fields
+
+Artifacts (agent specs, research outputs, etc.) should declare
+provenance in their own frontmatter:
+
+```yaml
+agent: researcher                      # Which agent created this
+task: 0044-storage-layer-replacement   # Which task it was created for
+```
+
+Use `agent: manual` and omit `task` for manually created
+artifacts. See `docs/storage-query-layer.md` § 3d.
 
 ## Body Structure
 
@@ -263,24 +276,19 @@ could integrate with Obsidian as a plugin in the future. Focus on:
 
 ### Task with sub-tasks
 
-#### Folder structure
+#### File structure
 
 ```
 artifacts/tasks/
-├── 0006-adopt-spec-kit-patterns/
-│   ├── index.md
-│   ├── 0007-add-constitution → ../0007-add-constitution
-│   └── 0008-add-templates    → ../0008-add-templates
-├── 0007-add-constitution/
-│   └── index.md              # parent: 0006-adopt-spec-kit-patterns
-└── 0008-add-templates/
-    └── index.md              # parent: 0006-adopt-spec-kit-patterns
+├── 0006-adopt-spec-kit-patterns.md   # subtasks: [0007-add-constitution, 0008-add-templates]
+├── 0007-add-constitution.md          # parent: 0006-adopt-spec-kit-patterns
+└── 0008-add-templates.md             # parent: 0006-adopt-spec-kit-patterns
 ```
 
-Note: sub-tasks `0007` and `0008` are discovered through their
-parent `0006`, not independently.
+Sub-tasks are linked via frontmatter: `subtasks` on the parent,
+`parent` on each child.
 
-#### Parent `index.md`
+#### Parent task (`0006-adopt-spec-kit-patterns.md`)
 
 ```markdown
 ---
@@ -289,6 +297,9 @@ name: 0006-adopt-spec-kit-patterns
 status: backlog
 agent: author
 owner: user
+subtasks:
+  - 0007-add-constitution
+  - 0008-add-templates
 created: 2026-02-21
 ---
 
@@ -317,7 +328,7 @@ philosophy.
 - [ ] Templates directory exists with task, agent, and research templates
 ```
 
-#### Sub-task `index.md` (example: `0007-add-constitution`)
+#### Sub-task (`0007-add-constitution.md`)
 
 ```markdown
 ---

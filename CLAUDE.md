@@ -9,7 +9,7 @@ or modules to existing components is fine; stay minimal.
 ```
 docs/              — Project documentation (lifecycle, task spec, README)
 artifacts/         — Canonical artifact storage (source of truth)
-  tasks/           —   Task folders (canonical location, never move)
+  tasks/           —   Task files (canonical location, never move)
   agents/          —   Agent specs (canonical location)
   research/        —   Research outputs
   specs/           —   Specifications & designs
@@ -62,15 +62,14 @@ projects. In this source repo they live at the root.
 
 - **task.spec.md** — the shape (schema, naming, format)
 - **lifecycle.md** — the state machine (transitions, ownership, artifacts)
-- **storage-query-layer.md** — the storage model (canonical paths, symlinks, queries)
+- **storage-query-layer.md** — the storage model (canonical paths, frontmatter associations, queries)
 - **execute skill** — the agent playbook (discovery, execution, completion)
 
 ## Task Structure
 
-Each task is a folder with an `index.md` inside, stored
-canonically in `artifacts/tasks/`. See
-`docs/storage-query-layer.md` for the full storage
-and query model.
+Each task is a single markdown file (`NNNN-slug.md`) stored
+in `artifacts/tasks/`. See `docs/storage-query-layer.md` for
+the full storage and query model.
 
 ## Spec Format
 
@@ -81,7 +80,7 @@ minimum `kind` and `name` fields.
 ## Creating a New Task
 
 Use `/openstation.create` to create tasks interactively — it
-handles ID assignment and folder creation.
+handles ID assignment and file creation.
 
 For manual creation, see `docs/task.spec.md` for the format.
 
@@ -108,6 +107,15 @@ ownership model, artifact storage, and promotion routing.
 - `skills/` contains agent-only skills (not user-invocable)
 - `commands/` contains user-invocable slash commands
 
+## Query Model
+
+Task discovery uses a dual-path approach: the **Obsidian CLI**
+as primary query engine (requires Obsidian running) with
+**filesystem + grep** as fallback (always available). Obsidian
+is an optional dependency — the system is fully functional
+without it. See `docs/storage-query-layer.md` Part II for
+query patterns.
+
 <!-- openstation:start -->
 # Open Station
 
@@ -121,7 +129,7 @@ or modules to existing components is fine; stay minimal.
 .openstation/
 ├── docs/              — Project documentation (lifecycle, task spec)
 ├── artifacts/         — Canonical artifact storage (source of truth)
-│   ├── tasks/         —   Task folders (canonical location, never move)
+│   ├── tasks/         —   Task files (canonical location, never move)
 │   ├── agents/        —   Agent specs (canonical location)
 │   ├── research/      —   Research outputs
 │   └── specs/         —   Specifications & designs
@@ -137,6 +145,11 @@ List tasks:     `/openstation.list`
 Update a task:  `/openstation.update <name> field:value`
 Run an agent:   `claude --agent <name>`
 Complete task:  `/openstation.done <name>`
+
+All relationships (parent/child, task/artifact) are encoded in
+YAML frontmatter — no symlinks except `agents/` discovery
+symlinks for Claude Code `--agent` resolution. The Obsidian CLI
+is an optional query engine; filesystem + grep works everywhere.
 
 See `.openstation/docs/lifecycle.md` for lifecycle rules,
 `.openstation/docs/task.spec.md` for task format, and

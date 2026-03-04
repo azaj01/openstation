@@ -5,9 +5,7 @@ name: storage-query-layer
 
 # Storage & Query Layer
 
-Retrospective specification documenting Open Station's storage
-model and query patterns as they exist today. This is the
-authoritative reference for how tasks, artifacts, and agents are
+Authoritative reference for how tasks, artifacts, and agents are
 stored on the filesystem and how they are discovered.
 
 For lifecycle rules (status transitions, ownership, verification)
@@ -25,55 +23,33 @@ source of truth. Each artifact type has a dedicated subdirectory:
 
 ```
 artifacts/
-├── tasks/       — Task folders (one per task, never moved)
+├── tasks/       — Task files (one per task, never moved)
 ├── agents/      — Agent spec files (canonical location)
 ├── research/    — Research outputs (from researcher agent)
 └── specs/       — Specifications and designs
 ```
 
-**Immutability rule:** Once a folder or file is created in
-`artifacts/`, it stays at that path permanently. Nothing in
-`artifacts/` is ever moved or renamed — only its contents are
-updated in place.
+**Immutability rule:** Once a file is created in `artifacts/`, it
+stays at that path permanently. Nothing in `artifacts/` is ever
+moved or renamed — only its contents are updated in place.
 
-Tasks are folders (not files). Each task folder contains at
-minimum an `index.md` with YAML frontmatter:
-
-```
-artifacts/tasks/0010-add-login-page/
-└── index.md
-```
-
-All other artifact types are single files stored directly in
-their category directory:
+All artifact types are single markdown files with YAML
+frontmatter, stored directly in their category directory:
 
 ```
+artifacts/tasks/0010-add-login-page.md
 artifacts/agents/researcher.md
 artifacts/research/obsidian-plugin-api.md
 artifacts/specs/storage-query-layer.md
 ```
 
-### 2. Symlink Graph
+### 2. Discovery Symlinks
 
-Open Station uses three kinds of symlinks, each serving a
-distinct purpose:
+Open Station uses a single kind of symlink: **discovery
+symlinks** for agent resolution. No other symlinks exist in the
+system.
 
-#### 2a. Sub-task Symlinks (parent → child)
-
-Symlinks inside a parent task folder that point to sibling
-task folders in `artifacts/tasks/`. They establish the
-parent-child relationship:
-
-```
-artifacts/tasks/0006-adopt-spec-kit-patterns/
-├── index.md
-├── 0007-add-constitution → ../0007-add-constitution
-└── 0008-add-templates    → ../0008-add-templates
-```
-
-Sub-tasks are discovered only through their parent folder.
-
-#### 2b. Discovery Symlinks (agent resolution)
+#### 2a. Agent Discovery Symlinks
 
 Symlinks in `agents/` that point to canonical specs in
 `artifacts/agents/`. They make agents available via
@@ -83,25 +59,65 @@ Symlinks in `agents/` that point to canonical specs in
 agents/researcher.md → ../artifacts/agents/researcher.md
 ```
 
-Discovery symlinks are created by `/openstation.done` after
-task verification — never during task execution.
+Discovery symlinks are created by:
 
-#### 2c. Traceability Symlinks (task → artifact)
+- `install.sh` — for bundled example agents at install time.
+- `/openstation.done` — for agents produced by tasks, after
+  verification passes (agent promotion).
 
-Symlinks inside a task folder that point back to the canonical
-artifact the task produced. They record which task created which
-artifact:
+Agents must NOT create discovery symlinks during task execution.
 
+### 3. Frontmatter Associations
+
+All relationships between tasks, sub-tasks, and artifacts are
+encoded in YAML frontmatter fields. There are no symlinks for
+these associations.
+
+#### 3a. Parent → Children (subtasks)
+
+A parent task lists its sub-tasks in a `subtasks` frontmatter
+field:
+
+```yaml
+subtasks:
+  - 0046-spec-storage-query-layer
+  - 0047-implement-storage-replacement
 ```
-artifacts/tasks/0011-add-pm-agent/
-├── index.md
-└── project-manager.md → ../../agents/project-manager.md
+
+#### 3b. Child → Parent
+
+Each sub-task declares its parent via the `parent` field:
+
+```yaml
+parent: 0045-replace-storage-obsidian-cli
 ```
 
-These are created by agents during execution alongside storing
-the canonical file.
+#### 3c. Task → Artifacts
 
-### 3. Artifact Routing
+Tasks list the artifacts they produced in the `artifacts`
+frontmatter field using canonical paths:
+
+```yaml
+artifacts:
+  - artifacts/agents/project-manager.md
+  - artifacts/research/obsidian-plugin-api.md
+```
+
+#### 3d. Artifact Provenance
+
+Artifacts declare which agent generated them and which task they
+belong to:
+
+```yaml
+agent: researcher
+task: 0044-storage-layer-replacement
+```
+
+Use `agent: manual` and omit `task` for manually created
+artifacts. These fields are optional — not all artifacts track
+provenance (e.g., task files do not set these on themselves).
+
+### 4. Artifact Routing
 
 During task execution, agents store artifacts in the appropriate
 `artifacts/<category>/` directory. The routing table:
@@ -114,32 +130,26 @@ During task execution, agents store artifacts in the appropriate
 | Other agent output   | `artifacts/specs/`       |
 
 Agents also record produced artifacts in the task's frontmatter
-`artifacts` list using canonical paths:
+`artifacts` list using canonical paths (§ 3c) and should set
+provenance fields on the artifact itself (§ 3d).
 
-```yaml
-artifacts:
-  - artifacts/agents/project-manager.md
-  - artifacts/research/obsidian-plugin-api.md
-```
+### 5. Sub-task Storage
 
-### 4. Sub-task Storage
-
-Sub-tasks are full tasks with their own canonical folder in
-`artifacts/tasks/`, linked to a parent rather than standing
-alone. They differ from top-level tasks in two ways:
+Sub-tasks are full tasks with their own canonical file in
+`artifacts/tasks/`, linked to a parent through frontmatter.
+They differ from top-level tasks in two ways:
 
 1. **Parent field.** The sub-task's frontmatter sets
-   `parent: <parent-task-name>`.
-2. **Parent symlink.** The parent task folder contains a symlink
-   to the sub-task folder (see § 2a).
+   `parent: <parent-task-name>` (§ 3b).
+2. **Subtasks field.** The parent's frontmatter lists the
+   sub-task in its `subtasks` field (§ 3a).
 
 #### Creating a sub-task
 
-1. Create canonical folder: `artifacts/tasks/MMMM-sub-slug/`
-   with `index.md`.
+1. Create canonical file: `artifacts/tasks/MMMM-sub-slug.md`.
 2. Set `parent: <parent-task-name>` in sub-task frontmatter.
-3. Create symlink inside parent folder:
-   `artifacts/tasks/NNNN-parent/MMMM-sub → ../MMMM-sub`
+3. Add the sub-task name to the parent's `subtasks` frontmatter
+   field.
 4. Add an entry to the parent's `## Subtasks` body section.
 
 #### Blocking rule
@@ -149,10 +159,16 @@ to `review`.
 
 #### Status tracking
 
-Each sub-task tracks its own status in its `index.md`
-frontmatter, following the same transitions as any task.
+Each sub-task tracks its own status in its frontmatter,
+following the same transitions as any task.
 
-### 5. Install-time Layout
+#### Discovery
+
+Sub-tasks are discovered through the parent's `subtasks`
+frontmatter field, or by querying all tasks with a given
+`parent` value.
+
+### 6. Install-time Layout
 
 When installed into a target project via `install.sh`, the entire
 vault is placed under `.openstation/`:
@@ -198,21 +214,34 @@ The installer also:
 - Copies example agent specs to `artifacts/agents/` (skippable
   with `--no-agents`) and creates their discovery symlinks.
 
-### 6. Design Rationale
+### 7. Design Rationale
 
-**Canonical paths are stable.** Task folders in `artifacts/tasks/`
+**Canonical paths are stable.** Task files in `artifacts/tasks/`
 never move or rename. Any reference to
-`artifacts/tasks/NNNN-slug/` remains valid across all lifecycle
-stages. Traceability symlinks and `artifacts` field entries never
-go stale.
+`artifacts/tasks/NNNN-slug.md` remains valid across all lifecycle
+stages.
 
-**Flat `artifacts/tasks/` over nested.** All task folders are
+**Flat `artifacts/tasks/` over nested.** All task files are
 siblings under `artifacts/tasks/` rather than nested by status
 or parent. This keeps:
 
 - Task IDs globally unique and easily scannable (`ls artifacts/tasks/`).
-- Sub-task symlinks simple (relative `../MMMM-slug` targets).
 - No deep nesting that obscures the task list.
+
+**Symlink elimination.** Only discovery symlinks remain (for
+Claude Code `--agent` resolution). All other relationships —
+parent/child, task/artifact provenance — are encoded in YAML
+frontmatter. This eliminates:
+
+- State-split bugs (symlink says one thing, frontmatter another).
+- Obsidian incompatibility (intra-vault symlinks violate
+  Obsidian's disjoint-folder rule).
+- Extra git diffs from symlink create/delete on transitions.
+
+**Frontmatter as single source of truth.** Task lifecycle state,
+relationships, and artifact provenance live exclusively in YAML
+frontmatter fields. There is no secondary representation to keep
+in sync.
 
 **Convention over database.** The filesystem *is* the database.
 Markdown files with YAML frontmatter are both human-readable and
@@ -226,12 +255,6 @@ machine-parseable. This means:
 - Portable — `install.sh` bootstraps the full system from a
   single script.
 
-**Frontmatter as single source of truth.** Task lifecycle state
-lives exclusively in the `status` frontmatter field — there is
-no secondary representation to keep in sync. This eliminates
-state-split bugs where one source says `ready` and another says
-`in-progress`.
-
 **Dual-path query model.** The Obsidian CLI
 (`/Applications/Obsidian.app/Contents/MacOS/obsidian`) provides
 fast structured property queries when Obsidian is running. The
@@ -241,7 +264,7 @@ This layered approach offers:
 - Fast interactive queries via `obsidian search` with
   `[property: value]` syntax and JSON output.
 - Reliable fallback when Obsidian is not running — `grep` across
-  `artifacts/tasks/*/index.md` achieves the same results.
+  `artifacts/tasks/*.md` achieves the same results.
 - No hard dependency on Obsidian — the system is fully functional
   with filesystem queries alone.
 
@@ -254,7 +277,7 @@ CLI** (primary, requires Obsidian running) and **filesystem**
 (fallback, always available). The `openstation` CLI wraps both
 paths with automatic fallback.
 
-### 7. Find Tasks by Status
+### 8. Find Tasks by Status
 
 **Primary (Obsidian CLI):**
 
@@ -265,19 +288,15 @@ obsidian search vault="open-station" query='[kind: task] [status: ready]' format
 **Fallback (filesystem):**
 
 ```bash
-grep -rl 'status: ready' artifacts/tasks/*/index.md
+grep -rl 'status: ready' artifacts/tasks/*.md
 ```
 
 The `openstation list --status <s>` CLI command wraps this
 dual-path pattern.
 
-### 8. Get Artifacts for a Task
+### 9. Get Artifacts for a Task
 
-Two complementary methods:
-
-#### Frontmatter `artifacts` field
-
-The task's `index.md` lists canonical paths to produced artifacts:
+Read the task's frontmatter `artifacts` field:
 
 ```yaml
 artifacts:
@@ -285,43 +304,33 @@ artifacts:
   - artifacts/research/obsidian-plugin-api.md
 ```
 
-#### Traceability symlinks
+### 10. Get Sub-tasks of a Parent
 
-The task folder contains symlinks to each artifact:
-
-```
-artifacts/tasks/0011-add-pm-agent/
-├── index.md
-└── project-manager.md → ../../agents/project-manager.md
-```
-
-To enumerate: list all symlinks in the task folder (excluding
-`index.md` and sub-task symlinks which point to sibling
-directories, not files).
-
-### 9. Get Sub-tasks of a Parent
-
-Sub-tasks are symlinked inside the parent folder. To enumerate:
+**Primary (Obsidian CLI):**
 
 ```bash
-# List sub-task symlinks (they point to sibling directories)
-ls -l artifacts/tasks/NNNN-parent-slug/
+obsidian search vault="open-station" query='[kind: task] [parent: 0045-replace-storage-obsidian-cli]' format=json
 ```
 
-Sub-task symlinks are directory symlinks with relative targets
-of the form `../MMMM-sub-slug`. They are distinguishable from
-traceability symlinks (which are file symlinks targeting
-`../../<category>/<file>`).
-
-To check sub-task statuses, read each sub-task's `index.md`:
+**Fallback (filesystem):**
 
 ```bash
-for sub in artifacts/tasks/NNNN-parent/*/index.md; do
-  grep 'status:' "$sub"
+grep -rl 'parent: 0045-replace-storage-obsidian-cli' artifacts/tasks/*.md
+```
+
+Alternatively, read the parent's `subtasks` frontmatter field
+for the canonical list.
+
+To check sub-task statuses:
+
+```bash
+# Read each sub-task's status
+for name in 0046-spec-storage-query-layer 0047-implement-storage-replacement; do
+  grep 'status:' "artifacts/tasks/$name.md"
 done
 ```
 
-### 10. Find Tasks by Agent
+### 11. Find Tasks by Agent
 
 **Primary (Obsidian CLI):**
 
@@ -332,7 +341,7 @@ obsidian search vault="open-station" query='[kind: task] [agent: researcher]' fo
 **Fallback (filesystem):**
 
 ```bash
-grep -rl 'agent: researcher' artifacts/tasks/*/index.md
+grep -rl 'agent: researcher' artifacts/tasks/*.md
 ```
 
 Combined filters (status + agent):
@@ -346,12 +355,12 @@ obsidian search vault="open-station" query='[kind: task] [status: ready] [agent:
 **Fallback:**
 
 ```bash
-grep -rl 'status: ready' artifacts/tasks/*/index.md | xargs grep -l 'agent: researcher'
+grep -rl 'status: ready' artifacts/tasks/*.md | xargs grep -l 'agent: researcher'
 ```
 
 The `openstation list --agent <name>` CLI command wraps this.
 
-### 11. Agent Discovery
+### 12. Agent Discovery
 
 Agents are discovered through symlinks in the `agents/`
 directory. The resolution chain:
@@ -378,7 +387,7 @@ Discovery symlinks are created by:
 - `/openstation.done` — for agents produced by tasks, after
   verification passes (agent promotion).
 
-### 12. Query Patterns Summary
+### 13. Query Patterns Summary
 
 Quick-reference table mapping common queries to operations.
 Frontmatter queries use the Obsidian CLI when available,
@@ -391,11 +400,11 @@ falling back to `grep` on the filesystem. ¹
 | Status + agent combined      | `obsidian search query='[kind: task] [status: X] [agent: A]' format=json` ¹ |
 | Count tasks by status        | Add `total` flag to any search command above ¹                  |
 | Tasks with a given parent    | `obsidian search query='[kind: task] [parent: <name>]' format=json` ¹ |
-| Artifacts for task T         | Read `artifacts` field in task frontmatter, or `ls` task dir    |
-| Sub-tasks of parent P        | `ls artifacts/tasks/P/` (directory symlinks = sub-tasks)        |
-| Sub-task statuses            | `grep 'status:' artifacts/tasks/P/*/index.md`                  |
+| Sub-tasks of parent P        | Read parent's `subtasks` frontmatter, or query `[parent: P]` ¹ |
+| Artifacts for task T         | Read `artifacts` field in task frontmatter                      |
+| Artifact provenance          | Read `task` and `agent` fields on the artifact                  |
 | Resolve agent name           | Follow `agents/<name>.md` → `artifacts/agents/<name>.md`       |
 | All known agents             | `ls agents/`                                                    |
 | Next available task ID       | `ls artifacts/tasks/ \| sort \| tail -1` then increment        |
 
-¹ Fallback: `grep -rl '<field>: <value>' artifacts/tasks/*/index.md`
+¹ Fallback: `grep -rl '<field>: <value>' artifacts/tasks/*.md`

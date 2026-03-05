@@ -21,18 +21,19 @@ def run_cli(args, cwd=None):
     return result.stdout, result.stderr, result.returncode
 
 
-def make_task(base, name, status="ready", agent="researcher", owner="manual", bucket="current"):
+def make_task(base, name, status="ready", agent="researcher", owner="manual",
+              subtasks=None):
     """Create a minimal task fixture in the vault."""
-    task_dir = base / "artifacts" / "tasks" / name
-    task_dir.mkdir(parents=True, exist_ok=True)
-    (task_dir / "index.md").write_text(
+    tasks_dir = base / "artifacts" / "tasks"
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+    extra = ""
+    if subtasks:
+        extra = "subtasks:\n" + "".join(f"  - {s}\n" for s in subtasks)
+    (tasks_dir / f"{name}.md").write_text(
         f"---\nkind: task\nname: {name}\nstatus: {status}\n"
-        f"agent: {agent}\nowner: {owner}\ncreated: 2026-01-01\n---\n\n# {name}\n"
+        f"agent: {agent}\nowner: {owner}\ncreated: 2026-01-01\n"
+        f"{extra}---\n\n# {name}\n"
     )
-    if bucket:
-        link = base / "tasks" / bucket / name
-        link.parent.mkdir(parents=True, exist_ok=True)
-        link.symlink_to(task_dir.relative_to(link.parent.parent.parent))
 
 
 def make_source_vault(tmpdir):
@@ -41,8 +42,6 @@ def make_source_vault(tmpdir):
     (root / "agents").mkdir(parents=True, exist_ok=True)
     (root / "install.sh").write_text("#!/bin/bash\n")
     (root / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
-    for bucket in ("backlog", "current", "done"):
-        (root / "tasks" / bucket).mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -65,8 +64,6 @@ def make_installed_vault(tmpdir):
     root = Path(tmpdir)
     os_dir = root / ".openstation"
     (os_dir / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
-    for bucket in ("backlog", "current", "done"):
-        (os_dir / "tasks" / bucket).mkdir(parents=True, exist_ok=True)
     return root, os_dir
 
 
@@ -80,12 +77,12 @@ class TestListCommand(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
 
     def test_list_default_shows_only_active(self):
-        make_task(self.root, "0001-alpha", status="ready", bucket="current")
-        make_task(self.root, "0002-beta", status="done", bucket="done")
-        make_task(self.root, "0003-gamma", status="failed", bucket="done")
-        make_task(self.root, "0004-delta", status="in-progress", bucket="current")
-        make_task(self.root, "0005-epsilon", status="backlog", bucket="backlog")
-        make_task(self.root, "0006-zeta", status="review", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="done")
+        make_task(self.root, "0003-gamma", status="failed")
+        make_task(self.root, "0004-delta", status="in-progress")
+        make_task(self.root, "0005-epsilon", status="backlog")
+        make_task(self.root, "0006-zeta", status="review")
 
         out, _, rc = run_cli(["list"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -97,8 +94,8 @@ class TestListCommand(unittest.TestCase):
         self.assertNotIn("0005", out)  # backlog — excluded
 
     def test_list_status_backlog(self):
-        make_task(self.root, "0001-alpha", status="backlog", bucket="backlog")
-        make_task(self.root, "0002-beta", status="ready", bucket="current")
+        make_task(self.root, "0001-alpha", status="backlog")
+        make_task(self.root, "0002-beta", status="ready")
 
         out, _, rc = run_cli(["list", "--status", "backlog"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -106,8 +103,8 @@ class TestListCommand(unittest.TestCase):
         self.assertNotIn("0002", out)
 
     def test_list_status_ready(self):
-        make_task(self.root, "0001-alpha", status="ready", bucket="current")
-        make_task(self.root, "0002-beta", status="in-progress", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="in-progress")
 
         out, _, rc = run_cli(["list", "--status", "ready"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -115,9 +112,9 @@ class TestListCommand(unittest.TestCase):
         self.assertNotIn("0002", out)
 
     def test_list_status_all(self):
-        make_task(self.root, "0001-alpha", status="ready", bucket="current")
-        make_task(self.root, "0002-beta", status="done", bucket="done")
-        make_task(self.root, "0003-gamma", status="failed", bucket="done")
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="done")
+        make_task(self.root, "0003-gamma", status="failed")
 
         out, _, rc = run_cli(["list", "--status", "all"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -126,8 +123,8 @@ class TestListCommand(unittest.TestCase):
         self.assertIn("0003", out)
 
     def test_list_agent_filter(self):
-        make_task(self.root, "0001-alpha", agent="researcher", bucket="current")
-        make_task(self.root, "0002-beta", agent="author", bucket="current")
+        make_task(self.root, "0001-alpha", agent="researcher")
+        make_task(self.root, "0002-beta", agent="author")
 
         out, _, rc = run_cli(["list", "--agent", "researcher"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -135,9 +132,9 @@ class TestListCommand(unittest.TestCase):
         self.assertNotIn("0002", out)
 
     def test_list_combined_filters(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher", bucket="current")
-        make_task(self.root, "0002-beta", status="in-progress", agent="researcher", bucket="current")
-        make_task(self.root, "0003-gamma", status="ready", agent="author", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
+        make_task(self.root, "0002-beta", status="in-progress", agent="researcher")
+        make_task(self.root, "0003-gamma", status="ready", agent="author")
 
         out, _, rc = run_cli(["list", "--status", "ready", "--agent", "researcher"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -150,20 +147,20 @@ class TestListCommand(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(out.strip(), "")
 
-    def test_list_skips_missing_index(self):
-        task_dir = self.root / "artifacts" / "tasks" / "0001-noindex"
-        task_dir.mkdir(parents=True)
-        link = self.root / "tasks" / "current" / "0001-noindex"
-        link.symlink_to(task_dir.relative_to(link.parent.parent.parent))
+    def test_list_skips_non_task_files(self):
+        # A .md file without kind: task should be skipped
+        tasks_dir = self.root / "artifacts" / "tasks"
+        tasks_dir.mkdir(parents=True, exist_ok=True)
+        (tasks_dir / "roadmap.md").write_text("# Roadmap\nNot a task.\n")
 
         out, _, rc = run_cli(["list"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
-        self.assertNotIn("0001", out)
+        self.assertNotIn("roadmap", out)
 
     def test_list_sorted_by_id(self):
-        make_task(self.root, "0003-gamma", bucket="current")
-        make_task(self.root, "0001-alpha", bucket="current")
-        make_task(self.root, "0002-beta", bucket="current")
+        make_task(self.root, "0003-gamma")
+        make_task(self.root, "0001-alpha")
+        make_task(self.root, "0002-beta")
 
         out, _, rc = run_cli(["list"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -184,7 +181,7 @@ class TestShowCommand(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
 
     def test_show_by_slug(self):
-        make_task(self.root, "0001-alpha", bucket="current")
+        make_task(self.root, "0001-alpha")
 
         out, _, rc = run_cli(["show", "0001-alpha"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -192,15 +189,15 @@ class TestShowCommand(unittest.TestCase):
         self.assertIn("0001-alpha", out)
 
     def test_show_by_id_prefix(self):
-        make_task(self.root, "0001-alpha", bucket="current")
+        make_task(self.root, "0001-alpha")
 
         out, _, rc = run_cli(["show", "0001"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("kind: task", out)
 
     def test_show_ambiguous_prefix(self):
-        make_task(self.root, "0001-alpha", bucket="current")
-        make_task(self.root, "0001-beta", bucket="current")
+        make_task(self.root, "0001-alpha")
+        make_task(self.root, "0001-beta")
 
         _, err, rc = run_cli(["show", "0001"], cwd=self.tmpdir)
         self.assertEqual(rc, 4)
@@ -213,13 +210,10 @@ class TestShowCommand(unittest.TestCase):
         self.assertEqual(rc, 3)
         self.assertIn("not found", err)
 
-    def test_show_missing_index(self):
-        task_dir = self.root / "artifacts" / "tasks" / "0001-noindex"
-        task_dir.mkdir(parents=True)
-
-        _, err, rc = run_cli(["show", "0001-noindex"], cwd=self.tmpdir)
+    def test_show_missing_task(self):
+        _, err, rc = run_cli(["show", "0001-noexist"], cwd=self.tmpdir)
         self.assertEqual(rc, 3)
-        self.assertIn("task spec missing", err)
+        self.assertIn("not found", err)
 
 
 # ── Root Detection Tests ────────────────────────────────────────────
@@ -230,7 +224,7 @@ class TestRootDetection(unittest.TestCase):
     def test_source_repo_root(self):
         tmpdir = tempfile.mkdtemp()
         root = make_source_vault(tmpdir)
-        make_task(root, "0001-alpha", bucket="current")
+        make_task(root, "0001-alpha")
 
         out, _, rc = run_cli(["list"], cwd=tmpdir)
         self.assertEqual(rc, 0)
@@ -239,7 +233,7 @@ class TestRootDetection(unittest.TestCase):
     def test_installed_project_root(self):
         tmpdir = tempfile.mkdtemp()
         root, os_dir = make_installed_vault(tmpdir)
-        make_task(os_dir, "0001-alpha", bucket="current")
+        make_task(os_dir, "0001-alpha")
 
         out, _, rc = run_cli(["list"], cwd=tmpdir)
         self.assertEqual(rc, 0)
@@ -254,17 +248,13 @@ class TestRootDetection(unittest.TestCase):
         (root / "agents").mkdir()
         (root / "install.sh").write_text("#!/bin/bash\n")
         (root / "artifacts" / "tasks").mkdir(parents=True)
-        for b in ("backlog", "current", "done"):
-            (root / "tasks" / b).mkdir(parents=True)
 
         # Installed markers with different task
         os_dir = root / ".openstation"
         (os_dir / "artifacts" / "tasks").mkdir(parents=True)
-        for b in ("backlog", "current", "done"):
-            (os_dir / "tasks" / b).mkdir(parents=True)
 
-        make_task(root, "0001-source-task", bucket="current")
-        make_task(os_dir, "0002-installed-task", bucket="current")
+        make_task(root, "0001-source-task")
+        make_task(os_dir, "0002-installed-task")
 
         out, _, rc = run_cli(["list", "--status", "all"], cwd=tmpdir)
         self.assertEqual(rc, 0)
@@ -275,7 +265,7 @@ class TestRootDetection(unittest.TestCase):
     def test_child_directory_finds_root(self):
         tmpdir = tempfile.mkdtemp()
         root = make_source_vault(tmpdir)
-        make_task(root, "0001-alpha", bucket="current")
+        make_task(root, "0001-alpha")
 
         # Run from a child directory
         child = root / "some" / "nested" / "dir"
@@ -336,7 +326,7 @@ class TestRunDryRun(unittest.TestCase):
         self.assertIn("--max-turns 100", out)
 
     def test_by_task_dry_run(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
         out, _, rc = run_cli(["run", "--task", "0001", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("claude", out)
@@ -344,7 +334,7 @@ class TestRunDryRun(unittest.TestCase):
         self.assertIn("0001-alpha", out)  # prompt references task name
 
     def test_by_task_full_slug(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
         out, _, rc = run_cli(["run", "--task", "0001-alpha", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha", out)
@@ -365,7 +355,7 @@ class TestRunArgValidation(unittest.TestCase):
 
     def test_both_agent_and_task_errors(self):
         make_agent_spec(self.root, "researcher")
-        make_task(self.root, "0001-alpha", status="ready", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready")
         _, stderr, rc = run_cli(
             ["run", "researcher", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,
@@ -425,7 +415,7 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("not found", stderr)
 
     def test_task_not_ready(self):
-        make_task(self.root, "0001-alpha", status="in-progress", agent="researcher", bucket="current")
+        make_task(self.root, "0001-alpha", status="in-progress", agent="researcher")
         _, stderr, rc = run_cli(
             ["run", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,
@@ -435,7 +425,7 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("expected 'ready'", stderr)
 
     def test_task_not_ready_with_force(self):
-        make_task(self.root, "0001-alpha", status="in-progress", agent="researcher", bucket="current")
+        make_task(self.root, "0001-alpha", status="in-progress", agent="researcher")
         out, _, rc = run_cli(
             ["run", "--task", "0001", "--force", "--dry-run"],
             cwd=self.tmpdir,
@@ -444,7 +434,7 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("claude", out)
 
     def test_task_no_agent_assigned(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready", agent="")
         _, stderr, rc = run_cli(
             ["run", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,
@@ -463,7 +453,7 @@ class TestRunSubtasks(unittest.TestCase):
         make_agent_spec(self.root, "author")
 
     def test_no_subtasks_runs_parent(self):
-        make_task(self.root, "0001-parent", status="ready", agent="researcher", bucket="current")
+        make_task(self.root, "0001-parent", status="ready", agent="researcher")
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
             cwd=self.tmpdir,
@@ -473,14 +463,11 @@ class TestRunSubtasks(unittest.TestCase):
         self.assertIn("0001-parent", out)
 
     def test_subtask_discovery(self):
-        # Create parent task
-        make_task(self.root, "0001-parent", status="ready", agent="researcher", bucket="current")
+        # Create parent task with subtasks field
+        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+                  subtasks=["0002-child"])
         # Create subtask
-        make_task(self.root, "0002-child", status="ready", agent="researcher", bucket=None)
-        # Symlink subtask into parent
-        parent_dir = self.root / "artifacts" / "tasks" / "0001-parent"
-        child_dir = self.root / "artifacts" / "tasks" / "0002-child"
-        (parent_dir / "0002-child").symlink_to(child_dir)
+        make_task(self.root, "0002-child", status="ready", agent="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
@@ -492,17 +479,10 @@ class TestRunSubtasks(unittest.TestCase):
 
     def test_max_tasks_limits_execution(self):
         # Create parent with two subtasks
-        make_task(self.root, "0001-parent", status="ready", agent="researcher", bucket="current")
-        make_task(self.root, "0002-child-a", status="ready", agent="researcher", bucket=None)
-        make_task(self.root, "0003-child-b", status="ready", agent="researcher", bucket=None)
-
-        parent_dir = self.root / "artifacts" / "tasks" / "0001-parent"
-        (parent_dir / "0002-child-a").symlink_to(
-            self.root / "artifacts" / "tasks" / "0002-child-a"
-        )
-        (parent_dir / "0003-child-b").symlink_to(
-            self.root / "artifacts" / "tasks" / "0003-child-b"
-        )
+        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+                  subtasks=["0002-child-a", "0003-child-b"])
+        make_task(self.root, "0002-child-a", status="ready", agent="researcher")
+        make_task(self.root, "0003-child-b", status="ready", agent="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--max-tasks", "1", "--dry-run"],
@@ -514,18 +494,25 @@ class TestRunSubtasks(unittest.TestCase):
         self.assertIn("0002-child-a", out)
         self.assertNotIn("0003-child-b", out)
 
-    def test_subtask_only_ready_collected(self):
-        make_task(self.root, "0001-parent", status="ready", agent="researcher", bucket="current")
-        make_task(self.root, "0002-ready", status="ready", agent="researcher", bucket=None)
-        make_task(self.root, "0003-done", status="done", agent="researcher", bucket=None)
+    def test_subtask_wikilinks(self):
+        # Subtasks listed as Obsidian wikilinks should resolve correctly
+        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+                  subtasks=['"[[0002-child]]"'])
+        make_task(self.root, "0002-child", status="ready", agent="researcher")
 
-        parent_dir = self.root / "artifacts" / "tasks" / "0001-parent"
-        (parent_dir / "0002-ready").symlink_to(
-            self.root / "artifacts" / "tasks" / "0002-ready"
+        out, stderr, rc = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run"],
+            cwd=self.tmpdir,
         )
-        (parent_dir / "0003-done").symlink_to(
-            self.root / "artifacts" / "tasks" / "0003-done"
-        )
+        self.assertEqual(rc, 0)
+        self.assertIn("1 ready subtask", stderr)
+        self.assertIn("0002-child", out)
+
+    def test_subtask_only_ready_collected(self):
+        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+                  subtasks=["0002-ready", "0003-done"])
+        make_task(self.root, "0002-ready", status="ready", agent="researcher")
+        make_task(self.root, "0003-done", status="done", agent="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
@@ -570,7 +557,7 @@ class TestRunClaude(unittest.TestCase):
         return result.stdout, result.stderr, result.returncode
 
     def test_by_task_executes_mock_claude(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher", bucket="current")
+        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
         _, stderr, rc = self._run_with_mock(["run", "--task", "0001"])
         self.assertEqual(rc, 0, f"stderr: {stderr}")
         # Verify mock claude was called

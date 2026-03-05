@@ -51,8 +51,9 @@ The `owner` field names who is responsible for verification.
 
 A task may be decomposed into sub-tasks. Sub-tasks are full
 tasks with their own canonical file in `artifacts/tasks/`,
-linked to their parent via frontmatter fields (`parent` on the
-child, `subtasks` on the parent). See
+linked to their parent via frontmatter wikilinks
+(`parent: "[[parent-name]]"` on the child,
+`subtasks: - "[[child-name]]"` on the parent). See
 `docs/storage-query-layer.md` § 5 for the full sub-task
 storage model.
 

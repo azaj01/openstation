@@ -5,7 +5,7 @@ description: Reject a task in review and mark it failed. $ARGUMENTS = task-name 
 
 # Reject Task
 
-Mark a task in `review` as `failed` and archive it.
+Mark a task in `review` as `failed` by editing its frontmatter.
 
 ## Input
 
@@ -19,15 +19,14 @@ Examples:
 
 1. Parse the task name (first argument) and optional reason
    (remaining text) from `$ARGUMENTS`.
-2. Locate the task folder in `tasks/current/`:
-   - Try exact match: `tasks/current/<task-name>/index.md`
-   - If not found, try glob fallback: `tasks/current/*-<task-name>/index.md`
-   - If still not found, report an error and list available tasks
-     in `tasks/current/`.
-3. Read the task frontmatter from `index.md`. Verify
-   `status: review` — refuse with an error if the task is not
-   in review. Only `review` → `failed` is a valid transition
-   for this command.
+2. Locate the task file:
+   - Try exact match: `artifacts/tasks/<task-name>.md`
+   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
+   - If still not found, report an error and suggest using
+     `openstation list` to find the correct name.
+3. Read the task frontmatter. Verify `status: review` — refuse
+   with an error if the task is not in review. Only
+   `review` → `failed` is a valid transition for this command.
 4. Set `status: failed` in the task frontmatter.
 5. If a reason was provided, append to the task body:
 
@@ -39,7 +38,4 @@ Examples:
    **Reason:** <reason text>
    ```
 
-6. Delete the symlink from `tasks/current/` and create a new
-   symlink in `tasks/done/` →
-   `../../artifacts/tasks/<task-name>`.
-7. Confirm with: task name, reason (if any), and new path.
+6. Confirm with: task name, reason (if any), and file path.

@@ -53,13 +53,11 @@ appropriate redirect:
 2. Check for any `status:` field. If present, reject with the
    appropriate message from the table above. Do not apply any
    changes.
-3. Locate the task folder:
-   - Search `tasks/backlog/`, `tasks/current/`, and `tasks/done/`
-     for a folder matching the task name.
-   - Try exact match: `tasks/<bucket>/<task-name>/index.md`
-   - If not found, try glob fallback: `tasks/<bucket>/*-<task-name>/index.md`
+3. Locate the task file:
+   - Try exact match: `artifacts/tasks/<task-name>.md`
+   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
    - If still not found, report an error and list available tasks.
-4. Read the current frontmatter from `index.md`.
+4. Read the current frontmatter from the task file.
 5. Validate each field:value pair:
    - `agent` should match an agent in `agents/` (warn if not found,
      but allow it)

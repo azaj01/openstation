@@ -13,12 +13,8 @@ where all state is stored as markdown files with YAML frontmatter.
 
 ```
 docs/              — Project documentation (lifecycle, task spec, README)
-tasks/             — Lifecycle buckets (contain symlinks, not real folders)
-  backlog/         —   Not yet ready for agents
-  current/         —   Active work (ready → in-progress → review)
-  done/            —   Completed tasks
 artifacts/         — Canonical artifact storage (source of truth)
-  tasks/           —   Task folders (canonical location, never move)
+  tasks/           —   Task files (NNNN-slug.md, single files, never moved)
   agents/          —   Agent specs (canonical location)
   research/        —   Research outputs
   specs/           —   Specifications & designs
@@ -27,8 +23,9 @@ skills/            — Skills (including this one)
 commands/          — User-invocable slash commands
 ```
 
-Task entries in buckets are symlinks to `artifacts/tasks/`.
-Reads through symlinks are transparent — no special handling needed.
+All tasks are single files in `artifacts/tasks/` — e.g.,
+`artifacts/tasks/0010-add-login-page.md`. There are no task
+folders or bucket directories.
 
 ## CLI Tool
 
@@ -58,8 +55,8 @@ found.
    body structure, editing guardrails).
 4. Run `openstation list --status ready --agent <your-name>` to find
    assigned ready tasks. If the CLI is unavailable, fall back to
-   scanning `tasks/current/` for task folders containing an `index.md`
-   where `agent` matches your name AND `status` is `ready`.
+   scanning `artifacts/tasks/*.md` for files where `agent` matches
+   your name AND `status` is `ready`.
 5. If multiple ready tasks exist, pick the one with the earliest
    `created` date.
 6. If no ready tasks exist, report: "No ready tasks assigned to
@@ -70,8 +67,8 @@ found.
 ### 1. Load Context
 
 - Run `openstation show <task-name>` to load the full task spec
-  (or read the task's `index.md` directly). Note requirements and
-  verification checklist.
+  (or read `artifacts/tasks/<task-name>.md` directly). Note
+  requirements and verification checklist.
 - Set `status: in-progress` in the task frontmatter.
 
 ### 2. Evaluate Complexity (optional)
@@ -97,18 +94,20 @@ sub-tasks for execution.
 ### 4. Store Artifacts
 
 - Store artifacts in `artifacts/<category>/` (the canonical
-  location) and symlink them into the task folder for
-  traceability.
+  location) and record them in the task's `artifacts` frontmatter
+  list using Obsidian wikilinks: `"[[artifacts/research/name]]"`.
+- Set provenance fields (`agent`, `task`) on each artifact.
+  Use wikilinks for the `task` field: `task: "[[0047-name]]"`.
 - **Do NOT create discovery or promotion symlinks** (e.g.
   `agents/<name>.md`). `/openstation.done` handles promotion
   after verification.
-- See `docs/storage-query-layer.md` §§ 2d, 4 for
-  routing, symlink conventions, and categories.
+- See `docs/storage-query-layer.md` §§ 3c–3d, 4 for
+  routing and provenance conventions.
 
 ### 5. Record Findings
 
-After completing the work, add a `## Findings` section to
-`index.md` summarizing what you discovered or produced. Place it
+After completing the work, add a `## Findings` section to the
+task file summarizing what you discovered or produced. Place it
 between `## Requirements` and `## Verification`.
 
 - Summarize key results — don't repeat the full artifact contents.
@@ -125,10 +124,12 @@ between `## Requirements` and `## Verification`.
 If a task requires decomposition:
 
 1. Use `/openstation.create` to create each sub-task. This gives
-   each sub-task its own canonical folder in `artifacts/tasks/`.
-2. Set `parent: <current-task-name>` in each sub-task's frontmatter.
-3. Symlink each sub-task inside the parent task folder and add
-   an entry to the parent's `## Subtasks` body section.
+   each sub-task its own canonical file in `artifacts/tasks/`.
+2. Set `parent: "[[<current-task-name>]]"` in each sub-task's
+   frontmatter (Obsidian wikilink format).
+3. Add `"[[<sub-task-name>]]"` to the parent's `subtasks`
+   frontmatter list and add an entry to the parent's
+   `## Subtasks` body section.
 
 See `docs/storage-query-layer.md` § 5 for the full
 sub-task storage model and `docs/lifecycle.md` § "Sub-Tasks"

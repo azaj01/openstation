@@ -16,9 +16,8 @@ Show agent details and instruct the user how to launch it.
 1. Validate that `agents/<name>.md` exists. If not, report an error
    and list available agents from `agents/`.
 2. Read and display the agent spec (name, description, model, skills).
-3. Scan `tasks/current/` for task folders containing an `index.md`
-   where `agent` matches this name AND `status` is `ready`. Display
-   them in a short list.
+3. Run `openstation list --status ready --agent <name>` to find
+   ready tasks assigned to this agent. Display them in a short list.
 4. If no ready tasks exist, report: "No ready tasks for agent
    <name>." and stop.
 5. Instruct the user to launch the agent using `openstation run`:

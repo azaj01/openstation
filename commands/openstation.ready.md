@@ -5,7 +5,7 @@ description: Promote a task from backlog to ready. $ARGUMENTS = task-name [agent
 
 # Promote Task to Ready
 
-Move a task's symlink from `tasks/backlog/` to `tasks/current/`.
+Set a task's status from `backlog` to `ready` via frontmatter edit.
 
 ## Input
 
@@ -20,15 +20,14 @@ Examples:
 
 1. Parse the task name (first argument) and optional `agent:<name>`
    from `$ARGUMENTS`.
-2. Locate the task folder in `tasks/backlog/`:
-   - Try exact match: `tasks/backlog/<task-name>/index.md`
-   - If not found, try glob fallback: `tasks/backlog/*-<task-name>/index.md`
-   - If still not found, report an error and list available
-     backlog tasks.
-3. Read the task frontmatter from `index.md`. Verify
-   `status: backlog` — refuse with an error if the task is not
-   in backlog. Only `backlog` → `ready` is a valid transition
-   for this command.
+2. Locate the task file in `artifacts/tasks/`:
+   - Try exact match: `artifacts/tasks/<task-name>.md`
+   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
+   - If still not found, report an error and suggest using
+     `openstation list --status backlog` to find available tasks.
+3. Read the task frontmatter. Verify `status: backlog` — refuse
+   with an error if the task is not in backlog. Only
+   `backlog` → `ready` is a valid transition for this command.
 4. Validate that the `## Requirements` section exists and is
    non-empty. Warn (but allow) if requirements look sparse.
 5. If `agent:<name>` was provided:
@@ -39,7 +38,4 @@ Examples:
    the user which agent to assign. List available agents from
    `agents/`.
 7. Set `status: ready` in the task frontmatter.
-8. Delete the symlink from `tasks/backlog/` and create a new
-   symlink in `tasks/current/` →
-   `../../artifacts/tasks/<task-name>`.
-9. Confirm with: task name, assigned agent, and new path.
+8. Confirm with: task name, assigned agent, and file path.

@@ -1,1 +1,0 @@
-../../specs/storage-query-layer.md

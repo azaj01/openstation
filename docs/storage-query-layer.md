@@ -70,8 +70,11 @@ Agents must NOT create discovery symlinks during task execution.
 ### 3. Frontmatter Associations
 
 All relationships between tasks, sub-tasks, and artifacts are
-encoded in YAML frontmatter fields. There are no symlinks for
-these associations.
+encoded in YAML frontmatter fields using **Obsidian wikilinks**
+(`[[name]]`). Wikilinks make references clickable in Obsidian's
+properties panel and graph view. Quote them for valid YAML.
+
+There are no symlinks for these associations.
 
 #### 3a. Parent → Children (subtasks)
 
@@ -80,8 +83,8 @@ field:
 
 ```yaml
 subtasks:
-  - 0046-spec-storage-query-layer
-  - 0047-implement-storage-replacement
+  - "[[0046-spec-storage-query-layer]]"
+  - "[[0047-implement-storage-replacement]]"
 ```
 
 #### 3b. Child → Parent
@@ -89,18 +92,18 @@ subtasks:
 Each sub-task declares its parent via the `parent` field:
 
 ```yaml
-parent: 0045-replace-storage-obsidian-cli
+parent: "[[0045-replace-storage-obsidian-cli]]"
 ```
 
 #### 3c. Task → Artifacts
 
 Tasks list the artifacts they produced in the `artifacts`
-frontmatter field using canonical paths:
+frontmatter field:
 
 ```yaml
 artifacts:
-  - artifacts/agents/project-manager.md
-  - artifacts/research/obsidian-plugin-api.md
+  - "[[artifacts/agents/project-manager]]"
+  - "[[artifacts/research/obsidian-plugin-api]]"
 ```
 
 #### 3d. Artifact Provenance
@@ -110,12 +113,20 @@ belong to:
 
 ```yaml
 agent: researcher
-task: 0044-storage-layer-replacement
+task: "[[0044-storage-layer-replacement]]"
 ```
 
 Use `agent: manual` and omit `task` for manually created
 artifacts. These fields are optional — not all artifacts track
 provenance (e.g., task files do not set these on themselves).
+
+#### 3e. Wikilink Convention
+
+All frontmatter fields that reference other files use Obsidian
+wikilinks: `"[[name]]"`. This includes `subtasks`, `parent`,
+`task`, and `artifacts`. The CLI strips `[[...]]` when resolving
+names, so both `"[[0047-implement-storage-replacement]]"` and
+`0047-implement-storage-replacement` are accepted.
 
 ### 4. Artifact Routing
 
@@ -140,16 +151,16 @@ Sub-tasks are full tasks with their own canonical file in
 They differ from top-level tasks in two ways:
 
 1. **Parent field.** The sub-task's frontmatter sets
-   `parent: <parent-task-name>` (§ 3b).
+   `parent: "[[<parent-task-name>]]"` (§ 3b).
 2. **Subtasks field.** The parent's frontmatter lists the
-   sub-task in its `subtasks` field (§ 3a).
+   sub-task in its `subtasks` field as a wikilink (§ 3a).
 
 #### Creating a sub-task
 
 1. Create canonical file: `artifacts/tasks/MMMM-sub-slug.md`.
-2. Set `parent: <parent-task-name>` in sub-task frontmatter.
-3. Add the sub-task name to the parent's `subtasks` frontmatter
-   field.
+2. Set `parent: "[[<parent-task-name>]]"` in sub-task frontmatter.
+3. Add `"[[MMMM-sub-slug]]"` to the parent's `subtasks`
+   frontmatter field.
 4. Add an entry to the parent's `## Subtasks` body section.
 
 #### Blocking rule
@@ -300,8 +311,8 @@ Read the task's frontmatter `artifacts` field:
 
 ```yaml
 artifacts:
-  - artifacts/agents/project-manager.md
-  - artifacts/research/obsidian-plugin-api.md
+  - "[[artifacts/agents/project-manager]]"
+  - "[[artifacts/research/obsidian-plugin-api]]"
 ```
 
 ### 10. Get Sub-tasks of a Parent

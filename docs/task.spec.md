@@ -53,8 +53,9 @@ does not need to repeat the parent slug.
 
 #### `parent:` field
 
-Every sub-task sets `parent: <parent-task-name>` in its
-frontmatter. This is the only required link back to the parent.
+Every sub-task sets `parent: "[[<parent-task-name>]]"` in its
+frontmatter using an Obsidian wikilink. This is the only
+required link back to the parent.
 
 #### Parent body section
 
@@ -71,9 +72,9 @@ name: NNNN-kebab-slug   # Required. Matches filename (without .md).
 status: backlog         # Required. See Status Values below.
 agent:                  # Optional. Agent name assigned to execute.
 owner: user             # Required. Who verifies. Default: "user".
-parent:                 # Optional. Parent task name (for sub-tasks).
-subtasks:               # Optional. List of sub-task names (for parent tasks).
-artifacts:              # Optional. List of artifact paths produced.
+parent:                 # Optional. "[[parent-task-name]]" (wikilink).
+subtasks:               # Optional. List of "[[sub-task-name]]" (wikilinks).
+artifacts:              # Optional. List of "[[artifact-path]]" (wikilinks).
 created: YYYY-MM-DD     # Required. Date the task was created.
 ---
 ```
@@ -94,9 +95,9 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 | `status` | enum | yes | `backlog` | Current lifecycle stage |
 | `agent` | string | no | empty | Agent assigned to execute the task |
 | `owner` | string | yes | `user` | Who verifies: agent name or `user` |
-| `parent` | string | no | empty | Parent task name (for sub-tasks) |
-| `subtasks` | list | no | empty | Sub-task names (for parent tasks) |
-| `artifacts` | list | no | empty | Canonical paths to artifacts produced by this task |
+| `parent` | string | no | empty | `"[[parent-task-name]]"` wikilink (for sub-tasks) |
+| `subtasks` | list | no | empty | `"[[sub-task-name]]"` wikilinks (for parent tasks) |
+| `artifacts` | list | no | empty | `"[[artifact-path]]"` wikilinks to produced artifacts |
 | `created` | date | yes | — | ISO 8601 date (`YYYY-MM-DD`) |
 
 ### Status Values
@@ -115,11 +116,14 @@ sub-task lifecycle, and artifact routing.
 
 ### Artifacts Field
 
-The `artifacts` list uses **canonical paths** — the permanent
-location in `artifacts/`, not discovery symlinks. Examples:
+The `artifacts` list uses **Obsidian wikilinks** pointing to the
+canonical location in `artifacts/`. Examples:
 
-- `artifacts/agents/project-manager.md` (not `agents/project-manager.md`)
-- `artifacts/research/obsidian-plugin-api.md` (not a symlink path)
+```yaml
+artifacts:
+  - "[[artifacts/agents/project-manager]]"
+  - "[[artifacts/research/obsidian-plugin-api]]"
+```
 
 See `docs/storage-query-layer.md` §§ 3c, 4 for artifact
 associations and routing.
@@ -130,12 +134,12 @@ Artifacts (agent specs, research outputs, etc.) should declare
 provenance in their own frontmatter:
 
 ```yaml
-agent: researcher                      # Which agent created this
-task: 0044-storage-layer-replacement   # Which task it was created for
+agent: researcher                                # Which agent created this
+task: "[[0044-storage-layer-replacement]]"       # Which task (wikilink)
 ```
 
 Use `agent: manual` and omit `task` for manually created
-artifacts. See `docs/storage-query-layer.md` § 3d.
+artifacts. See `docs/storage-query-layer.md` §§ 3d, 3e.
 
 ## Body Structure
 
@@ -197,7 +201,7 @@ structure that isn't needed yet.
 | -------------- | -------------------------------------------- | --------------------------------------------------------------------- |
 | **Idea**       | `kind`, `name`, `status: backlog`, `created` | `# Title`, `## Requirements` (rough), `## Verification` (placeholder) |
 | **Scoped**     | + `agent`, `owner`                           | Requirements become concrete and testable                             |
-| **Decomposed** | + `parent` (on sub-tasks)                    | + `## Subtasks` with priority groups                                  |
+| **Decomposed** | + `parent` wikilink (on sub-tasks)            | + `## Subtasks` with priority groups                                  |
 | **In-flight**  | `status: in-progress`                        | + `## Context` if background is needed                                |
 | **Completed**  | `status: done`                               | + `## Findings`, `## Recommendations` (research tasks)                |
 
@@ -280,13 +284,13 @@ could integrate with Obsidian as a plugin in the future. Focus on:
 
 ```
 artifacts/tasks/
-├── 0006-adopt-spec-kit-patterns.md   # subtasks: [0007-add-constitution, 0008-add-templates]
-├── 0007-add-constitution.md          # parent: 0006-adopt-spec-kit-patterns
-└── 0008-add-templates.md             # parent: 0006-adopt-spec-kit-patterns
+├── 0006-adopt-spec-kit-patterns.md   # subtasks: ["[[0007-...]]", "[[0008-...]]"]
+├── 0007-add-constitution.md          # parent: "[[0006-adopt-spec-kit-patterns]]"
+└── 0008-add-templates.md             # parent: "[[0006-adopt-spec-kit-patterns]]"
 ```
 
-Sub-tasks are linked via frontmatter: `subtasks` on the parent,
-`parent` on each child.
+Sub-tasks are linked via frontmatter wikilinks: `subtasks` on
+the parent, `parent` on each child.
 
 #### Parent task (`0006-adopt-spec-kit-patterns.md`)
 
@@ -298,8 +302,8 @@ status: backlog
 agent: author
 owner: user
 subtasks:
-  - 0007-add-constitution
-  - 0008-add-templates
+  - "[[0007-add-constitution]]"
+  - "[[0008-add-templates]]"
 created: 2026-02-21
 ---
 
@@ -337,7 +341,7 @@ name: 0007-add-constitution
 status: backlog
 agent: author
 owner: user
-parent: 0006-adopt-spec-kit-patterns
+parent: "[[0006-adopt-spec-kit-patterns]]"
 created: 2026-02-21
 ---
 

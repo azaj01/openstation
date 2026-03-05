@@ -1,6 +1,6 @@
 ---
 name: openstation.create
-description: Create a new task spec in tasks/backlog/. $ARGUMENTS is the task description. Use when user says "add task", "new task", "create task", or describes work to be done.
+description: Create a new task spec in artifacts/tasks/. $ARGUMENTS is the task description. Use when user says "add task", "new task", "create task", or describes work to be done.
 ---
 
 # Create Task
@@ -17,12 +17,12 @@ Generate a new task spec from a description.
 2. Generate a kebab-case slug from the description (short,
    descriptive, no more than 5 words).
 3. Determine the next task ID:
-   - Scan `artifacts/tasks/` for folders matching the pattern
-     `NNNN-*` (4-digit prefix).
+   - Scan `artifacts/tasks/` for files matching the pattern
+     `NNNN-*.md` (4-digit prefix).
    - Extract the highest numeric prefix, increment by 1, and
      zero-pad to 4 digits.
-   - If no prefixed folders exist, start at `0001`.
-4. The folder name becomes `<ID>-<slug>` and the `name` field
+   - If no prefixed files exist, start at `0001`.
+4. The task name becomes `<ID>-<slug>` and the `name` field
    matches `<ID>-<slug>`.
 5. **Interview** — ask the user (via AskUserQuestion) to refine
    the spec before writing anything. Do not create files until the
@@ -50,17 +50,15 @@ Generate a new task spec from a description.
       independent deliverables or span different domains, propose
       breaking the task into sub-tasks. List the suggested
       sub-tasks and ask the user to confirm. If accepted, create
-      each sub-task using the standard sub-task convention
-      (canonical folder + parent symlink, no bucket symlink).
+      each sub-task as a separate file with `parent` frontmatter.
       See `docs/storage-query-layer.md` § 5 for the
       sub-task storage model.
       If the task is simple and self-contained, skip this step.
 
    f. **Ready to start?** — ask whether the task should go
-      straight to `ready` (status: ready, symlink in
-      `tasks/current/`) or stay in `backlog`.
+      straight to `ready` (status: ready) or stay in `backlog`.
 
-6. Create `artifacts/tasks/<ID>-<slug>/index.md` using interview
+6. Create `artifacts/tasks/<ID>-<slug>.md` using interview
    answers:
 
    ```markdown
@@ -84,26 +82,20 @@ Generate a new task spec from a description.
    - [ ] <Approved verification items from step 5c>
    ```
 
-7. **Symlink placement** — depends on whether this is a sub-task:
-
-   **Regular task** (no parent): create a bucket symlink:
-   - If status is `backlog`:
-     `tasks/backlog/<ID>-<slug> → ../../artifacts/tasks/<ID>-<slug>`
-   - If status is `ready`:
-     `tasks/current/<ID>-<slug> → ../../artifacts/tasks/<ID>-<slug>`
-
-   **Sub-task** (parent specified in `$ARGUMENTS` or by user):
-   - Add `parent: <parent-task-name>` to the frontmatter.
-   - Do **not** create a bucket symlink.
-   - Create a symlink inside the parent folder:
-     `artifacts/tasks/<parent-slug>/<ID>-<slug> → ../<ID>-<slug>`
+7. **Sub-task handling** — if this is a sub-task:
+   - Add `parent: "[[<parent-task-name>]]"` to the sub-task
+     frontmatter (Obsidian wikilink format).
+   - Add `"[[<ID>-<slug>]]"` to the parent's `subtasks`
+     frontmatter list (create the field if it doesn't exist).
    - Add an entry to the parent's `## Subtasks` body section.
 
-   See `docs/storage-query-layer.md` § 5 for the
-   full sub-task storage convention.
+   No symlinks are created for sub-task relationships.
+   All frontmatter references use Obsidian wikilinks (`[[name]]`)
+   — see `docs/storage-query-layer.md` § 3e.
 
 8. If sub-tasks were accepted in step 5e, create each sub-task
-   now (folder, `index.md`, parent symlink) following the same
-   template. Do **not** create bucket symlinks for sub-tasks.
+   now as a single file (`artifacts/tasks/<ID>-<slug>.md`) with
+   `parent: "[[<parent>]]"` frontmatter. Add each as
+   `"[[<ID>-<slug>]]"` to the parent's `subtasks` list.
 
 9. Confirm the file was created and show the path.

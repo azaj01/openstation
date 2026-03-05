@@ -64,44 +64,29 @@ def parse_frontmatter(text):
     return fields
 
 
-def resolve_bucket(root, prefix, task_name):
-    """Check which tasks/{bucket}/ symlink exists for a task."""
-    tasks_base = Path(root) / prefix / "tasks" if prefix else Path(root) / "tasks"
-    for bucket in ("backlog", "current", "done"):
-        link = tasks_base / bucket / task_name
-        if link.is_symlink() or link.exists():
-            return bucket
-    return None
-
-
 def discover_tasks(root, prefix):
-    """Scan artifacts/tasks/*/index.md and return task dicts."""
+    """Scan artifacts/tasks/*.md and return task dicts."""
     tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
     tasks = []
     if not tasks_dir.is_dir():
         return tasks
     for entry in sorted(tasks_dir.iterdir()):
-        if not entry.is_dir():
-            continue
-        index = entry / "index.md"
-        if not index.is_file():
+        if not entry.is_file() or entry.suffix != ".md":
             continue
         try:
-            text = index.read_text(encoding="utf-8")
+            text = entry.read_text(encoding="utf-8")
         except OSError:
             continue
         fm = parse_frontmatter(text)
         if fm.get("kind") != "task":
             continue
-        task_name = entry.name
-        bucket = resolve_bucket(root, prefix, task_name)
+        task_name = entry.stem
         tasks.append({
             "id": task_name.split("-", 1)[0],
             "name": task_name,
             "status": fm.get("status", ""),
             "agent": fm.get("agent", ""),
             "owner": fm.get("owner", ""),
-            "bucket": bucket,
         })
     return tasks
 
@@ -157,12 +142,12 @@ def cmd_list(args, root, prefix):
 
 
 def resolve_task(root, prefix, query):
-    """Resolve a task query to a folder name. Returns (name, error_msg, exit_code)."""
+    """Resolve a task query to a task name. Returns (name, error_msg, exit_code)."""
     tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
     if not tasks_dir.is_dir():
         return None, "artifacts/tasks directory not found", 3
 
-    entries = sorted(e.name for e in tasks_dir.iterdir() if e.is_dir())
+    entries = sorted(e.stem for e in tasks_dir.iterdir() if e.is_file() and e.suffix == ".md")
 
     # Exact match
     if query in entries:
@@ -278,36 +263,67 @@ def assert_task_ready(spec_path, task_name):
     return status == "ready", status
 
 
-def find_ready_subtasks(task_dir, force=False):
-    """Scan a task directory for symlinked sub-task folders.
+def strip_wikilink(value):
+    """Strip Obsidian wikilink syntax and quotes: '\"[[name]]\"' → 'name'."""
+    value = value.strip().strip("\"'")
+    if value.startswith("[[") and value.endswith("]]"):
+        value = value[2:-2]
+    return value
 
-    Returns a list of (subtask_dir, subtask_name) tuples.
+
+def parse_frontmatter_list(text, key):
+    """Parse a YAML list field from frontmatter.
+
+    Handles both plain values and Obsidian wikilinks (``[[name]]``).
+    Returns a list of strings for the given key, or [] if not found.
+    """
+    items = []
+    in_list = False
+    for line in text.splitlines():
+        if line.strip() == "---" and in_list:
+            break
+        if line.startswith(f"{key}:"):
+            in_list = True
+            continue
+        if in_list:
+            if re.match(r"^\s*-\s+", line):
+                value = re.sub(r"^\s*-\s+", "", line).strip()
+                items.append(strip_wikilink(value))
+            else:
+                break
+    return items
+
+
+def find_ready_subtasks(tasks_dir, task_name, force=False):
+    """Read the subtasks field from a task's frontmatter and return ready ones.
+
+    Returns a list of (subtask_path, subtask_name) tuples.
     When force=True, returns all subtasks regardless of status;
     otherwise only those with status 'ready'.
     """
+    tasks_dir = Path(tasks_dir)
+    spec = tasks_dir / f"{task_name}.md"
     results = []
-    task_dir = Path(task_dir)
-    if not task_dir.is_dir():
+    try:
+        text = spec.read_text(encoding="utf-8")
+    except OSError:
         return results
-    for entry in sorted(task_dir.iterdir()):
-        if not entry.is_dir():
-            continue
-        # Sub-tasks are symlinks to sibling directories
-        if not entry.is_symlink():
-            continue
-        spec = entry / "index.md"
-        if not spec.is_file():
+
+    subtask_names = parse_frontmatter_list(text, "subtasks")
+    for sub_name in subtask_names:
+        sub_spec = tasks_dir / f"{sub_name}.md"
+        if not sub_spec.is_file():
             continue
         if force:
-            results.append((entry, entry.name))
+            results.append((sub_spec, sub_name))
         else:
             try:
-                text = spec.read_text(encoding="utf-8")
+                sub_text = sub_spec.read_text(encoding="utf-8")
             except OSError:
                 continue
-            fm = parse_frontmatter(text)
+            fm = parse_frontmatter(sub_text)
             if fm.get("status") == "ready":
-                results.append((entry, entry.name))
+                results.append((sub_spec, sub_name))
     return results
 
 
@@ -316,20 +332,18 @@ def info(msg):
     print(f"info: {msg}", file=sys.stderr)
 
 
-def run_single_task(root, prefix, task_dir, tier, budget, turns, dry_run):
+def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry_run):
     """Execute one task: resolve agent, build command, launch.
 
     Returns the exit code.
     """
-    task_dir = Path(task_dir)
-    task_name = task_dir.name
-    spec = task_dir / "index.md"
+    task_spec = Path(task_spec)
 
     # Resolve agent from task frontmatter
     try:
-        text = spec.read_text(encoding="utf-8")
+        text = task_spec.read_text(encoding="utf-8")
     except OSError:
-        err(f"Task spec missing: {spec}")
+        err(f"Task spec missing: {task_spec}")
         return EXIT_USAGE
     fm = parse_frontmatter(text)
     agent = fm.get("agent", "")
@@ -353,7 +367,7 @@ def run_single_task(root, prefix, task_dir, tier, budget, turns, dry_run):
     # Build command with task-specific prompt
     prompt = (
         f"Execute task {task_name}. Read its spec at "
-        f"artifacts/tasks/{task_name}/index.md and work through "
+        f"artifacts/tasks/{task_name}.md and work through "
         f"the requirements."
     )
     cmd = build_command(agent, tier, budget, turns, prompt, tools)
@@ -410,8 +424,8 @@ def cmd_run(args, root, prefix):
             err(error)
             return code
 
-        tdir = tasks_dir_path(root, prefix) / task_name
-        spec = tdir / "index.md"
+        tdir = tasks_dir_path(root, prefix)
+        spec = tdir / f"{task_name}.md"
 
         if not force:
             ok, status = assert_task_ready(spec, task_name)
@@ -421,19 +435,19 @@ def cmd_run(args, root, prefix):
 
         info(f"Task collection: {task_name}")
 
-        # Discover ready subtasks
-        subtasks = find_ready_subtasks(tdir, force=force)
+        # Discover ready subtasks via frontmatter
+        subtasks = find_ready_subtasks(tdir, task_name, force=force)
 
         if subtasks:
             info(f"Found {len(subtasks)} ready subtask(s)")
             completed = 0
             remaining = len(subtasks)
 
-            for sub_dir, sub_name in subtasks:
+            for sub_spec, sub_name in subtasks:
                 if completed >= max_tasks:
                     break
                 info(f"[{completed + 1}/{max_tasks}] Executing subtask: {sub_name}")
-                rc = run_single_task(root, prefix, sub_dir, tier, budget, turns, dry_run)
+                rc = run_single_task(root, prefix, sub_spec, sub_name, tier, budget, turns, dry_run)
                 if rc == EXIT_OK:
                     completed += 1
                     remaining -= 1
@@ -448,7 +462,7 @@ def cmd_run(args, root, prefix):
         else:
             # No subtasks — run parent task directly
             info("No subtasks found, executing task directly")
-            return _exec_or_run(root, prefix, tdir, agent_name, tier, budget, turns, dry_run)
+            return _exec_or_run(root, prefix, tdir, task_name, agent_name, tier, budget, turns, dry_run)
     else:
         # --- BY-AGENT MODE ---
         agent_spec = find_agent_spec(root, prefix, agent_name)
@@ -475,11 +489,10 @@ def cmd_run(args, root, prefix):
         return EXIT_OK  # unreachable, but satisfies type checkers
 
 
-def _exec_or_run(root, prefix, task_dir, agent_name_override, tier, budget, turns, dry_run):
+def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, budget, turns, dry_run):
     """Execute a single task, using execvp when possible (no queue to iterate)."""
-    task_dir = Path(task_dir)
-    task_name = task_dir.name
-    spec = task_dir / "index.md"
+    tasks_dir = Path(tasks_dir)
+    spec = tasks_dir / f"{task_name}.md"
 
     try:
         text = spec.read_text(encoding="utf-8")
@@ -504,7 +517,7 @@ def _exec_or_run(root, prefix, task_dir, agent_name_override, tier, budget, turn
 
     prompt = (
         f"Execute task {task_name}. Read its spec at "
-        f"artifacts/tasks/{task_name}/index.md and work through "
+        f"artifacts/tasks/{task_name}.md and work through "
         f"the requirements."
     )
     cmd = build_command(agent, tier, budget, turns, prompt, tools)
@@ -527,18 +540,14 @@ def cmd_show(args, root, prefix):
         return code
 
     tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
-    index = tasks_dir / task_name / "index.md"
+    spec = tasks_dir / f"{task_name}.md"
 
-    if not index.exists():
-        # Check if it's a broken symlink scenario
-        if index.is_symlink():
-            err("task folder missing (broken symlink)")
-        else:
-            err("task spec missing")
+    if not spec.exists():
+        err("task spec missing")
         return 3
 
     try:
-        print(index.read_text(encoding="utf-8"), end="")
+        print(spec.read_text(encoding="utf-8"), end="")
     except OSError as e:
         err(f"cannot read task: {e}")
         return 3

@@ -157,9 +157,6 @@ printf 'Creating directories...\n'
 
 DIRS=(
   .openstation/docs
-  .openstation/tasks/backlog
-  .openstation/tasks/current
-  .openstation/tasks/done
   .openstation/artifacts/tasks
   .openstation/artifacts/agents
   .openstation/artifacts/research
@@ -176,9 +173,6 @@ done
 
 # Add .gitkeep to content directories
 CONTENT_DIRS=(
-  .openstation/tasks/backlog
-  .openstation/tasks/current
-  .openstation/tasks/done
   .openstation/artifacts/tasks
   .openstation/artifacts/agents
   .openstation/artifacts/research
@@ -412,20 +406,17 @@ cat > "$section_file" <<'SECTION'
 <!-- openstation:start -->
 # Open Station
 
-Task management system for coding AI agents. Pure convention —
-markdown specs + skills, zero runtime dependencies.
+Task management system for coding AI agents. Convention-first —
+markdown specs + skills, minimal dependencies. Adding packages
+or modules to existing components is fine; stay minimal.
 
 ## Vault Structure
 
 ```
 .openstation/
 ├── docs/              — Project documentation (lifecycle, task spec)
-├── tasks/             — Lifecycle buckets (contain symlinks)
-│   ├── backlog/       —   Not yet ready for agents
-│   ├── current/       —   Active work (ready → in-progress → review)
-│   └── done/          —   Completed tasks
 ├── artifacts/         — Canonical artifact storage (source of truth)
-│   ├── tasks/         —   Task folders (canonical location, never move)
+│   ├── tasks/         —   Task files (canonical location, never move)
 │   ├── agents/        —   Agent specs (canonical location)
 │   ├── research/      —   Research outputs
 │   └── specs/         —   Specifications & designs
@@ -442,8 +433,15 @@ Update a task:  `/openstation.update <name> field:value`
 Run an agent:   `claude --agent <name>`
 Complete task:  `/openstation.done <name>`
 
-See `.openstation/docs/lifecycle.md` for lifecycle rules and
-`.openstation/docs/task.spec.md` for task format.
+All relationships (parent/child, task/artifact) are encoded in
+YAML frontmatter — no symlinks except `agents/` discovery
+symlinks for Claude Code `--agent` resolution. The Obsidian CLI
+is an optional query engine; filesystem + grep works everywhere.
+
+See `.openstation/docs/lifecycle.md` for lifecycle rules,
+`.openstation/docs/task.spec.md` for task format, and
+`.openstation/docs/storage-query-layer.md` for the
+storage and query model.
 <!-- openstation:end -->
 SECTION
 

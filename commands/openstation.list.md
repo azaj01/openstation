@@ -60,10 +60,9 @@ Only include statuses that have at least one task.
 
 Only if `openstation` is not installed:
 
-1. Scan each status bucket (`tasks/backlog/`, `tasks/current/`,
-   `tasks/done/`) for task folders containing an `index.md`
-   (bucket entries are symlinks that resolve transparently).
-2. Parse YAML frontmatter from each `index.md`.
+1. Scan `artifacts/tasks/*.md` for files with `kind: task`
+   frontmatter.
+2. Parse YAML frontmatter from each file.
 3. Apply any filters from `$ARGUMENTS`. By default, show only
    tasks with `status: ready` or `status: in-progress` unless a
    `status:` filter is explicitly provided (use `status:all` to
@@ -71,7 +70,7 @@ Only if `openstation` is not installed:
 4. Display a markdown table with columns:
    | ID | Task | Status | Agent | Owner | Created |
    The ID column shows the 4-digit numeric prefix extracted from the
-   folder name (e.g., `0003`). The Owner column shows the `owner`
+   filename (e.g., `0003`). The Owner column shows the `owner`
    field value (default `manual` if absent).
 5. Sort by ID (ascending) as primary sort.
 6. Below the table, show summary counts.

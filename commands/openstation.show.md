@@ -32,28 +32,24 @@ and prefix match (e.g., `0010` resolves to
 the command in any way. Do not add `2>&1`, `2>/dev/null`,
 `|| echo`, or any other shell operators.**
 
-The CLI prints the full `index.md` content (frontmatter + body).
+The CLI prints the full task content (frontmatter + body).
 After displaying it, also report:
-- The canonical location (e.g., `artifacts/tasks/0010-refactor-commands-lifecycle/index.md`)
-- The bucket the task is in (backlog, current, or done)
+- The canonical location (e.g., `artifacts/tasks/0010-refactor-commands-lifecycle.md`)
 
 ### Fallback: Manual File Reads
 
 Only if `openstation` is not installed:
 
 1. Parse the task name from `$ARGUMENTS`.
-2. Locate the task folder across all buckets:
-   - Search `tasks/backlog/`, `tasks/current/`, and `tasks/done/`
-     in that order.
-   - Try exact match: `tasks/<bucket>/<task-name>/index.md`
-   - If not found, try glob fallback: `tasks/<bucket>/*-<task-name>/index.md`
-   - If input is numeric only (e.g., `0010`), match any folder
-     starting with that prefix: `tasks/<bucket>/<input>-*/index.md`
+2. Locate the task file:
+   - Try exact match: `artifacts/tasks/<task-name>.md`
+   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
+   - If input is numeric only (e.g., `0010`), match any file
+     starting with that prefix: `artifacts/tasks/<input>-*.md`
    - If still not found, report an error and suggest using
      `/openstation.list` to find the correct name.
-3. Read the full `index.md` file.
+3. Read the full `.md` file.
 4. Display:
    - The frontmatter fields in a readable format
    - The full markdown body
-   - The canonical location (e.g., `artifacts/tasks/0010-refactor-commands-lifecycle/index.md`)
-   - The bucket the task is in (backlog, current, or done)
+   - The canonical location (e.g., `artifacts/tasks/0010-refactor-commands-lifecycle.md`)

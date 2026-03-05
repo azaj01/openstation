@@ -1,5 +1,70 @@
 # Changelog
 
+## v0.4.0
+
+Single-file task storage, CLI write commands, and a new storage &
+query layer spec. Eliminates folder-per-task and symlink buckets
+in favor of flat `NNNN-slug.md` files in `artifacts/tasks/`.
+
+### Architecture
+
+- **Single-file tasks** — Tasks are now individual markdown files
+  (`NNNN-slug.md`) in `artifacts/tasks/`, replacing the
+  folder-per-task + `index.md` model. Status lives in YAML
+  frontmatter; no more symlink buckets (`tasks/backlog/`,
+  `tasks/current/`, `tasks/done/`).
+- **Storage & query layer spec** (`docs/storage-query-layer.md`) —
+  New spec defining the canonical storage model, frontmatter
+  associations (parent/subtask, task/artifact), and dual-path
+  query approach (Obsidian CLI primary, filesystem + grep
+  fallback).
+
+### CLI
+
+- **`openstation create`** — Create tasks from the command line
+  with `--agent`, `--owner`, `--status`, and `--parent` options.
+  Handles ID assignment, slug generation, and atomic file creation.
+- **`openstation status`** — Change task status via
+  `openstation status <task> <new-status>`.
+- **`openstation agents`** — List available agents with
+  descriptions.
+- **`openstation list` active-only default** — Excludes done/failed
+  tasks by default (was already documented but now enforced).
+- **`openstation run` auto-detect** — Automatically distinguishes
+  task IDs from agent names, removing ambiguity in
+  `openstation run <arg>`.
+- **Test suite expanded** — Tests covering all new write commands
+  and updated storage model.
+
+### Specs & Docs
+
+- **Deduplicated docs** — Lifecycle, task spec, and execute skill
+  now reference `docs/storage-query-layer.md` as the single source
+  of truth for storage rules, eliminating duplicated storage
+  guidance.
+- **Updated task spec** (`docs/task.spec.md`) — Reflects single-file
+  format with inline frontmatter schema.
+- **Updated lifecycle** (`docs/lifecycle.md`) — Simplified
+  transition rules without symlink move procedures.
+- **CLI write commands spec** (`artifacts/specs/cli-write-commands.md`)
+  — Design spec for the `create`, `status`, and `agents`
+  subcommands.
+
+### Commands
+
+- **Updated `/openstation.create`** — Interview-driven workflow
+  that delegates to `openstation create` CLI.
+- **Updated `/openstation.done`**, **`/openstation.ready`**,
+  **`/openstation.reject`** — Adapted for single-file tasks
+  (frontmatter update instead of symlink moves).
+- **Updated `/openstation.update`** — Simplified for flat file
+  model.
+
+### Install
+
+- Updated `install.sh` for single-file task layout.
+- Removed symlink bucket creation from install script.
+
 ## v0.3.0
 
 Python CLI with read and run commands. Autonomous agent execution

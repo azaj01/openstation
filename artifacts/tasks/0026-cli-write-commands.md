@@ -1,7 +1,8 @@
 ---
 kind: task
 name: 0026-cli-write-commands
-status: backlog
+status: failed
+reason: Obsolete — references symlink-based storage model replaced by task 0045. Write commands already exist as slash commands (commands/).
 agent:
 owner: user
 created: 2026-03-01

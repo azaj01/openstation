@@ -5,7 +5,7 @@ description: Promote a task from backlog to ready. $ARGUMENTS = task-name [agent
 
 # Promote Task to Ready
 
-Set a task's status from `backlog` to `ready` via frontmatter edit.
+Promote a task from `backlog` to `ready`.
 
 ## Input
 
@@ -37,5 +37,14 @@ Examples:
 6. If no agent was provided and `agent` field is empty, ask
    the user which agent to assign. List available agents from
    `agents/`.
-7. Set `status: ready` in the task frontmatter.
+7. Set the status using the CLI:
+
+   ```bash
+   openstation status <task-name> ready
+   ```
+
+   **Manual fallback** — if the CLI is unavailable, edit
+   `status: backlog` → `status: ready` directly in the task
+   frontmatter.
+
 8. Confirm with: task name, assigned agent, and file path.

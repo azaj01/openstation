@@ -5,7 +5,7 @@ description: Mark a task as done. $ARGUMENTS = task name. Use when user says "do
 
 # Done Task
 
-Mark a task as done by editing its frontmatter.
+Mark a task as done.
 
 ## Input
 
@@ -27,7 +27,16 @@ Example: `0003-research-obsidian-plugin-api` or
 3. Read the task frontmatter. Verify `status: review`
    — refuse with an error if the task is not in review. Only
    `review` → `done` is a valid transition.
-4. Set `status: done` in the task frontmatter.
+4. Set the status using the CLI:
+
+   ```bash
+   openstation status <task-name> done
+   ```
+
+   **Manual fallback** — if the CLI is unavailable, edit
+   `status: review` → `status: done` directly in the task
+   frontmatter.
+
 5. Artifacts are already in `artifacts/` — they do not need to
    be moved.
 6. Check the task's `artifacts` frontmatter field for paths

@@ -30,20 +30,23 @@ folders or bucket directories.
 ## CLI Tool
 
 The `openstation` CLI provides scriptable access to the task vault.
-Prefer it for discovery and inspection:
+Prefer it for discovery, inspection, and status transitions:
 
 ```
 openstation list [--status <s>] [--agent <name>]
+openstation agents
 openstation show <task>
+openstation create "<description>" [--agent <a>] [--owner <o>] [--status <s>] [--parent <p>]
+openstation status <task> <new-status>
 ```
 
 **Always call `openstation` directly** — never `python3 bin/openstation`
 or any other indirect path. The binary is on `$PATH` during agent
-sessions. Fall back to direct file reads only if the command is not
-found.
+sessions. Fall back to direct file reads/edits only if the command
+is not found.
 
-> **Note:** The CLI is currently read-only. Status transitions
-> (`in-progress`, `review`) still require direct frontmatter edits.
+The `status` subcommand validates lifecycle transitions (see
+`docs/lifecycle.md`) and updates frontmatter atomically.
 
 ## On Startup
 
@@ -69,7 +72,14 @@ found.
 - Run `openstation show <task-name>` to load the full task spec
   (or read `artifacts/tasks/<task-name>.md` directly). Note
   requirements and verification checklist.
-- Set `status: in-progress` in the task frontmatter.
+- Transition the task to in-progress:
+
+  ```bash
+  openstation status <task-name> in-progress
+  ```
+
+  **Fallback** — if the CLI is unavailable, edit `status: ready`
+  → `status: in-progress` directly in the task frontmatter.
 
 ### 2. Evaluate Complexity (optional)
 
@@ -145,7 +155,16 @@ stay in sync. Skip this step if no documentation is affected.
 
 After working through all requirements:
 
-1. Update task frontmatter: `status: review`.
+1. Transition the task to review:
+
+   ```bash
+   openstation status <task-name> review
+   ```
+
+   **Fallback** — if the CLI is unavailable, edit
+   `status: in-progress` → `status: review` directly in the
+   task frontmatter.
+
 2. Stop. The designated owner handles verification from here.
 
 See `docs/lifecycle.md` § "Status Transitions" for guardrails.

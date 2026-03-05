@@ -14,19 +14,9 @@ Generate a new task spec from a description.
 ## Procedure
 
 1. Take the description from `$ARGUMENTS`.
-2. Generate a kebab-case slug from the description (short,
-   descriptive, no more than 5 words).
-3. Determine the next task ID:
-   - Scan `artifacts/tasks/` for files matching the pattern
-     `NNNN-*.md` (4-digit prefix).
-   - Extract the highest numeric prefix, increment by 1, and
-     zero-pad to 4 digits.
-   - If no prefixed files exist, start at `0001`.
-4. The task name becomes `<ID>-<slug>` and the `name` field
-   matches `<ID>-<slug>`.
-5. **Interview** — ask the user (via AskUserQuestion) to refine
-   the spec before writing anything. Do not create files until the
-   interview is complete.
+2. **Interview** — ask the user (via AskUserQuestion) to refine
+   the spec before creating anything. Do not create files until
+   the interview is complete.
 
    a. **What type of work?** — ask the user to classify:
       research, authoring (specs/docs), implementation, or other.
@@ -41,61 +31,88 @@ Generate a new task spec from a description.
       derived from the approved requirements. Ask the user to
       confirm or adjust.
 
-   d. **Agent & owner** — suggest an agent based on work type:
-      `researcher` for research, `author` for authoring,
-      `developer` for implementation. Ask the user to confirm or
-      pick a different agent. Ask who verifies (default: `user`).
+   d. **Agent & owner** — run `openstation agents` to list available
+      agents, then suggest one based on work type: `researcher` for
+      research, `architect` for specs, `author` for prompts/docs,
+      `developer` for implementation. Present the agent list so the
+      user can confirm
+      or pick a different agent. Ask who verifies (default: `user`).
 
    e. **Decomposition** — if the requirements suggest multiple
       independent deliverables or span different domains, propose
       breaking the task into sub-tasks. List the suggested
-      sub-tasks and ask the user to confirm. If accepted, create
-      each sub-task as a separate file with `parent` frontmatter.
-      See `docs/storage-query-layer.md` § 5 for the
-      sub-task storage model.
+      sub-tasks and ask the user to confirm. If accepted, each
+      sub-task will be created as a separate file with `parent`
+      frontmatter. See `docs/storage-query-layer.md` § 5 for
+      the sub-task storage model.
       If the task is simple and self-contained, skip this step.
 
    f. **Ready to start?** — ask whether the task should go
       straight to `ready` (status: ready) or stay in `backlog`.
 
-6. Create `artifacts/tasks/<ID>-<slug>.md` using interview
-   answers:
+3. **Create the task file** using the CLI:
+
+   ```bash
+   openstation create "<description>" \
+     --agent <from step 2d> \
+     --owner <from step 2d, default: user> \
+     --status <backlog or ready, from step 2f> \
+     [--parent <parent-task-name>]
+   ```
+
+   The CLI handles ID assignment, slug generation, atomic file
+   creation, and parent linking (appends to the parent's
+   `subtasks` frontmatter list).
+
+   The command prints the created task name (e.g., `0055-my-task`).
+
+   **Manual fallback** — if `openstation create` is unavailable:
+   - Scan `artifacts/tasks/` for the highest `NNNN-*.md` prefix,
+     increment by 1, zero-pad to 4 digits.
+   - Generate a kebab-case slug (max 5 words).
+   - Create `artifacts/tasks/<ID>-<slug>.md` directly.
+
+4. **Edit the generated file** — replace the template body with
+   the approved interview content:
 
    ```markdown
    ---
    kind: task
    name: <ID>-<slug>
-   status: <backlog or ready, from step 5f>
-   agent: <from step 5d>
-   owner: <from step 5d, default: user>
-   created: <today's date YYYY-MM-DD>
+   status: <backlog or ready>
+   agent: <agent>
+   owner: <owner>
+   created: <today's date>
    ---
 
    # <Title from description>
 
    ## Requirements
 
-   <Approved requirements from step 5b>
+   <Approved requirements from step 2b>
 
    ## Verification
 
-   - [ ] <Approved verification items from step 5c>
+   - [ ] <Approved verification items from step 2c>
    ```
 
-7. **Sub-task handling** — if this is a sub-task:
-   - Add `parent: "[[<parent-task-name>]]"` to the sub-task
-     frontmatter (Obsidian wikilink format).
-   - Add `"[[<ID>-<slug>]]"` to the parent's `subtasks`
-     frontmatter list (create the field if it doesn't exist).
-   - Add an entry to the parent's `## Subtasks` body section.
+5. **Sub-task handling** — if sub-tasks were accepted in step 2e,
+   create each sub-task using:
 
-   No symlinks are created for sub-task relationships.
-   All frontmatter references use Obsidian wikilinks (`[[name]]`)
-   — see `docs/storage-query-layer.md` § 3e.
+   ```bash
+   openstation create "<sub-task description>" \
+     --agent <agent> --owner <owner> \
+     --parent <parent-task-name>
+   ```
 
-8. If sub-tasks were accepted in step 5e, create each sub-task
-   now as a single file (`artifacts/tasks/<ID>-<slug>.md`) with
-   `parent: "[[<parent>]]"` frontmatter. Add each as
-   `"[[<ID>-<slug>]]"` to the parent's `subtasks` list.
+   The CLI automatically adds `parent` frontmatter to the
+   sub-task and appends to the parent's `subtasks` list.
+   Edit each sub-task's body with its specific requirements.
 
-9. Confirm the file was created and show the path.
+   Add an entry to the parent's `## Subtasks` body section.
+
+   **Manual fallback** — if the CLI is unavailable, create each
+   sub-task file manually with `parent: "[[<parent>]]"`
+   frontmatter and update the parent's `subtasks` list.
+
+6. Confirm the file(s) were created and show the path(s).

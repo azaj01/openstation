@@ -415,7 +415,7 @@ falling back to `grep` on the filesystem. ¹
 | Artifacts for task T         | Read `artifacts` field in task frontmatter                      |
 | Artifact provenance          | Read `task` and `agent` fields on the artifact                  |
 | Resolve agent name           | Follow `agents/<name>.md` → `artifacts/agents/<name>.md`       |
-| All known agents             | `ls agents/`                                                    |
+| All known agents             | `openstation agents`                                            |
 | Next available task ID       | `ls artifacts/tasks/ \| sort \| tail -1` then increment        |
 
 ¹ Fallback: `grep -rl '<field>: <value>' artifacts/tasks/*.md`

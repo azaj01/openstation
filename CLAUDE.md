@@ -79,10 +79,22 @@ minimum `kind` and `name` fields.
 
 ## Creating a New Task
 
-Use `/openstation.create` to create tasks interactively — it
-handles ID assignment and file creation.
+Use `openstation create "<description>"` or `/openstation.create`
+to create tasks — both handle ID assignment and file creation.
 
 For manual creation, see `docs/task.spec.md` for the format.
+
+## CLI
+
+The `openstation` CLI provides scriptable access to the vault:
+
+```
+openstation list [--status <s>] [--agent <name>]
+openstation agents
+openstation show <task>
+openstation create "<description>" [--agent <a>] [--owner <o>] [--status <s>] [--parent <p>]
+openstation status <task> <new-status>
+```
 
 ## Dispatching an Agent
 
@@ -142,6 +154,7 @@ or modules to existing components is fine; stay minimal.
 
 Create a task:  `/openstation.create <description>`
 List tasks:     `/openstation.list`
+List agents:    `openstation agents`
 Update a task:  `/openstation.update <name> field:value`
 Run an agent:   `claude --agent <name>`
 Complete task:  `/openstation.done <name>`

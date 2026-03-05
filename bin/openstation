@@ -2,6 +2,8 @@
 """OpenStation CLI — manage the Open Station task vault."""
 
 import argparse
+import datetime
+import errno
 import os
 import re
 import shutil
@@ -13,15 +15,32 @@ from pathlib import Path
 
 EXIT_OK = 0
 EXIT_USAGE = 1
+EXIT_NO_PROJECT = 2
 EXIT_NO_AGENT = 2
 EXIT_NO_CLAUDE = 3
+EXIT_TASK_NOT_FOUND = 3
 EXIT_AGENT_ERROR = 4
+EXIT_AMBIGUOUS = 4
 EXIT_TASK_NOT_READY = 5
+EXIT_INVALID_TRANSITION = 5
 
 DEFAULT_TIER = 2
 DEFAULT_BUDGET = 5
 DEFAULT_TURNS = 50
 DEFAULT_MAX_TASKS = 1
+
+MAX_CREATE_RETRIES = 5
+
+VALID_TRANSITIONS = {
+    ("backlog", "ready"),
+    ("ready", "in-progress"),
+    ("in-progress", "review"),
+    ("review", "done"),
+    ("review", "failed"),
+    ("failed", "in-progress"),
+}
+
+VALID_STATUSES = {"backlog", "ready", "in-progress", "review", "done", "failed"}
 
 
 def err(msg):
@@ -62,6 +81,93 @@ def parse_frontmatter(text):
         if sep:
             fields[key.strip()] = value.strip()
     return fields
+
+
+def parse_multiline_value(text, key):
+    """Parse a YAML folded/literal block value (>-, >, |, |-) from frontmatter."""
+    lines = text.splitlines()
+    in_value = False
+    parts = []
+    for line in lines:
+        if line.strip() == "---" and in_value:
+            break
+        if not in_value:
+            if line.startswith(f"{key}:"):
+                val = line.partition(":")[2].strip()
+                if val in (">-", ">", "|", "|-"):
+                    in_value = True
+                    continue
+                return val
+        else:
+            if line.startswith("  "):
+                parts.append(line.strip())
+            else:
+                break
+    return " ".join(parts)
+
+
+def discover_agents(root, prefix):
+    """Scan artifacts/agents/*.md and return agent dicts."""
+    if prefix:
+        agents_dir = Path(root) / prefix / "artifacts" / "agents"
+    else:
+        agents_dir = Path(root) / "artifacts" / "agents"
+    agents = []
+    if not agents_dir.is_dir():
+        return agents
+    for entry in sorted(agents_dir.iterdir()):
+        if not entry.is_file() or entry.suffix != ".md":
+            continue
+        try:
+            text = entry.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        fm = parse_frontmatter(text)
+        if fm.get("kind") != "agent":
+            continue
+        desc = fm.get("description", "")
+        if desc in (">-", ">", "|", "|-"):
+            desc = parse_multiline_value(text, "description")
+        agents.append({
+            "name": fm.get("name", entry.stem),
+            "description": desc,
+        })
+    return agents
+
+
+def format_agents_table(agents):
+    """Format agents as an aligned table."""
+    if not agents:
+        return ""
+    headers = ["Name", "Description"]
+    keys = ["name", "description"]
+    mins = [10, 20]
+
+    widths = [max(mins[i], len(headers[i])) for i in range(len(headers))]
+    for a in agents:
+        for i, k in enumerate(keys):
+            widths[i] = max(widths[i], len(str(a.get(k, ""))))
+
+    def fmt_row(values):
+        parts = []
+        for i, v in enumerate(values):
+            parts.append(str(v).ljust(widths[i]))
+        return "   ".join(parts)
+
+    lines = [fmt_row(headers)]
+    lines.append(fmt_row(["-" * widths[i] for i in range(len(headers))]))
+    for a in agents:
+        lines.append(fmt_row([a.get(k, "") for k in keys]))
+    return "\n".join(lines)
+
+
+def cmd_agents(args, root, prefix):
+    """Handle the agents subcommand."""
+    agents = discover_agents(root, prefix)
+    agents.sort(key=lambda a: a["name"])
+    output = format_agents_table(agents)
+    if output:
+        print(output)
 
 
 def discover_tasks(root, prefix):
@@ -332,6 +438,142 @@ def info(msg):
     print(f"info: {msg}", file=sys.stderr)
 
 
+# --- Write command helpers ---------------------------------------------------
+
+
+def slugify(description, max_words=5):
+    """Convert a description string to a kebab-case slug."""
+    slug = re.sub(r"[^a-z0-9]+", "-", description.lower()).strip("-")
+    slug = re.sub(r"-+", "-", slug)
+    parts = slug.split("-")[:max_words]
+    return "-".join(parts) or "untitled"
+
+
+def title_from_description(description, max_len=80):
+    """Derive an H1 title from a description string."""
+    title = description.strip().title()
+    if len(title) <= max_len:
+        return title
+    # Truncate without breaking mid-word
+    truncated = title[:max_len]
+    last_space = truncated.rfind(" ")
+    if last_space > 0:
+        return truncated[:last_space]
+    return truncated
+
+
+def next_task_id(tasks_dir):
+    """Scan tasks_dir for the highest numeric prefix and return next ID (zero-padded)."""
+    max_id = 0
+    for entry in tasks_dir.iterdir():
+        if entry.suffix != ".md":
+            continue
+        match = re.match(r"^(\d+)-", entry.name)
+        if match:
+            max_id = max(max_id, int(match.group(1)))
+    return f"{max_id + 1:04d}"
+
+
+def create_task_file(tasks_dir, slug, content):
+    """Create a task file with the next available ID using atomic creation.
+
+    Uses O_CREAT | O_EXCL for collision-safe creation. Retries on
+    EEXIST up to MAX_CREATE_RETRIES times.
+
+    Returns the created Path, or raises RuntimeError.
+    """
+    for attempt in range(MAX_CREATE_RETRIES):
+        tid = next_task_id(tasks_dir)
+        filename = f"{tid}-{slug}.md"
+        filepath = tasks_dir / filename
+        try:
+            fd = os.open(
+                str(filepath),
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o644,
+            )
+            with os.fdopen(fd, "w") as f:
+                f.write(content)
+            return filepath
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                continue
+            raise
+    raise RuntimeError(
+        f"Failed to create task after {MAX_CREATE_RETRIES} retries"
+    )
+
+
+def validate_transition(current, target):
+    """Check if (current, target) is a valid lifecycle transition.
+
+    Returns True if valid, False otherwise.
+    """
+    return (current, target) in VALID_TRANSITIONS
+
+
+def allowed_from(status):
+    """Return the set of statuses reachable from the given status."""
+    return {t for (s, t) in VALID_TRANSITIONS if s == status}
+
+
+def update_frontmatter(file_path, old_status, new_status):
+    """Replace the status field in a task file's frontmatter."""
+    text = file_path.read_text(encoding="utf-8")
+    updated = text.replace(
+        f"status: {old_status}",
+        f"status: {new_status}",
+        1,
+    )
+    file_path.write_text(updated, encoding="utf-8")
+
+
+def append_frontmatter_list(file_path, key, value):
+    """Append a value to a YAML list field in frontmatter.
+
+    If the field exists, appends after the last list item.
+    If the field does not exist, inserts it before the closing ---.
+    """
+    text = file_path.read_text(encoding="utf-8")
+    lines = text.splitlines(keepends=True)
+    new_item = f'  - "{value}"\n'
+
+    # Find frontmatter boundaries
+    fm_start = None
+    fm_end = None
+    for i, line in enumerate(lines):
+        if line.strip() == "---":
+            if fm_start is None:
+                fm_start = i
+            else:
+                fm_end = i
+                break
+
+    if fm_start is None or fm_end is None:
+        raise ValueError(f"No frontmatter found in {file_path}")
+
+    # Look for existing field within frontmatter
+    field_line = None
+    last_list_item = None
+    for i in range(fm_start + 1, fm_end):
+        if lines[i].startswith(f"{key}:"):
+            field_line = i
+        elif field_line is not None and re.match(r"^\s+-\s+", lines[i]):
+            last_list_item = i
+        elif field_line is not None and not re.match(r"^\s+-\s+", lines[i]):
+            break
+
+    if field_line is not None and last_list_item is not None:
+        lines.insert(last_list_item + 1, new_item)
+    elif field_line is not None:
+        lines.insert(field_line + 1, new_item)
+    else:
+        lines.insert(fm_end, f"{key}:\n")
+        lines.insert(fm_end + 1, new_item)
+
+    file_path.write_text("".join(lines), encoding="utf-8")
+
+
 def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry_run):
     """Execute one task: resolve agent, build command, launch.
 
@@ -554,6 +796,143 @@ def cmd_show(args, root, prefix):
     return 0
 
 
+def cmd_create(args, root, prefix):
+    """Handle the create subcommand."""
+    description = args.description
+    if not description or not description.strip():
+        err("description required")
+        return EXIT_USAGE
+
+    agent = args.agent or ""
+    owner = args.owner or "user"
+    status = args.status or "backlog"
+    parent = args.parent or ""
+
+    if status not in ("backlog", "ready"):
+        err("--status must be 'backlog' or 'ready'")
+        return EXIT_USAGE
+
+    tasks_dir = tasks_dir_path(root, prefix)
+    tasks_dir.mkdir(parents=True, exist_ok=True)
+
+    # Validate parent if provided
+    parent_name = None
+    if parent:
+        parent_name, error, code = resolve_task(root, prefix, parent)
+        if error:
+            err(f"parent task not found: {parent}")
+            return EXIT_TASK_NOT_FOUND
+
+    slug = slugify(description)
+    title = title_from_description(description)
+    today = datetime.date.today().isoformat()
+
+    # Build frontmatter
+    fm_lines = [
+        "---",
+        "kind: task",
+        f"name: PLACEHOLDER",
+        f"status: {status}",
+        f"agent: {agent}",
+        f"owner: {owner}",
+    ]
+    if parent_name:
+        fm_lines.append(f'parent: "[[{parent_name}]]"')
+    fm_lines.append(f"created: {today}")
+    fm_lines.append("---")
+
+    # Build body
+    body_lines = [
+        "",
+        f"# {title}",
+        "",
+        "## Requirements",
+        "",
+        description.strip(),
+        "",
+        "## Verification",
+        "",
+        "- [ ] (placeholder)",
+        "",
+    ]
+
+    content_template = "\n".join(fm_lines) + "\n" + "\n".join(body_lines)
+
+    try:
+        filepath = create_task_file(tasks_dir, slug, "")
+    except RuntimeError as e:
+        err(str(e))
+        return EXIT_USAGE
+
+    # Now we have the actual filename — update the name field and write content
+    task_name = filepath.stem
+    content = content_template.replace("name: PLACEHOLDER", f"name: {task_name}")
+    filepath.write_text(content, encoding="utf-8")
+
+    # Update parent's subtasks list if parent was provided
+    if parent_name:
+        parent_path = tasks_dir / f"{parent_name}.md"
+        try:
+            append_frontmatter_list(parent_path, "subtasks", f"[[{task_name}]]")
+        except Exception:
+            print(
+                f"warning: created {task_name} but failed to update parent subtasks list",
+                file=sys.stderr,
+            )
+
+    print(task_name)
+    return EXIT_OK
+
+
+def cmd_status(args, root, prefix):
+    """Handle the status subcommand."""
+    query = args.task
+    new_status = args.new_status
+
+    if new_status not in VALID_STATUSES:
+        err(f"invalid status: {new_status}")
+        return EXIT_USAGE
+
+    task_name, error, code = resolve_task(root, prefix, query)
+    if error:
+        err(error)
+        return code
+
+    tasks_dir = tasks_dir_path(root, prefix)
+    spec = tasks_dir / f"{task_name}.md"
+
+    try:
+        text = spec.read_text(encoding="utf-8")
+    except OSError:
+        err(f"cannot read task: {spec}")
+        return EXIT_TASK_NOT_FOUND
+
+    fm = parse_frontmatter(text)
+    current = fm.get("status", "")
+
+    # Already at target — no-op
+    if current == new_status:
+        print(f"{task_name}: already at {new_status}")
+        return EXIT_OK
+
+    # Validate transition
+    if not validate_transition(current, new_status):
+        allowed = allowed_from(current)
+        allowed_str = ", ".join(sorted(allowed)) if allowed else "(none)"
+        err(f"invalid transition: {current} → {new_status}")
+        err(f"       allowed from {current}: {allowed_str}")
+        return EXIT_INVALID_TRANSITION
+
+    try:
+        update_frontmatter(spec, current, new_status)
+    except OSError:
+        err(f"cannot write task: {spec}")
+        return EXIT_USAGE
+
+    print(f"{task_name}: {current} → {new_status}")
+    return EXIT_OK
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="openstation",
@@ -568,9 +947,27 @@ def main():
     list_p.add_argument("--agent", default="",
                         help="Filter by agent name (exact match)")
 
+    # agents
+    sub.add_parser("agents", help="List available agents")
+
     # show
     show_p = sub.add_parser("show", help="Show a task spec")
     show_p.add_argument("task", help="Task ID or slug (e.g. 0023 or 0023-cli-feature-spec)")
+
+    # create
+    create_p = sub.add_parser("create", help="Create a new task")
+    create_p.add_argument("description", help="Task description (free text)")
+    create_p.add_argument("--agent", default="", help="Agent name to assign")
+    create_p.add_argument("--owner", default="user", help="Who verifies (default: user)")
+    create_p.add_argument("--status", default="backlog",
+                          help="Initial status: backlog or ready (default: backlog)")
+    create_p.add_argument("--parent", default="",
+                          help="Parent task name (wikilink added automatically)")
+
+    # status
+    status_p = sub.add_parser("status", help="Change a task's status")
+    status_p.add_argument("task", help="Task ID or slug")
+    status_p.add_argument("new_status", help="Target status value")
 
     # run
     run_p = sub.add_parser("run", help="Launch an agent")
@@ -605,8 +1002,14 @@ def main():
 
     if args.command == "list":
         return cmd_list(args, root, prefix) or 0
+    elif args.command == "agents":
+        return cmd_agents(args, root, prefix) or 0
     elif args.command == "show":
         return cmd_show(args, root, prefix)
+    elif args.command == "create":
+        return cmd_create(args, root, prefix)
+    elif args.command == "status":
+        return cmd_status(args, root, prefix)
     elif args.command == "run":
         return cmd_run(args, root, prefix)
     return 0

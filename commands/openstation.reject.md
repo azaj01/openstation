@@ -5,7 +5,7 @@ description: Reject a task in review and mark it failed. $ARGUMENTS = task-name 
 
 # Reject Task
 
-Mark a task in `review` as `failed` by editing its frontmatter.
+Mark a task in `review` as `failed`.
 
 ## Input
 
@@ -27,7 +27,16 @@ Examples:
 3. Read the task frontmatter. Verify `status: review` — refuse
    with an error if the task is not in review. Only
    `review` → `failed` is a valid transition for this command.
-4. Set `status: failed` in the task frontmatter.
+4. Set the status using the CLI:
+
+   ```bash
+   openstation status <task-name> failed
+   ```
+
+   **Manual fallback** — if the CLI is unavailable, edit
+   `status: review` → `status: failed` directly in the task
+   frontmatter.
+
 5. If a reason was provided, append to the task body:
 
    ```markdown

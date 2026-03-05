@@ -7,10 +7,11 @@ description: Update task metadata fields (not status). $ARGUMENTS = <task-name> 
 
 Modify non-status frontmatter fields on an existing task.
 
-For status transitions, use the dedicated lifecycle commands:
-- `/openstation.ready` — promote backlog → ready
-- `/openstation.done` — complete review → done
-- `/openstation.reject` — reject review → failed
+For status transitions, use the CLI or the dedicated lifecycle
+commands:
+- `openstation status <task> ready` or `/openstation.ready`
+- `openstation status <task> done` or `/openstation.done`
+- `openstation status <task> failed` or `/openstation.reject`
 
 ## Input
 
@@ -39,11 +40,11 @@ appropriate redirect:
 
 | Attempted | Response |
 |-----------|----------|
-| `status:ready` | "Use `/openstation.ready` to promote a task." |
-| `status:done` | "Use `/openstation.done` to complete a task." |
-| `status:failed` | "Use `/openstation.reject` to reject a task." |
-| `status:in-progress` | "Status `in-progress` is set by agents during execution." |
-| `status:review` | "Status `review` is set by agents when work is complete." |
+| `status:ready` | "Use `openstation status <task> ready` or `/openstation.ready`." |
+| `status:done` | "Use `openstation status <task> done` or `/openstation.done`." |
+| `status:failed` | "Use `openstation status <task> failed` or `/openstation.reject`." |
+| `status:in-progress` | "Use `openstation status <task> in-progress` (agents only)." |
+| `status:review` | "Use `openstation status <task> review` (agents only)." |
 | `status:backlog` | "Demoting a task back to backlog is not supported." |
 
 ## Procedure

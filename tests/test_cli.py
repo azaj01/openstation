@@ -1,6 +1,7 @@
 """Integration tests for the OpenStation CLI (bin/openstation)."""
 
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -579,6 +580,354 @@ class TestRunClaude(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 3)
         self.assertIn("claude CLI not found", result.stderr)
+
+
+# ── Agents Command Tests ─────────────────────────────────────────────
+
+
+def make_agent_artifact(base, name, description=None, kind="agent", multiline=False):
+    """Create an agent spec in artifacts/agents/."""
+    agents_dir = base / "artifacts" / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    if multiline and description:
+        desc_block = f"description: >-\n  {description}\n"
+    elif description:
+        desc_block = f"description: {description}\n"
+    else:
+        desc_block = "description: Test agent\n"
+    (agents_dir / f"{name}.md").write_text(
+        f"---\nkind: {kind}\nname: {name}\n{desc_block}"
+        f"model: claude-sonnet-4-6\nallowed-tools:\n  - Read\n---\n\n# {name}\n"
+    )
+
+
+class TestAgentsCommand(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_agents_lists_all(self):
+        make_agent_artifact(self.root, "researcher", "Research agent")
+        make_agent_artifact(self.root, "author", "Content author")
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("researcher", out)
+        self.assertIn("author", out)
+        self.assertIn("Research agent", out)
+        self.assertIn("Content author", out)
+
+    def test_agents_includes_name_and_description_columns(self):
+        make_agent_artifact(self.root, "developer", "Implements code")
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("Name", out)
+        self.assertIn("Description", out)
+
+    def test_agents_multiline_description(self):
+        make_agent_artifact(self.root, "architect",
+                           "Technical architect for designing systems",
+                           multiline=True)
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("architect", out)
+        self.assertIn("Technical architect for designing systems", out)
+
+    def test_agents_skips_non_agent_files(self):
+        make_agent_artifact(self.root, "researcher", "Research agent")
+        # Create a non-agent file in artifacts/agents/
+        agents_dir = self.root / "artifacts" / "agents"
+        (agents_dir / "readme.md").write_text("# Not an agent\n")
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("researcher", out)
+        self.assertNotIn("readme", out)
+
+    def test_agents_empty_directory(self):
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), "")
+
+    def test_agents_sorted_by_name(self):
+        make_agent_artifact(self.root, "zulu", "Last agent")
+        make_agent_artifact(self.root, "alpha", "First agent")
+        make_agent_artifact(self.root, "mid", "Middle agent")
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        lines = [l for l in out.strip().splitlines() if l.strip() and not l.startswith("-")]
+        data = lines[1:]  # skip header
+        names = [l.split()[0] for l in data]
+        self.assertEqual(names, ["alpha", "mid", "zulu"])
+
+    def test_agents_installed_vault(self):
+        tmpdir = tempfile.mkdtemp()
+        root, os_dir = make_installed_vault(tmpdir)
+        make_agent_artifact(os_dir, "researcher", "Research agent")
+
+        out, _, rc = run_cli(["agents"], cwd=tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("researcher", out)
+
+
+# ── Create Command Tests ─────────────────────────────────────────────
+
+
+class TestCreateCommand(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_create_basic(self):
+        out, _, rc = run_cli(["create", "my new task"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        self.assertTrue(task_name.startswith("0001-"))
+        # Verify file exists
+        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        self.assertTrue(task_file.exists())
+        content = task_file.read_text()
+        self.assertIn("kind: task", content)
+        self.assertIn(f"name: {task_name}", content)
+        self.assertIn("status: backlog", content)
+        self.assertIn("owner: user", content)
+        self.assertIn("# My New Task", content)
+        self.assertIn("## Requirements", content)
+        self.assertIn("## Verification", content)
+
+    def test_create_sequential_ids(self):
+        out1, _, rc1 = run_cli(["create", "first task"], cwd=self.tmpdir)
+        self.assertEqual(rc1, 0)
+        out2, _, rc2 = run_cli(["create", "second task"], cwd=self.tmpdir)
+        self.assertEqual(rc2, 0)
+        name1 = out1.strip()
+        name2 = out2.strip()
+        self.assertTrue(name1.startswith("0001-"))
+        self.assertTrue(name2.startswith("0002-"))
+
+    def test_create_with_existing_tasks(self):
+        make_task(self.root, "0042-existing", status="done")
+        out, _, rc = run_cli(["create", "new task"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertTrue(out.strip().startswith("0043-"))
+
+    def test_create_slug_generation(self):
+        out, _, rc = run_cli(["create", "Add Login Page!!"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        self.assertIn("add-login-page", task_name)
+
+    def test_create_slug_max_5_words(self):
+        out, _, rc = run_cli(
+            ["create", "one two three four five six seven"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        # Slug should have at most 5 word-segments after the ID
+        slug = task_name.split("-", 1)[1]  # remove NNNN-
+        self.assertEqual(len(slug.split("-")), 5)
+
+    def test_create_special_chars_stripped(self):
+        out, _, rc = run_cli(["create", "fix #123 @urgent!"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        # Should not contain special chars
+        slug = task_name.split("-", 1)[1]
+        self.assertTrue(re.match(r"^[a-z0-9-]+$", slug))
+
+    def test_create_with_agent(self):
+        out, _, rc = run_cli(
+            ["create", "task with agent", "--agent", "researcher"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("agent: researcher", content)
+
+    def test_create_with_status_ready(self):
+        out, _, rc = run_cli(
+            ["create", "ready task", "--status", "ready"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("status: ready", content)
+
+    def test_create_invalid_status(self):
+        _, stderr, rc = run_cli(
+            ["create", "bad status", "--status", "done"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--status must be 'backlog' or 'ready'", stderr)
+
+    def test_create_with_parent(self):
+        make_task(self.root, "0001-parent-task", status="backlog")
+        out, _, rc = run_cli(
+            ["create", "child task", "--parent", "0001"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+
+        # Child has parent field
+        child_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        child_content = child_file.read_text()
+        self.assertIn('parent: "[[0001-parent-task]]"', child_content)
+
+        # Parent has subtasks field with child
+        parent_file = self.root / "artifacts" / "tasks" / "0001-parent-task.md"
+        parent_content = parent_file.read_text()
+        self.assertIn(f"[[{task_name}]]", parent_content)
+        self.assertIn("subtasks:", parent_content)
+
+    def test_create_parent_already_has_subtasks(self):
+        make_task(self.root, "0001-parent", status="backlog",
+                  subtasks=['"[[0002-existing-child]]"'])
+        make_task(self.root, "0002-existing-child", status="backlog")
+
+        out, _, rc = run_cli(
+            ["create", "new child", "--parent", "0001"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+
+        parent_file = self.root / "artifacts" / "tasks" / "0001-parent.md"
+        parent_content = parent_file.read_text()
+        # Both children should be listed
+        self.assertIn("0002-existing-child", parent_content)
+        self.assertIn(task_name, parent_content)
+
+    def test_create_invalid_parent(self):
+        _, stderr, rc = run_cli(
+            ["create", "orphan task", "--parent", "9999-nonexistent"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 3)
+        self.assertIn("parent task not found", stderr)
+
+    def test_create_missing_description(self):
+        _, stderr, rc = run_cli(["create"], cwd=self.tmpdir)
+        self.assertNotEqual(rc, 0)
+
+    def test_create_not_in_project(self):
+        tmpdir = tempfile.mkdtemp()
+        _, stderr, rc = run_cli(["create", "orphan"], cwd=tmpdir)
+        self.assertEqual(rc, 2)
+        self.assertIn("not in an Open Station project", stderr)
+
+
+# ── Status Command Tests ─────────────────────────────────────────────
+
+
+class TestStatusCommand(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_status_valid_transition(self):
+        make_task(self.root, "0001-alpha", status="backlog")
+        out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
+
+        # Verify file was updated
+        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: ready", content)
+
+    def test_status_all_valid_transitions(self):
+        transitions = [
+            ("backlog", "ready"),
+            ("ready", "in-progress"),
+            ("in-progress", "review"),
+            ("review", "done"),
+        ]
+        for current, target in transitions:
+            with self.subTest(transition=f"{current} → {target}"):
+                tmpdir = tempfile.mkdtemp()
+                root = make_source_vault(tmpdir)
+                make_task(root, "0001-t", status=current)
+                out, _, rc = run_cli(
+                    ["status", "0001", target],
+                    cwd=tmpdir,
+                )
+                self.assertEqual(rc, 0, f"Failed: {current} → {target}")
+
+    def test_status_review_to_failed(self):
+        make_task(self.root, "0001-alpha", status="review")
+        out, _, rc = run_cli(["status", "0001", "failed"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("review → failed", out)
+
+    def test_status_failed_to_in_progress(self):
+        make_task(self.root, "0001-alpha", status="failed")
+        out, _, rc = run_cli(["status", "0001", "in-progress"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("failed → in-progress", out)
+
+    def test_status_invalid_transition(self):
+        make_task(self.root, "0001-alpha", status="backlog")
+        _, stderr, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)
+        self.assertEqual(rc, 5)
+        self.assertIn("invalid transition", stderr)
+        self.assertIn("allowed from backlog", stderr)
+
+    def test_status_already_at_target(self):
+        make_task(self.root, "0001-alpha", status="ready")
+        out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("already at ready", out)
+
+    def test_status_task_not_found(self):
+        _, stderr, rc = run_cli(["status", "9999", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 3)
+        self.assertIn("not found", stderr)
+
+    def test_status_ambiguous_task(self):
+        make_task(self.root, "0001-alpha", status="backlog")
+        make_task(self.root, "0001-beta", status="backlog")
+        _, stderr, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 4)
+        self.assertIn("ambiguous", stderr)
+
+    def test_status_preserves_file_content(self):
+        make_task(self.root, "0001-alpha", status="backlog", agent="researcher")
+        out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+
+        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        # Status changed
+        self.assertIn("status: ready", content)
+        # Other fields preserved
+        self.assertIn("agent: researcher", content)
+        self.assertIn("kind: task", content)
+        self.assertIn("name: 0001-alpha", content)
+
+    def test_status_not_in_project(self):
+        tmpdir = tempfile.mkdtemp()
+        _, stderr, rc = run_cli(["status", "0001", "ready"], cwd=tmpdir)
+        self.assertEqual(rc, 2)
+        self.assertIn("not in an Open Station project", stderr)
+
+    def test_status_by_full_slug(self):
+        make_task(self.root, "0001-alpha", status="backlog")
+        out, _, rc = run_cli(["status", "0001-alpha", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
 
 
 if __name__ == "__main__":

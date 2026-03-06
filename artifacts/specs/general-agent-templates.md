@@ -43,7 +43,7 @@ Body text is already generic. **Lowest coupling** of all 5.
 | Constraints | "Follow vault conventions exactly: kebab-case filenames, YAML frontmatter…" | F |
 
 **Moderate coupling.** The "vault" language is OS-specific, but
-the capabilities describe a genuinely generic content-authoring
+the capabilities describe a genuinely generic prompt/instruction-writing
 role — they just happen to use OS vocabulary.
 
 ### architect.md
@@ -246,7 +246,7 @@ an optional domain-specific section).
 | "vault artifacts" | "project artifacts" |
 | "`artifacts/specs/`" | "where the task system directs" or "the designated output location" |
 | "Create tasks via `/openstation.create`" | "Create and triage tasks" |
-| "Delegate to `author`" | "Delegate to the content-authoring agent" |
+| "Delegate to `author`" | "Delegate to the prompt/instruction-writing agent" |
 | "Create a sub-task for `researcher`" | "Create a research sub-task" |
 | "Always call `openstation` directly" | _(remove — this is a CLI usage detail that belongs in the skill)_ |
 | "Follow vault conventions: kebab-case…" | "Follow project conventions as defined by the task system" |
@@ -294,7 +294,7 @@ make high-level technical decisions before implementation begins…
 
 - Always call `openstation` directly — never `python3 bin/openstation`
 - **Design, never implement.** …Delegate implementation to
-  `author` (for vault artifacts) or other agents via task creation.
+  `author` (for prompts and docs) or other agents via task creation.
 - Store outputs in `artifacts/specs/` unless the task spec
   directs otherwise.
 - …Create research sub-tasks for the `researcher` agent…
@@ -500,7 +500,7 @@ to each agent spec:
 - [ ] Replace "sub-task for `architect`" →
       "a sub-task to clarify the design"
 - [ ] Replace "belong to the `author` agent" →
-      "belong to the content-authoring agent"
+      "belong to the prompt/instruction-writing agent"
 
 ### project-manager
 

@@ -3,6 +3,7 @@
 Task management system for coding AI agents. Convention-first —
 markdown specs + skills, minimal dependencies. Adding packages
 or modules to existing components is fine; stay minimal.
+Do not update CHANGELOG.md unless creating a new release.
 
 ## Vault Structure
 
@@ -134,6 +135,7 @@ query patterns.
 Task management system for coding AI agents. Convention-first —
 markdown specs + skills, minimal dependencies. Adding packages
 or modules to existing components is fine; stay minimal.
+Do not update CHANGELOG.md unless creating a new release.
 
 ## Vault Structure
 

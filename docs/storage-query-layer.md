@@ -341,35 +341,35 @@ for name in 0046-spec-storage-query-layer 0047-implement-storage-replacement; do
 done
 ```
 
-### 11. Find Tasks by Agent
+### 11. Find Tasks by Assignee
 
 **Primary (Obsidian CLI):**
 
 ```bash
-obsidian search vault="open-station" query='[kind: task] [agent: researcher]' format=json
+obsidian search vault="open-station" query='[kind: task] [assignee: researcher]' format=json
 ```
 
 **Fallback (filesystem):**
 
 ```bash
-grep -rl 'agent: researcher' artifacts/tasks/*.md
+grep -rl 'assignee: researcher' artifacts/tasks/*.md
 ```
 
-Combined filters (status + agent):
+Combined filters (status + assignee):
 
 **Primary:**
 
 ```bash
-obsidian search vault="open-station" query='[kind: task] [status: ready] [agent: researcher]' format=json
+obsidian search vault="open-station" query='[kind: task] [status: ready] [assignee: researcher]' format=json
 ```
 
 **Fallback:**
 
 ```bash
-grep -rl 'status: ready' artifacts/tasks/*.md | xargs grep -l 'agent: researcher'
+grep -rl 'status: ready' artifacts/tasks/*.md | xargs grep -l 'assignee: researcher'
 ```
 
-The `openstation list --agent <name>` CLI command wraps this.
+The `openstation list --assignee <name>` CLI command wraps this.
 
 ### 12. Agent Discovery
 
@@ -407,8 +407,8 @@ falling back to `grep` on the filesystem. ¹
 | Query                        | Operation                                                       |
 |------------------------------|-----------------------------------------------------------------|
 | Tasks with status X          | `obsidian search query='[kind: task] [status: X]' format=json` ¹ |
-| Tasks assigned to agent A    | `obsidian search query='[kind: task] [agent: A]' format=json` ¹  |
-| Status + agent combined      | `obsidian search query='[kind: task] [status: X] [agent: A]' format=json` ¹ |
+| Tasks assigned to agent A    | `obsidian search query='[kind: task] [assignee: A]' format=json` ¹  |
+| Status + assignee combined   | `obsidian search query='[kind: task] [status: X] [assignee: A]' format=json` ¹ |
 | Count tasks by status        | Add `total` flag to any search command above ¹                  |
 | Tasks with a given parent    | `obsidian search query='[kind: task] [parent: <name>]' format=json` ¹ |
 | Sub-tasks of parent P        | Read parent's `subtasks` frontmatter, or query `[parent: P]` ¹ |

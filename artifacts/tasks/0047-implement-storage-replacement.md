@@ -2,7 +2,7 @@
 kind: task
 name: 0047-implement-storage-replacement
 status: done
-agent: developer
+assignee: developer
 owner: user
 parent: "[[0045-replace-storage-obsidian-cli]]"
 created: 2026-03-04

@@ -2,7 +2,7 @@
 kind: task
 name: 0035-cli-agent-session
 status: backlog
-agent: developer
+assignee: developer
 owner: user
 created: 2026-03-03
 ---

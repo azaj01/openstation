@@ -2,7 +2,7 @@
 kind: task
 name: 0022-cli-feature-research
 status: done
-agent: researcher
+assignee: researcher
 owner: manual
 parent: "[[0021-openstation-cli]]"
 created: 2026-03-01

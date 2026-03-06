@@ -2,7 +2,7 @@
 kind: task
 name: 0049-cli-obsidian-integration
 status: backlog
-agent:
+assignee:
 owner: user
 created: 2026-03-04
 ---

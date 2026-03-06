@@ -2,7 +2,7 @@
 kind: task
 name: 0014-add-architect-agent
 status: done
-agent: author
+assignee: author
 owner: manual
 artifacts:
   - artifacts/agents/architect.md

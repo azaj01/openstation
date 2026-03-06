@@ -2,7 +2,7 @@
 kind: task
 name: 0055-cli-init-command-separate-project
 status: ready
-agent: 
+assignee: 
 owner: user
 created: 2026-03-05
 subtasks:
@@ -10,6 +10,7 @@ subtasks:
   - "[[0057-spec-for-openstation-init-command]]"
   - "[[0058-implement-openstation-init-command-and]]"
   - "[[0059-update-docs-for-install-vs]]"
+  - "[[0061-generalize-agent-templates-for-any]]"
 ---
 
 # CLI `init` Command — Separate Project Scaffolding From Install

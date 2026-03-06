@@ -2,7 +2,7 @@
 kind: task
 name: 0041-storage-query-layer-spec
 status: done
-agent: author
+assignee: author
 owner: user
 created: 2026-03-04
 subtasks:

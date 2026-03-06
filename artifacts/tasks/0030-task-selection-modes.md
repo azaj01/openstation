@@ -2,7 +2,7 @@
 kind: task
 name: 0030-task-selection-modes
 status: done
-agent: author
+assignee: author
 owner: manual
 created: 2026-03-01
 ---

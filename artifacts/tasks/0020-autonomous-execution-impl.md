@@ -2,7 +2,7 @@
 kind: task
 name: 0020-autonomous-execution-impl
 status: done
-agent: author
+assignee: author
 owner: manual
 parent: "[[0013-autonomous-task-execution]]"
 created: 2026-02-28

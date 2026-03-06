@@ -18,7 +18,7 @@ commands:
 `$ARGUMENTS` — the task name followed by one or more `field:value`
 pairs separated by spaces.
 
-Example: `0003-research-obsidian-plugin-api agent:researcher owner:user`
+Example: `0003-research-obsidian-plugin-api assignee:researcher owner:user`
 
 The task name can be either the full ID-prefixed name (e.g.,
 `0003-research-obsidian-plugin-api`) or just the slug (e.g.,
@@ -28,7 +28,7 @@ The task name can be either the full ID-prefixed name (e.g.,
 
 | Field | Notes |
 |-------|-------|
-| `agent` | Agent name — warn if not found in `agents/` |
+| `assignee` | Agent name — warn if not found in `agents/` |
 | `owner` | Agent name or `user` — warn if agent not found |
 | `parent` | Parent task name |
 | Other | Any non-status frontmatter field, updated as-is |
@@ -60,7 +60,7 @@ appropriate redirect:
    - If still not found, report an error and list available tasks.
 4. Read the current frontmatter from the task file.
 5. Validate each field:value pair:
-   - `agent` should match an agent in `agents/` (warn if not found,
+   - `assignee` should match an agent in `agents/` (warn if not found,
      but allow it)
    - `owner` should be an agent name or `user` (warn if agent
      not found, but allow it)

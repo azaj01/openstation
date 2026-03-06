@@ -2,7 +2,7 @@
 kind: task
 name: 0024-cli-implementation
 status: done
-agent: developer
+assignee: developer
 owner: manual
 parent: "[[0021-openstation-cli]]"
 created: 2026-03-01

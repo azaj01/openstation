@@ -204,7 +204,7 @@ openstation create <description> [--agent NAME] [--owner NAME] [--status STATUS]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--agent` | string | empty | Agent name to assign |
+| `--assignee` | string | empty | Agent name to assign |
 | `--owner` | string | `user` | Who verifies (agent name or `user`) |
 | `--status` | string | `backlog` | Initial status (`backlog` or `ready`) |
 | `--parent` | string | empty | Parent task name (wikilink added automatically) |
@@ -264,7 +264,7 @@ The generated file follows `docs/task.spec.md` exactly:
 kind: task
 name: NNNN-slug
 status: backlog
-agent:
+assignee:
 owner: user
 created: YYYY-MM-DD
 ---

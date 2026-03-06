@@ -2,7 +2,7 @@
 kind: task
 name: 0021-openstation-cli
 status: done
-agent: researcher
+assignee: researcher
 owner: manual
 created: 2026-02-28
 subtasks:

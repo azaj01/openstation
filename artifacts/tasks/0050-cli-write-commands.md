@@ -2,7 +2,7 @@
 kind: task
 name: 0050-cli-write-commands
 status: done
-agent: project-manager
+assignee: project-manager
 owner: user
 created: 2026-03-05
 subtasks:

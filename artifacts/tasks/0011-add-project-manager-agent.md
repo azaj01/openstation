@@ -2,7 +2,7 @@
 kind: task
 name: 0011-add-project-manager-agent
 status: done
-agent: author
+assignee: author
 owner: manual
 artifacts:
   - artifacts/agents/project-manager.md

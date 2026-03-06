@@ -70,7 +70,7 @@ listing the sub-tasks with priority groups. See the
 kind: task              # Required. Always "task".
 name: NNNN-kebab-slug   # Required. Matches filename (without .md).
 status: backlog         # Required. See Status Values below.
-agent:                  # Optional. Agent name assigned to execute.
+assignee:               # Optional. Agent name assigned to execute.
 owner: user             # Required. Who verifies. Default: "user".
 parent:                 # Optional. "[[parent-task-name]]" (wikilink).
 subtasks:               # Optional. List of "[[sub-task-name]]" (wikilinks).
@@ -93,7 +93,7 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 | `kind` | string | yes | — | Always `task` |
 | `name` | string | yes | — | `NNNN-kebab-slug`, matches filename (without `.md`) |
 | `status` | enum | yes | `backlog` | Current lifecycle stage |
-| `agent` | string | no | empty | Agent assigned to execute the task |
+| `assignee` | string | no | empty | Agent assigned to execute the task |
 | `owner` | string | yes | `user` | Who verifies: agent name or `user` |
 | `parent` | string | no | empty | `"[[parent-task-name]]"` wikilink (for sub-tasks) |
 | `subtasks` | list | no | empty | `"[[sub-task-name]]"` wikilinks (for parent tasks) |
@@ -200,7 +200,7 @@ structure that isn't needed yet.
 | Stage          | Frontmatter                                  | Body                                                                  |
 | -------------- | -------------------------------------------- | --------------------------------------------------------------------- |
 | **Idea**       | `kind`, `name`, `status: backlog`, `created` | `# Title`, `## Requirements` (rough), `## Verification` (placeholder) |
-| **Scoped**     | + `agent`, `owner`                           | Requirements become concrete and testable                             |
+| **Scoped**     | + `assignee`, `owner`                        | Requirements become concrete and testable                             |
 | **Decomposed** | + `parent` wikilink (on sub-tasks)            | + `## Subtasks` with priority groups                                  |
 | **In-flight**  | `status: in-progress`                        | + `## Context` if background is needed                                |
 | **Completed**  | `status: done`                               | + `## Findings`, `## Recommendations` (research tasks)                |
@@ -210,7 +210,7 @@ structure that isn't needed yet.
 1. **Start with the minimum** — `kind`, `name`, `status`,
    `created`, a rough Requirements section, and placeholder
    Verification items. This is enough for backlog.
-2. **Add assignment when ready** — set `agent` and `owner`
+2. **Add assignment when ready** — set `assignee` and `owner`
    when the task moves to `ready`. Leave them empty until then.
 3. **Decompose only when needed** — add `## Subtasks` and
    `parent` fields only if the task is too large for a single
@@ -228,7 +228,7 @@ structure that isn't needed yet.
 kind: task
 name: 0010-add-login-page
 status: backlog
-agent:
+assignee:
 owner: user
 created: 2026-02-24
 ---
@@ -255,7 +255,7 @@ on success.
 kind: task
 name: 0003-research-obsidian-plugin-api
 status: done
-agent: researcher
+assignee: researcher
 owner: user
 created: 2026-02-21
 ---
@@ -299,7 +299,7 @@ the parent, `parent` on each child.
 kind: task
 name: 0006-adopt-spec-kit-patterns
 status: backlog
-agent: author
+assignee: author
 owner: user
 subtasks:
   - "[[0007-add-constitution]]"
@@ -339,7 +339,7 @@ philosophy.
 kind: task
 name: 0007-add-constitution
 status: backlog
-agent: author
+assignee: author
 owner: user
 parent: "[[0006-adopt-spec-kit-patterns]]"
 created: 2026-02-21

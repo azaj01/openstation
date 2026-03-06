@@ -33,10 +33,10 @@ The `openstation` CLI provides scriptable access to the task vault.
 Prefer it for discovery, inspection, and status transitions:
 
 ```
-openstation list [--status <s>] [--agent <name>]
+openstation list [--status <s>] [--assignee <name>]
 openstation agents
 openstation show <task>
-openstation create "<description>" [--agent <a>] [--owner <o>] [--status <s>] [--parent <p>]
+openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>] [--parent <p>]
 openstation status <task> <new-status>
 ```
 
@@ -56,9 +56,9 @@ The `status` subcommand validates lifecycle transitions (see
    transitions, ownership, artifact routing, guardrails).
 3. Read `docs/task.spec.md` for task format (fields, naming,
    body structure, editing guardrails).
-4. Run `openstation list --status ready --agent <your-name>` to find
+4. Run `openstation list --status ready --assignee <your-name>` to find
    assigned ready tasks. If the CLI is unavailable, fall back to
-   scanning `artifacts/tasks/*.md` for files where `agent` matches
+   scanning `artifacts/tasks/*.md` for files where `assignee` matches
    your name AND `status` is `ready`.
 5. If multiple ready tasks exist, pick the one with the earliest
    `created` date.

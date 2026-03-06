@@ -2,7 +2,7 @@
 kind: task
 name: 0006-adopt-spec-kit-patterns
 status: backlog
-agent: author
+assignee: author
 created: 2026-02-21
 ---
 

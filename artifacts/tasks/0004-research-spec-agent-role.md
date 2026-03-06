@@ -2,7 +2,7 @@
 kind: task
 name: 0004-research-spec-agent-role
 status: done
-agent: researcher
+assignee: researcher
 created: 2026-02-21
 ---
 

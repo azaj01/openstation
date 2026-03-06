@@ -2,7 +2,7 @@
 kind: task
 name: 0039-cli-run-implement
 status: done
-agent: developer
+assignee: developer
 owner: manual
 parent: "[[0028-cli-run-integration]]"
 created: 2026-03-03

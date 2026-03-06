@@ -22,17 +22,19 @@ def run_cli(args, cwd=None):
     return result.stdout, result.stderr, result.returncode
 
 
-def make_task(base, name, status="ready", agent="researcher", owner="manual",
-              subtasks=None):
+def make_task(base, name, status="ready", assignee="researcher", owner="manual",
+              subtasks=None, parent=None):
     """Create a minimal task fixture in the vault."""
     tasks_dir = base / "artifacts" / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
     extra = ""
     if subtasks:
         extra = "subtasks:\n" + "".join(f"  - {s}\n" for s in subtasks)
+    if parent:
+        extra += f'parent: "[[{parent}]]"\n'
     (tasks_dir / f"{name}.md").write_text(
         f"---\nkind: task\nname: {name}\nstatus: {status}\n"
-        f"agent: {agent}\nowner: {owner}\ncreated: 2026-01-01\n"
+        f"assignee: {assignee}\nowner: {owner}\ncreated: 2026-01-01\n"
         f"{extra}---\n\n# {name}\n"
     )
 
@@ -123,21 +125,21 @@ class TestListCommand(unittest.TestCase):
         self.assertIn("0002", out)
         self.assertIn("0003", out)
 
-    def test_list_agent_filter(self):
-        make_task(self.root, "0001-alpha", agent="researcher")
-        make_task(self.root, "0002-beta", agent="author")
+    def test_list_assignee_filter(self):
+        make_task(self.root, "0001-alpha", assignee="researcher")
+        make_task(self.root, "0002-beta", assignee="author")
 
-        out, _, rc = run_cli(["list", "--agent", "researcher"], cwd=self.tmpdir)
+        out, _, rc = run_cli(["list", "--assignee", "researcher"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001", out)
         self.assertNotIn("0002", out)
 
     def test_list_combined_filters(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
-        make_task(self.root, "0002-beta", status="in-progress", agent="researcher")
-        make_task(self.root, "0003-gamma", status="ready", agent="author")
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        make_task(self.root, "0002-beta", status="in-progress", assignee="researcher")
+        make_task(self.root, "0003-gamma", status="ready", assignee="author")
 
-        out, _, rc = run_cli(["list", "--status", "ready", "--agent", "researcher"], cwd=self.tmpdir)
+        out, _, rc = run_cli(["list", "--status", "ready", "--assignee", "researcher"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001", out)
         self.assertNotIn("0002", out)
@@ -170,6 +172,148 @@ class TestListCommand(unittest.TestCase):
         data = lines[1:]
         ids = [l.split()[0] for l in data]
         self.assertEqual(ids, ["0001", "0002", "0003"])
+
+
+# ── List Grouped Output Tests ──────────────────────────────────────
+
+
+class TestListGroupedOutput(unittest.TestCase):
+    """Test subtask grouping and Assignee column in list output."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_assignee_column_header(self):
+        """Table header shows 'Assignee' instead of 'Agent'."""
+        make_task(self.root, "0001-alpha", status="ready")
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        header_line = out.splitlines()[0]
+        self.assertIn("Assignee", header_line)
+        self.assertNotIn("Agent", header_line)
+
+    def test_subtasks_grouped_under_parent(self):
+        """Subtasks appear indented under their parent."""
+        make_task(self.root, "0001-parent", status="ready", assignee="")
+        make_task(self.root, "0002-child-a", status="ready", assignee="researcher",
+                  parent="0001-parent")
+        make_task(self.root, "0003-child-b", status="ready", assignee="author",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        lines = out.strip().splitlines()
+        parent_idx = next(i for i, l in enumerate(lines) if "0001-parent" in l)
+        child_a_idx = next(i for i, l in enumerate(lines) if "0002-child-a" in l)
+        child_b_idx = next(i for i, l in enumerate(lines) if "0003-child-b" in l)
+        # Children appear after parent
+        self.assertGreater(child_a_idx, parent_idx)
+        self.assertGreater(child_b_idx, parent_idx)
+        # Children have tree prefix in Name column, not ID column
+        self.assertIn("\u2514\u2500", lines[child_a_idx])
+        self.assertIn("\u2514\u2500", lines[child_b_idx])
+        # Subtask IDs are still visible
+        self.assertRegex(lines[child_a_idx], r"\b0002\b")
+        self.assertRegex(lines[child_b_idx], r"\b0003\b")
+        # Parent does NOT have tree prefix
+        self.assertNotIn("\u2514\u2500", lines[parent_idx])
+
+    def test_top_level_without_subtasks_unchanged(self):
+        """Tasks without subtasks display as flat rows."""
+        make_task(self.root, "0001-solo", status="ready")
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data_lines = [l for l in out.strip().splitlines() if "0001" in l]
+        self.assertEqual(len(data_lines), 1)
+        self.assertNotIn("\u2514\u2500", data_lines[0])
+        self.assertIn("0001", data_lines[0])
+
+    def test_sorting_parents_by_id_subtasks_by_id(self):
+        """Parents sorted by ID; subtasks sorted by ID within group."""
+        make_task(self.root, "0010-parent-b", status="ready", assignee="")
+        make_task(self.root, "0005-parent-a", status="ready", assignee="")
+        make_task(self.root, "0012-child-b2", status="ready", assignee="",
+                  parent="0010-parent-b")
+        make_task(self.root, "0011-child-b1", status="ready", assignee="",
+                  parent="0010-parent-b")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        lines = [l for l in out.strip().splitlines()
+                 if l.strip() and not l.startswith("-")]
+        data = lines[1:]  # skip header
+        expected_order = ["0005-parent-a", "0010-parent-b",
+                          "0011-child-b1", "0012-child-b2"]
+        found = []
+        for l in data:
+            for name in expected_order:
+                if name in l:
+                    found.append(name)
+        self.assertEqual(found, expected_order)
+
+    def test_filter_parent_only_no_matching_subtasks(self):
+        """If parent matches but subtasks don't, show only parent."""
+        make_task(self.root, "0001-parent", status="ready", assignee="")
+        make_task(self.root, "0002-child", status="done", assignee="researcher",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "--status", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertNotIn("0002-child", out)
+
+    def test_orphan_subtask_shown_as_top_level(self):
+        """Subtask whose parent is filtered out appears as top-level row."""
+        make_task(self.root, "0001-parent", status="done", assignee="")
+        make_task(self.root, "0002-child", status="ready", assignee="researcher",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "--status", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("0001-parent", out)
+        self.assertIn("0002-child", out)
+        # Should appear as top-level (ID in normal position, no tree prefix)
+        child_line = next(l for l in out.splitlines() if "0002-child" in l)
+        self.assertNotIn("\u2514\u2500", child_line)
+        self.assertTrue(child_line.strip().startswith("0002"))
+
+    def test_assignee_filter_with_grouped_view(self):
+        """Assignee filter works correctly with grouped subtasks."""
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher")
+        make_task(self.root, "0002-child", status="ready", assignee="author",
+                  parent="0001-parent")
+
+        # Filter by author — parent filtered out, child becomes top-level
+        out, _, rc = run_cli(["list", "--assignee", "author"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("0001-parent", out)
+        self.assertIn("0002-child", out)
+        child_line = next(l for l in out.splitlines() if "0002-child" in l)
+        self.assertNotIn("\u2514\u2500", child_line)
+
+    def test_multi_level_nesting_flattened(self):
+        """Grandchild tasks appear as subtasks alongside direct children."""
+        make_task(self.root, "0001-root", status="ready", assignee="")
+        make_task(self.root, "0002-child", status="ready", assignee="",
+                  parent="0001-root")
+        make_task(self.root, "0003-grandchild", status="ready", assignee="",
+                  parent="0002-child")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        lines = out.strip().splitlines()
+        root_idx = next(i for i, l in enumerate(lines) if "0001-root" in l)
+        child_idx = next(i for i, l in enumerate(lines) if "0002-child" in l)
+        grandchild_idx = next(i for i, l in enumerate(lines) if "0003-grandchild" in l)
+        # All descendants appear after root, in ID order
+        self.assertGreater(child_idx, root_idx)
+        self.assertGreater(grandchild_idx, child_idx)
+        # Both child and grandchild have tree prefix
+        self.assertIn("\u2514\u2500", lines[child_idx])
+        self.assertIn("\u2514\u2500", lines[grandchild_idx])
+        # Root does not
+        self.assertNotIn("\u2514\u2500", lines[root_idx])
 
 
 # ── Show Command Tests ──────────────────────────────────────────────
@@ -327,7 +471,7 @@ class TestRunDryRun(unittest.TestCase):
         self.assertIn("--max-turns 100", out)
 
     def test_by_task_dry_run(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
         out, _, rc = run_cli(["run", "--task", "0001", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("claude", out)
@@ -335,7 +479,7 @@ class TestRunDryRun(unittest.TestCase):
         self.assertIn("0001-alpha", out)  # prompt references task name
 
     def test_by_task_full_slug(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
         out, _, rc = run_cli(["run", "--task", "0001-alpha", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha", out)
@@ -416,7 +560,7 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("not found", stderr)
 
     def test_task_not_ready(self):
-        make_task(self.root, "0001-alpha", status="in-progress", agent="researcher")
+        make_task(self.root, "0001-alpha", status="in-progress", assignee="researcher")
         _, stderr, rc = run_cli(
             ["run", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,
@@ -426,7 +570,7 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("expected 'ready'", stderr)
 
     def test_task_not_ready_with_force(self):
-        make_task(self.root, "0001-alpha", status="in-progress", agent="researcher")
+        make_task(self.root, "0001-alpha", status="in-progress", assignee="researcher")
         out, _, rc = run_cli(
             ["run", "--task", "0001", "--force", "--dry-run"],
             cwd=self.tmpdir,
@@ -435,7 +579,7 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("claude", out)
 
     def test_task_no_agent_assigned(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="")
+        make_task(self.root, "0001-alpha", status="ready", assignee="")
         _, stderr, rc = run_cli(
             ["run", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,
@@ -454,7 +598,7 @@ class TestRunSubtasks(unittest.TestCase):
         make_agent_spec(self.root, "author")
 
     def test_no_subtasks_runs_parent(self):
-        make_task(self.root, "0001-parent", status="ready", agent="researcher")
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher")
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
             cwd=self.tmpdir,
@@ -465,10 +609,10 @@ class TestRunSubtasks(unittest.TestCase):
 
     def test_subtask_discovery(self):
         # Create parent task with subtasks field
-        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
                   subtasks=["0002-child"])
         # Create subtask
-        make_task(self.root, "0002-child", status="ready", agent="researcher")
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
@@ -480,10 +624,10 @@ class TestRunSubtasks(unittest.TestCase):
 
     def test_max_tasks_limits_execution(self):
         # Create parent with two subtasks
-        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
                   subtasks=["0002-child-a", "0003-child-b"])
-        make_task(self.root, "0002-child-a", status="ready", agent="researcher")
-        make_task(self.root, "0003-child-b", status="ready", agent="researcher")
+        make_task(self.root, "0002-child-a", status="ready", assignee="researcher")
+        make_task(self.root, "0003-child-b", status="ready", assignee="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--max-tasks", "1", "--dry-run"],
@@ -497,9 +641,9 @@ class TestRunSubtasks(unittest.TestCase):
 
     def test_subtask_wikilinks(self):
         # Subtasks listed as Obsidian wikilinks should resolve correctly
-        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
                   subtasks=['"[[0002-child]]"'])
-        make_task(self.root, "0002-child", status="ready", agent="researcher")
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
@@ -510,10 +654,10 @@ class TestRunSubtasks(unittest.TestCase):
         self.assertIn("0002-child", out)
 
     def test_subtask_only_ready_collected(self):
-        make_task(self.root, "0001-parent", status="ready", agent="researcher",
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
                   subtasks=["0002-ready", "0003-done"])
-        make_task(self.root, "0002-ready", status="ready", agent="researcher")
-        make_task(self.root, "0003-done", status="done", agent="researcher")
+        make_task(self.root, "0002-ready", status="ready", assignee="researcher")
+        make_task(self.root, "0003-done", status="done", assignee="researcher")
 
         out, stderr, rc = run_cli(
             ["run", "--task", "0001-parent", "--dry-run"],
@@ -558,7 +702,7 @@ class TestRunClaude(unittest.TestCase):
         return result.stdout, result.stderr, result.returncode
 
     def test_by_task_executes_mock_claude(self):
-        make_task(self.root, "0001-alpha", status="ready", agent="researcher")
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
         _, stderr, rc = self._run_with_mock(["run", "--task", "0001"])
         self.assertEqual(rc, 0, f"stderr: {stderr}")
         # Verify mock claude was called
@@ -741,16 +885,16 @@ class TestCreateCommand(unittest.TestCase):
         slug = task_name.split("-", 1)[1]
         self.assertTrue(re.match(r"^[a-z0-9-]+$", slug))
 
-    def test_create_with_agent(self):
+    def test_create_with_assignee(self):
         out, _, rc = run_cli(
-            ["create", "task with agent", "--agent", "researcher"],
+            ["create", "task with assignee", "--assignee", "researcher"],
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 0)
         task_name = out.strip()
         task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
         content = task_file.read_text()
-        self.assertIn("agent: researcher", content)
+        self.assertIn("assignee: researcher", content)
 
     def test_create_with_status_ready(self):
         out, _, rc = run_cli(
@@ -904,7 +1048,7 @@ class TestStatusCommand(unittest.TestCase):
         self.assertIn("ambiguous", stderr)
 
     def test_status_preserves_file_content(self):
-        make_task(self.root, "0001-alpha", status="backlog", agent="researcher")
+        make_task(self.root, "0001-alpha", status="backlog", assignee="researcher")
         out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
 
@@ -913,7 +1057,7 @@ class TestStatusCommand(unittest.TestCase):
         # Status changed
         self.assertIn("status: ready", content)
         # Other fields preserved
-        self.assertIn("agent: researcher", content)
+        self.assertIn("assignee: researcher", content)
         self.assertIn("kind: task", content)
         self.assertIn("name: 0001-alpha", content)
 

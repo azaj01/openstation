@@ -2,7 +2,7 @@
 kind: task
 name: 0005-research-spec-kit
 status: done
-agent: researcher
+assignee: researcher
 created: 2026-02-21
 ---
 

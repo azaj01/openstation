@@ -2,7 +2,7 @@
 kind: task
 name: 0023-cli-feature-spec
 status: done
-agent: architect
+assignee: architect
 owner: manual
 parent: "[[0021-openstation-cli]]"
 artifacts:

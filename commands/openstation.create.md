@@ -54,7 +54,7 @@ Generate a new task spec from a description.
 
    ```bash
    openstation create "<description>" \
-     --agent <from step 2d> \
+     --assignee <from step 2d> \
      --owner <from step 2d, default: user> \
      --status <backlog or ready, from step 2f> \
      [--parent <parent-task-name>]
@@ -80,7 +80,7 @@ Generate a new task spec from a description.
    kind: task
    name: <ID>-<slug>
    status: <backlog or ready>
-   agent: <agent>
+   assignee: <agent>
    owner: <owner>
    created: <today's date>
    ---
@@ -101,7 +101,7 @@ Generate a new task spec from a description.
 
    ```bash
    openstation create "<sub-task description>" \
-     --agent <agent> --owner <owner> \
+     --assignee <agent> --owner <owner> \
      --parent <parent-task-name>
    ```
 

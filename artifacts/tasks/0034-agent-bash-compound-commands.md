@@ -2,7 +2,7 @@
 kind: task
 name: 0034-agent-bash-compound-commands
 status: backlog
-agent:
+assignee:
 owner: user
 created: 2026-03-03
 ---

@@ -2,7 +2,7 @@
 kind: task
 name: 0053-cli-write-commands-prompts
 status: done
-agent: author
+assignee: author
 owner: user
 parent: "[[0050-cli-write-commands]]"
 created: 2026-03-05

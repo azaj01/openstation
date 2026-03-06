@@ -2,7 +2,7 @@
 kind: task
 name: 0042-create-storage-query-spec
 status: done
-agent: author
+assignee: author
 owner: user
 parent: "[[0041-storage-query-layer-spec]]"
 artifacts:

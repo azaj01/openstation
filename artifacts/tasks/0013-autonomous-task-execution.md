@@ -2,7 +2,7 @@
 kind: task
 name: 0013-autonomous-task-execution
 status: done
-agent: researcher
+assignee: researcher
 owner: manual
 created: 2026-02-27
 subtasks:

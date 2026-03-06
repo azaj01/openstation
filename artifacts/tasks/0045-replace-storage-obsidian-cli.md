@@ -2,7 +2,7 @@
 kind: task
 name: 0045-replace-storage-obsidian-cli
 status: done
-agent: developer
+assignee: developer
 owner: user
 created: 2026-03-04
 subtasks:

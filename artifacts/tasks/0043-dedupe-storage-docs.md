@@ -2,7 +2,7 @@
 kind: task
 name: 0043-dedupe-storage-docs
 status: done
-agent: author
+assignee: author
 owner: user
 parent: "[[0041-storage-query-layer-spec]]"
 created: 2026-03-04

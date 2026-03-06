@@ -2,7 +2,7 @@
 kind: task
 name: 0051-cli-write-commands-spec
 status: done
-agent: architect
+assignee: architect
 owner: user
 parent: "[[0050-cli-write-commands]]"
 artifacts:

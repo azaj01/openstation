@@ -2,7 +2,7 @@
 kind: task
 name: 0018-autonomous-execution-research
 status: done
-agent: researcher
+assignee: researcher
 owner: manual
 parent: "[[0013-autonomous-task-execution]]"
 created: 2026-02-27

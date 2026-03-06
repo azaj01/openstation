@@ -2,7 +2,7 @@
 kind: task
 name: 0009-install-script
 status: done
-agent: author
+assignee: author
 owner: manual
 created: 2026-02-22
 ---

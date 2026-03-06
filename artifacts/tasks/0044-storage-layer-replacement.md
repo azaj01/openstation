@@ -2,7 +2,7 @@
 kind: task
 name: 0044-storage-layer-replacement
 status: done
-agent: researcher
+assignee: researcher
 owner: user
 artifacts:
   - artifacts/research/storage-layer-replacement.md

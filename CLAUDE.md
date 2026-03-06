@@ -89,10 +89,10 @@ For manual creation, see `docs/task.spec.md` for the format.
 The `openstation` CLI provides scriptable access to the vault:
 
 ```
-openstation list [--status <s>] [--agent <name>]
+openstation list [--status <s>] [--assignee <name>]
 openstation agents
 openstation show <task>
-openstation create "<description>" [--agent <a>] [--owner <o>] [--status <s>] [--parent <p>]
+openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>] [--parent <p>]
 openstation status <task> <new-status>
 ```
 

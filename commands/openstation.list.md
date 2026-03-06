@@ -13,7 +13,7 @@ Display tasks from the Open Station vault as a readable table.
 
 Supported filters:
 - `status:<value>` — filter by status (backlog, ready, in-progress, review, done, failed, all)
-- `agent:<value>` — filter by assigned agent
+- `assignee:<value>` — filter by assigned agent
 
 If no arguments provided, show only `ready` and `in-progress`
 tasks. To see backlog tasks, pass `status:backlog`. To see
@@ -30,11 +30,11 @@ openstation list
 # With status filter:
 openstation list --status ready
 
-# With agent filter:
-openstation list --agent researcher
+# With assignee filter:
+openstation list --assignee researcher
 
 # Combined:
-openstation list --status ready --agent researcher
+openstation list --status ready --assignee researcher
 ```
 
 **IMPORTANT: Run the command exactly as shown above. Do not modify
@@ -44,7 +44,7 @@ the command in any way. Do not add `2>&1`, `2>/dev/null`,
 | Filter | CLI flag |
 |--------|----------|
 | `status:<value>` | `--status <value>` |
-| `agent:<value>` | `--agent <value>` |
+| `assignee:<value>` | `--assignee <value>` |
 | _(no status filter)_ | _(default: ready + in-progress only)_ |
 
 Display the CLI output directly — it produces an aligned table
@@ -68,7 +68,7 @@ Only if `openstation` is not installed:
    `status:` filter is explicitly provided (use `status:all` to
    show everything).
 4. Display a markdown table with columns:
-   | ID | Task | Status | Agent | Owner | Created |
+   | ID | Task | Status | Assignee | Owner | Created |
    The ID column shows the 4-digit numeric prefix extracted from the
    filename (e.g., `0003`). The Owner column shows the `owner`
    field value (default `manual` if absent).

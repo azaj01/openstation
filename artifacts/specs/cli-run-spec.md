@@ -184,7 +184,7 @@ implemented in Python using `pathlib`.
 ### Task-to-Agent Resolution
 
 In by-task mode, the agent is read from the task's frontmatter
-`agent` field using the existing `parse_frontmatter()` function.
+`assignee` field using the existing `parse_frontmatter()` function.
 If the field is missing or empty, exit with an error.
 
 ---
@@ -262,7 +262,7 @@ These match `openstation-run.sh` exit codes exactly.
 | No `allowed-tools` in spec | After parsing yields empty list. Print `error: No allowed-tools found in agent spec: <path>`, exit 1. |
 | Task not found | Reuse `resolve_task()` from existing CLI. Print `error: task not found: <ref>`, exit 1. |
 | Task not ready | Check `status` field. Print `error: Task <name> has status '<status>' (expected 'ready')`, exit 5. Bypassed with `--force`. |
-| No agent in task | Task's `agent` field empty/missing. Print `error: No agent assigned to task: <name>`, exit 1. |
+| No agent in task | Task's `assignee` field empty/missing. Print `error: No agent assigned to task: <name>`, exit 1. |
 | Both agent and --task | Arg parse validation. Print `error: Specify either an agent name or --task, not both`, exit 1. |
 | Neither agent nor --task | Arg parse validation. argparse handles this via `required=True` on subparser or manual check. |
 | Invalid tier | `choices=[1, 2]` in argparse. Print usage error automatically. |

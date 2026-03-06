@@ -124,24 +124,24 @@ No package structure. External packages allowed when they add clear value.
 ### C2: `list` Command
 
 ```
-openstation list [--status <status>] [--agent <name>]
+openstation list [--status <status>] [--assignee <name>]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--status` | string | `active` | Filter by status. Special: `active` (excludes done/failed), `all` (no filter) |
-| `--agent` | string | none | Filter by agent name (exact match) |
+| `--assignee` | string | none | Filter by assignee (exact match) |
 
 **Output**: Formatted table to stdout.
 
 ```
-ID     Name                         Status       Agent       Owner
+ID     Name                         Status       Assignee    Owner
 ----   --------------------------   ----------   ---------   -----
 0021   openstation-cli              in-progress  researcher  manual
 0023   cli-feature-spec             ready        architect   manual
 ```
 
-- Column widths auto-sized to content, minimums: ID 4, Name 10, Status 7, Agent 5, Owner 5
+- Column widths auto-sized to content, minimums: ID 4, Name 10, Status 7, Assignee 8, Owner 5
 - Sort: by ID ascending (numeric)
 - Default: exclude `done`/`failed` (equivalent to `--status active`)
 - Filters combine with AND

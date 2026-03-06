@@ -2,7 +2,7 @@
 kind: task
 name: 0048-list-default-active-only
 status: done
-agent: developer
+assignee: developer
 owner: manual
 created: 2026-03-04
 ---

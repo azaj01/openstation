@@ -2,7 +2,7 @@
 kind: task
 name: 0028-cli-run-integration
 status: done
-agent: developer
+assignee: developer
 owner: manual
 created: 2026-03-01
 subtasks:

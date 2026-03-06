@@ -2,7 +2,7 @@
 kind: task
 name: 0040-cli-agent-friendly-audit
 status: done
-agent: researcher
+assignee: researcher
 owner: user
 created: 2026-03-04
 artifacts:

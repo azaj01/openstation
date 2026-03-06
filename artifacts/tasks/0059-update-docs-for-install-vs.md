@@ -2,7 +2,7 @@
 kind: task
 name: 0059-update-docs-for-install-vs
 status: ready
-agent: author
+assignee: author
 owner: user
 parent: "[[0055-cli-init-command-separate-project]]"
 created: 2026-03-05

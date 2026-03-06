@@ -2,7 +2,7 @@
 kind: task
 name: 0052-cli-write-commands-impl
 status: done
-agent: developer
+assignee: developer
 owner: user
 parent: "[[0050-cli-write-commands]]"
 created: 2026-03-05

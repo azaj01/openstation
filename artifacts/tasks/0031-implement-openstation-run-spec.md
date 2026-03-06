@@ -2,7 +2,7 @@
 kind: task
 name: 0031-implement-openstation-run-spec
 status: done
-agent: developer
+assignee: developer
 owner: project-manager
 created: 2026-03-01
 ---

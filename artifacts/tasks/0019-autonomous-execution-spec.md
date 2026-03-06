@@ -4,7 +4,7 @@ name: 0019-autonomous-execution-spec
 status: done
 artifacts:
   - artifacts/specs/autonomous-execution.md
-agent: architect
+assignee: architect
 owner: manual
 parent: "[[0013-autonomous-task-execution]]"
 created: 2026-02-28

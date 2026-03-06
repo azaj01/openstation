@@ -2,7 +2,7 @@
 kind: task
 name: 0008-add-artifact-promotion
 status: done
-agent:
+assignee:
 owner: manual
 created: 2026-02-22
 ---

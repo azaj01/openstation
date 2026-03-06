@@ -2,7 +2,7 @@
 kind: task
 name: 0015-obsidian-dataview-dashboards
 status: done
-agent: author
+assignee: author
 owner: manual
 created: 2026-02-27
 ---

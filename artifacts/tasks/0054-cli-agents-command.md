@@ -2,7 +2,7 @@
 kind: task
 name: 0054-cli-agents-command
 status: done
-agent: developer
+assignee: developer
 owner: user
 created: 2026-03-05
 ---

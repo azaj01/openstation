@@ -2,7 +2,7 @@
 kind: task
 name: 0038-cli-run-spec
 status: done
-agent: researcher
+assignee: researcher
 owner: manual
 parent: "[[0028-cli-run-integration]]"
 artifacts:

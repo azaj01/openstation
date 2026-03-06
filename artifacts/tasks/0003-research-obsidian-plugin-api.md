@@ -2,7 +2,7 @@
 kind: task
 name: 0003-research-obsidian-plugin-api
 status: done
-agent: researcher
+assignee: researcher
 created: 2026-02-21
 ---
 

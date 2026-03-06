@@ -2,7 +2,7 @@
 kind: task
 name: 0007-add-verifier-field
 status: done
-agent: author
+assignee: author
 created: 2026-02-22
 ---
 

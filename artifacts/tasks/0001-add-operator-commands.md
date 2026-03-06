@@ -2,7 +2,7 @@
 kind: task
 name: 0001-add-operator-commands
 status: done
-agent:
+assignee:
 created: 2026-02-21
 ---
 

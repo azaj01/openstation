@@ -2,7 +2,7 @@
 kind: task
 name: 0046-spec-storage-query-layer
 status: done
-agent: author
+assignee: author
 owner: user
 parent: "[[0045-replace-storage-obsidian-cli]]"
 created: 2026-03-04

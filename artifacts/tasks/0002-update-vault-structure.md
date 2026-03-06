@@ -2,7 +2,7 @@
 kind: task
 name: 0002-update-vault-structure
 status: done
-agent:
+assignee:
 created: 2026-02-21
 ---
 

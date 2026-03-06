@@ -2,7 +2,7 @@
 kind: task
 name: 0017-add-review-task-command
 status: backlog
-agent:
+assignee:
 owner: user
 created: 2026-02-28
 ---

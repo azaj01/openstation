@@ -2,7 +2,7 @@
 kind: task
 name: 0029-agent-session-command
 status: backlog
-agent:
+assignee:
 owner: user
 created: 2026-03-01
 ---

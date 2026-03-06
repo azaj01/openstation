@@ -2,7 +2,7 @@
 kind: task
 name: 0025-add-developer-agent
 status: done
-agent: author
+assignee: author
 owner: user
 created: 2026-03-01
 ---

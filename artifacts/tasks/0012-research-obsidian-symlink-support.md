@@ -2,7 +2,7 @@
 kind: task
 name: 0012-research-obsidian-symlink-support
 status: done
-agent: researcher
+assignee: researcher
 owner: manual
 artifacts:
   - artifacts/research/obsidian-symlink-support.md

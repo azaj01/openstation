@@ -27,7 +27,7 @@ failed → in-progress     (agent reworks)
 
 - Each user-driven transition has a dedicated command.
   `/openstation.update` does not change status — it only edits
-  metadata fields (agent, owner, parent, etc.).
+  metadata fields (assignee, owner, parent, etc.).
 - `backlog → ready` is only allowed via `/openstation.ready`,
   which validates requirements and updates the status.
 - `review → done` is only allowed via `/openstation.done`, which

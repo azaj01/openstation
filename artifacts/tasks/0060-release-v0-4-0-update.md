@@ -1,8 +1,8 @@
 ---
 kind: task
 name: 0060-release-v0-4-0-update
-status: in-progress
-agent: project-manager
+status: done
+assignee: project-manager
 owner: user
 created: 2026-03-05
 ---

@@ -2,7 +2,7 @@
 kind: task
 name: 0027-feature-spec-format
 status: done
-agent: architect
+assignee: architect
 owner: manual
 artifacts:
   - docs/spec.spec.md

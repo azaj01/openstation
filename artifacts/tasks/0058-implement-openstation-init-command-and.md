@@ -2,7 +2,7 @@
 kind: task
 name: 0058-implement-openstation-init-command-and
 status: ready
-agent: developer
+assignee: developer
 owner: user
 parent: "[[0055-cli-init-command-separate-project]]"
 created: 2026-03-05

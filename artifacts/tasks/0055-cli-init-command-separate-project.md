@@ -11,6 +11,7 @@ subtasks:
   - "[[0058-implement-openstation-init-command-and]]"
   - "[[0059-update-docs-for-install-vs]]"
   - "[[0061-generalize-agent-templates-for-any]]"
+  - "[[0067-research-agent-driven-template-customization]]"
 ---
 
 # CLI `init` Command — Separate Project Scaffolding From Install

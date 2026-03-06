@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0063-rewrite-agent-specs-as-general
-status: review
+status: done
 assignee: author
 owner: user
 parent: "[[0061-generalize-agent-templates-for-any]]"

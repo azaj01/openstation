@@ -19,13 +19,14 @@ Informed by research in
 ## 1. Command Signature
 
 ```
-openstation init [--local <path>] [--no-agents] [--dry-run] [--force]
+openstation init [--local <path>] [--agents <name,...>] [--no-agents] [--dry-run] [--force]
 ```
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
 | `--local <path>` | string | (none) | Copy files from a local Open Station clone instead of downloading from GitHub. Path must exist and contain `docs/lifecycle.md` (validation carried over from install.sh). |
-| `--no-agents` | flag | false | Skip installing example agent specs (`researcher.md`, `author.md`). |
+| `--agents <name,...>` | string | (all) | Comma-separated list of agent names to install from `templates/agents/`. E.g., `--agents researcher,author`. If omitted, all templates are installed. Mutually exclusive with `--no-agents`. |
+| `--no-agents` | flag | false | Skip installing agent specs entirely. Mutually exclusive with `--agents`. |
 | `--dry-run` | flag | false | Print what would be created/modified without writing anything. Prefix each action line with `[would]`. |
 | `--force` | flag | false | Overwrite user-owned files too (for reset/repair scenarios). Without this flag, user-owned files are skipped if they exist. |
 
@@ -56,7 +57,6 @@ DIRS = [
     ".openstation/agents",
     ".openstation/skills",
     ".openstation/commands",
-    ".openstation/hooks",
     ".claude",
 ]
 ```
@@ -100,13 +100,6 @@ DOCS = [
     "docs/lifecycle.md",
     "docs/task.spec.md",
 ]
-
-HOOKS = [
-    "hooks/validate-write-path.sh",
-    "hooks/block-destructive-git.sh",
-]
-
-LAUNCHER = "openstation-run.sh"
 ```
 
 **Source paths** in the source repo (used with `--local`):
@@ -116,8 +109,6 @@ LAUNCHER = "openstation-run.sh"
 | `commands/openstation.create.md` | `commands/openstation.create.md` |
 | `skills/openstation-execute/SKILL.md` | `skills/openstation-execute/SKILL.md` |
 | `docs/lifecycle.md` | `docs/lifecycle.md` |
-| `hooks/validate-write-path.sh` | `hooks/validate-write-path.sh` |
-| `openstation-run.sh` | `openstation-run.sh` |
 
 **Destination paths** in the target project:
 
@@ -126,52 +117,47 @@ LAUNCHER = "openstation-run.sh"
 | `commands/openstation.create.md` | `.openstation/commands/openstation.create.md` |
 | `skills/openstation-execute/SKILL.md` | `.openstation/skills/openstation-execute/SKILL.md` |
 | `docs/lifecycle.md` | `.openstation/docs/lifecycle.md` |
-| `hooks/validate-write-path.sh` | `.openstation/hooks/validate-write-path.sh` |
-| `openstation-run.sh` | `.openstation/openstation-run.sh` |
 
 ### 2c. User-Owned Files
 
 Skipped if they already exist (unless `--force`):
 
 ```python
-AGENTS = [
-    "artifacts/agents/researcher.md",
-    "artifacts/agents/author.md",
-]
+# Discover all templates dynamically
+AGENT_TEMPLATES = glob("templates/agents/*.md")
 ```
 
-Source: `artifacts/agents/researcher.md` in the source repo.
-Destination: `.openstation/artifacts/agents/researcher.md`.
+Source: `templates/agents/<name>.md` in the source repo.
+Destination: `.openstation/artifacts/agents/<name>.md`.
 
-### 2d. Managed Files
+During copy, apply simple pattern matching to adapt templates
+to the project:
 
-Files where Open Station owns a section but the user owns the rest:
-
-| File | Strategy |
-|------|----------|
-| `CLAUDE.md` | Marker-based section replacement (§ 5a) |
-| `.claude/settings.json` | JSON key merge (§ 5b) |
+- Extract project name from `CLAUDE.md` (first H1 heading,
+  fallback to directory name)
+- Replace `"the project"` → `"<project-name>"` in description
+  and body
+- Strip template comment markers (`# --- Role-based ---`,
+  `# --- Task-system ---`) from `allowed-tools`
 
 ---
 
 ## 3. File Ownership Model
 
-Every file touched by `openstation init` falls into one of three
+Every file touched by `openstation init` falls into one of two
 categories:
 
 | Category | First run | Re-run (no --force) | Re-run (--force) |
 |----------|-----------|---------------------|------------------|
 | **AS-owned** | Create | Overwrite | Overwrite |
 | **User-owned** | Create | Skip (preserve) | Overwrite |
-| **Managed** | Create/inject | Update managed portion only | Overwrite entire file |
 
 ### Classification
 
 | Category | Files |
 |----------|-------|
-| **AS-owned** | commands/\*, skills/\*, docs/\*, hooks/\*, openstation-run.sh, .claude/ symlinks |
+| **AS-owned** | commands/\*, skills/\*, docs/\*, .claude/ symlinks |
 | **User-owned** | artifacts/agents/\*.md (example agent specs) |
-| **Managed** | CLAUDE.md, .claude/settings.json |
 
 ### Rationale
 
@@ -180,8 +166,6 @@ categories:
   Overwriting on re-init ensures updates propagate after upgrades.
 - **User-owned** files are seeded as examples but belong to the
   user. Overwriting would destroy customizations.
-- **Managed** files are shared — Open Station maintains a specific
-  section/key while preserving user content elsewhere.
 
 ---
 
@@ -221,31 +205,32 @@ Output per directory:
 
 ### Step 4: Install AS-Owned Files
 
-For each file in COMMANDS, SKILLS, DOCS, HOOKS, and LAUNCHER:
+For each file in COMMANDS, SKILLS, and DOCS:
 
 1. Fetch from source (local copy or HTTP download).
 2. Write to destination, overwriting any existing file.
-3. For hook scripts and launcher: `chmod +x`.
 
 Output: `✓ .openstation/commands/openstation.create.md`
 
-### Step 5: Install Example Agents
+### Step 5: Install Agent Templates
 
 Skip entirely if `--no-agents` is set.
 
-For each file in AGENTS:
+For each file in AGENT_TEMPLATES (discovered via glob):
 
 1. Check if destination exists.
 2. If exists and no `--force`: skip. Output: `⊘ .openstation/artifacts/agents/researcher.md (exists, skipped)`
-3. If not exists or `--force`: fetch and write.
+3. If not exists or `--force`: fetch template, apply pattern
+   matching (project name substitution, strip comment markers),
+   write to destination.
 
 After writing/skipping each agent spec, create its discovery
 symlink in `.openstation/agents/`:
 
 ```python
 # Always recreate symlinks (they're AS-owned)
-link = ".openstation/agents/researcher.md"
-target = "../artifacts/agents/researcher.md"
+link = f".openstation/agents/{name}.md"
+target = f"../artifacts/agents/{name}.md"
 # Remove existing (symlink or file), then create
 os.symlink(target, link)
 ```
@@ -278,77 +263,7 @@ Output:
 - Per-file merge: `! .claude/commands/ exists with files — merging`
   followed by per-file `✓ .claude/commands/openstation.create.md → ...`
 
-### Step 7: Configure .claude/settings.json (Managed)
-
-Merge Open Station hook entries into `.claude/settings.json`.
-
-**Hook entries to ensure:**
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": { "tools": ["Write", "Edit"] },
-        "hooks": [{ "type": "command", "command": "bash .openstation/hooks/validate-write-path.sh" }]
-      },
-      {
-        "matcher": { "tools": ["Bash"] },
-        "hooks": [{ "type": "command", "command": "bash .openstation/hooks/block-destructive-git.sh" }]
-      }
-    ]
-  }
-}
-```
-
-**Merge strategy:**
-
-1. If file doesn't exist: create it with the hook entries.
-2. If file exists: parse JSON, ensure `hooks.PreToolUse`
-   contains our entries (deduplicate by `hooks[0].command`
-   value), write back.
-3. Use Python `json` module (stdlib). No jq dependency.
-
-The current install.sh has a jq path and a fallback path. The
-Python implementation uses `json.loads` / `json.dumps` and needs
-no external tool.
-
-Output: `✓ Merged hook config into .claude/settings.json`
-
-### Step 8: Update CLAUDE.md (Managed)
-
-Inject or replace the managed section in `CLAUDE.md`.
-
-**Markers:**
-
-```
-<!-- openstation:start -->
-...managed content...
-<!-- openstation:end -->
-```
-
-**Strategy:**
-
-1. If `CLAUDE.md` doesn't exist: create it with the managed
-   section only.
-2. If `CLAUDE.md` exists and contains markers: replace content
-   between markers (inclusive) with the new managed section.
-3. If `CLAUDE.md` exists but has no markers: append the managed
-   section (preceded by a blank line).
-
-The managed section content is a string constant in the CLI.
-It matches the current content in `install.sh`.
-
-When `--force` is set: overwrite the entire CLAUDE.md with just
-the managed section (losing any user content). This is the
-nuclear option for full reset.
-
-Output:
-- Created: `✓ Created CLAUDE.md with Open Station section`
-- Updated: `✓ Updated Open Station section in CLAUDE.md`
-- Appended: `✓ Appended Open Station section to CLAUDE.md`
-
-### Step 9: Summary
+### Step 7: Summary
 
 Print a final summary with next steps.
 
@@ -358,7 +273,7 @@ Print a final summary with next steps.
 Open Station initialized successfully!
 
 Next steps:
-  1. Review CLAUDE.md and .openstation/docs/lifecycle.md
+  1. Review .openstation/docs/lifecycle.md
   2. Customize agent specs in .openstation/agents/
   3. Create your first task: /openstation.create <description>
   4. Run an agent: claude --agent <name>
@@ -377,41 +292,16 @@ re-init.
 
 ## 5. Idempotency Rules
 
-### 5a. CLAUDE.md Marker-Based Section
-
-The managed section lives between markers:
-
-```
-<!-- openstation:start -->
-...
-<!-- openstation:end -->
-```
-
-On re-init, only content between these markers (inclusive) is
-replaced. Everything before and after is preserved.
-
-**Edge case:** If a user deletes the markers but keeps some
-content, the section is appended again (resulting in a
-duplicate). This is acceptable — the markers are the contract.
-
-### 5b. settings.json Merge
-
-Hook entries are deduplicated by the `command` string in
-`hooks[0].command`. If an entry with the same command already
-exists in `PreToolUse`, it is replaced with the new version
-(to pick up any structural changes). Other entries in
-`PreToolUse` or other keys in `settings.json` are preserved.
-
-### 5c. Symlinks
+### 5a. Symlinks
 
 Always removed and recreated (ensuring correct target after
 moves/upgrades).
 
-### 5d. Directories
+### 5b. Directories
 
 Created with `exist_ok=True`. No-op if they already exist.
 
-### 5e. .gitkeep Files
+### 5c. .gitkeep Files
 
 Created only if missing. Never removed.
 
@@ -450,10 +340,8 @@ set -euo pipefail
 **What install.sh no longer does:**
 
 - Directory creation (→ init)
-- File downloads for commands/skills/docs/hooks (→ init)
+- File downloads for commands/skills/docs (→ init)
 - Symlink creation (→ init)
-- CLAUDE.md injection (→ init)
-- settings.json merge (→ init)
 - Agent spec deployment (→ init)
 - Source repo guard (→ init, but install.sh may keep its own
   guard for the binary copy step)
@@ -485,7 +373,6 @@ except the binary installation.
 | Not in a git repo | Warning (stderr): "Not inside a git repository. Proceeding anyway." Continue. | — |
 | Network error during download | Error: "Failed to download <file>: <reason>" | 1 |
 | File write permission denied | Error: "Cannot write to <path>: Permission denied" | 1 |
-| `.claude/settings.json` is malformed JSON | Warning: "Cannot parse .claude/settings.json — creating backup and overwriting." Rename to `.claude/settings.json.bak`, write fresh. | — |
 
 ### Exit Codes
 
@@ -578,39 +465,7 @@ Add `cmd_init()` function and `init` subparser to
 `bin/openstation`. The existing subcommand pattern
 (`cmd_list`, `cmd_show`, `cmd_create`, etc.) is followed.
 
-### 10b. CLAUDE.md Managed Section
-
-The managed section content should be a module-level string
-constant (e.g., `CLAUDEMD_SECTION`). This keeps it readable
-and easy to update. It must match the content currently in
-install.sh's heredoc.
-
-### 10c. settings.json Merge
-
-Use `json.loads()` / `json.dumps(indent=2)` for reading and
-writing. The merge algorithm:
-
-```python
-def merge_settings(existing_json: dict) -> dict:
-    hooks = existing_json.setdefault("hooks", {})
-    pre_tool_use = hooks.setdefault("PreToolUse", [])
-
-    # Our hook entries
-    our_hooks = [HOOK_WRITE_EDIT, HOOK_BASH]
-
-    # Remove existing entries with our commands
-    our_commands = {h["hooks"][0]["command"] for h in our_hooks}
-    pre_tool_use[:] = [
-        entry for entry in pre_tool_use
-        if entry.get("hooks", [{}])[0].get("command") not in our_commands
-    ]
-
-    # Append ours
-    pre_tool_use.extend(our_hooks)
-    return existing_json
-```
-
-### 10d. Fetch Helper
+### 10b. Fetch Helper
 
 Single function for both modes:
 
@@ -623,7 +478,7 @@ def fetch_file(src_relative: str, dst: str, local_path: str | None) -> None:
         urllib.request.urlretrieve(url, dst)
 ```
 
-### 10e. Dry-Run Implementation
+### 10c. Dry-Run Implementation
 
 Wrap all side-effecting operations in a dry-run check. The
 simplest approach: pass a `dry_run: bool` parameter through
@@ -631,7 +486,7 @@ all helper functions. When true, print what would happen but
 skip the actual `os.makedirs`, `shutil.copy2`, `os.symlink`,
 and file writes.
 
-### 10f. Counters for Summary
+### 10d. Counters for Summary
 
 Track counts during execution:
 
@@ -645,7 +500,7 @@ class InitStats:
 
 Increment as actions are performed. Use for the summary message.
 
-### 10g. argparse Registration
+### 10e. argparse Registration
 
 ```python
 init_p = sub.add_parser("init", help="Initialize Open Station in current directory")
@@ -659,7 +514,7 @@ init_p.add_argument("--force", action="store_true",
                      help="Overwrite user-owned files too")
 ```
 
-### 10h. Root Detection Override
+### 10f. Root Detection Override
 
 The `init` command should NOT call `find_root()` to locate an
 existing project. It always operates on the current working
@@ -669,7 +524,7 @@ find the project root.
 The source repo guard uses its own check (§ 4, Step 1) rather
 than `find_root()`.
 
-### 10i. Testing Strategy
+### 10g. Testing Strategy
 
 Add a `TestInitCommand` class to `tests/test_cli.py` following
 the existing test patterns. Key test cases:
@@ -681,13 +536,8 @@ the existing test patterns. Key test cases:
 5. **--dry-run** — no files created, output shows `[would]`
 6. **Source repo guard** — errors when run in source repo
 7. **--local validation** — errors on bad path
-8. **CLAUDE.md first create** — managed section only
-9. **CLAUDE.md append** — existing file, no markers
-10. **CLAUDE.md replace** — existing file, markers present
-11. **settings.json merge** — existing settings preserved
-12. **settings.json create** — new file from scratch
-13. **Symlink re-creation** — stale symlinks corrected
-14. **Not a git repo** — warning but succeeds
+8. **Symlink re-creation** — stale symlinks corrected
+9. **Not a git repo** — warning but succeeds
 
 Use `tempfile.mkdtemp()` for isolated test directories, matching
 the existing pattern in `test_cli.py`.
@@ -699,7 +549,7 @@ the existing pattern in `test_cli.py`.
 **Decided:**
 
 - Non-interactive, fully idempotent (follows git/terraform model)
-- File ownership model (AS-owned / user-owned / managed)
+- File ownership model (AS-owned / user-owned)
 - `urllib.request` for downloads (stdlib, no curl)
 - Single-file CLI (`bin/openstation`)
 - Same flags as install.sh plus `--dry-run` and `--force`

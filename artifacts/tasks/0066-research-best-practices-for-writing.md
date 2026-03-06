@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0066-research-best-practices-for-writing
-status: review
+status: done
 assignee: researcher
 owner: user
 artifacts:

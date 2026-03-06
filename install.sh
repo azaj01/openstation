@@ -226,12 +226,6 @@ done
 
 # --- Deploy launcher (always overwrite — AS-owned) ------------------------
 
-printf 'Installing launcher...\n'
-
-fetch_file "openstation-run.sh" ".openstation/openstation-run.sh"
-chmod +x ".openstation/openstation-run.sh"
-info ".openstation/openstation-run.sh"
-
 # --- Download example agents (skip if exist) -----------------------------
 
 if [[ "$INSTALL_AGENTS" == true ]]; then

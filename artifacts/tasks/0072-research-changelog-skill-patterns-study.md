@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0072-research-changelog-skill-patterns-study
-status: review
+status: done
 assignee: researcher
 owner: user
 parent: "[[0071-release-changelog-skill-automate-changelog]]"

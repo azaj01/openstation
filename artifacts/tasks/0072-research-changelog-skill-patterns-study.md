@@ -1,10 +1,12 @@
 ---
 kind: task
 name: 0072-research-changelog-skill-patterns-study
-status: ready
+status: review
 assignee: researcher
 owner: user
 parent: "[[0071-release-changelog-skill-automate-changelog]]"
+artifacts:
+  - "[[artifacts/research/changelog-skill-patterns]]"
 created: 2026-03-07
 ---
 
@@ -22,6 +24,36 @@ created: 2026-03-07
    generation in a single-package Python project.
 4. Deliver findings as a research artifact at
    `artifacts/research/changelog-skill-patterns.md`.
+
+## Findings
+
+Research artifact delivered at `artifacts/research/changelog-skill-patterns.md`.
+
+**Key conclusions:**
+
+1. **Paperclip patterns** — 6 of 7 steps apply with adaptation.
+   Keep: idempotency check, tag-based range, conventional commit
+   parsing, categorized output, human review gate, version bump
+   recommendation. Strip: changeset scanning, PR metadata, migration
+   detection, API endpoint scanning, monorepo package scoping,
+   per-version release files.
+
+2. **Open Station format** — Uses domain-specific categories
+   (CLI, Agents, Specs & Docs, Commands, Install) rather than
+   commit-type categories. Each entry is
+   `- **Bold name** — Description`. Summary paragraph precedes
+   categorized sections. 5 releases (v0.1.0–v0.4.0), all semver
+   with `v` prefix.
+
+3. **Minimal git commands** — Only 2 required:
+   `git tag --sort=-v:refname | head -1` and
+   `git log --format="%H %s" <tag>..HEAD`. Optional:
+   `git diff --stat` for file-path-based category hints.
+
+4. **Category assignment** — The skill should map commits to
+   domain categories using file paths as the primary signal
+   (changes to `bin/` → CLI, changes to `commands/` → Commands,
+   etc.) and present the mapping for human review.
 
 ## Verification
 

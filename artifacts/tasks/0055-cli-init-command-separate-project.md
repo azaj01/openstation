@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0055-cli-init-command-separate-project
-status: ready
+status: done
 assignee: 
 owner: user
 created: 2026-03-05
@@ -18,11 +18,11 @@ subtasks:
 
 ## Requirements
 
-1. **New `openstation init` CLI command** — scaffolds the `.openstation/` directory structure in the current project (dirs, commands, skills, docs, hooks, agent symlinks, `.claude/` symlinks, `CLAUDE.md` section, `.claude/settings.json` hooks).
+1. **New `openstation init` CLI command** — scaffolds the `.openstation/` directory structure in the current project (dirs, commands, skills, docs, agent templates, symlinks).
 2. **Refactor `install.sh`** — reduce to only installing the `openstation` binary/CLI on PATH. It no longer scaffolds `.openstation/`.
 3. **Separation of concerns:** `install` = get the tool; `init` = set up a project.
-4. **`init` must be idempotent** — safe to re-run (skip existing user files, overwrite AS-owned files, merge settings).
-5. Current scaffold logic from `install.sh` (directory creation, file downloads, symlinks, CLAUDE.md injection, settings merge) moves into the `init` command.
+4. **`init` must be idempotent** — safe to re-run (skip existing user files, overwrite AS-owned files).
+5. Current scaffold logic from `install.sh` (directory creation, file downloads, symlinks) moves into the `init` command.
 
 ## Subtasks
 

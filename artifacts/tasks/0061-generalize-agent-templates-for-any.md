@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0061-generalize-agent-templates-for-any
-status: ready
+status: failed
 assignee: 
 owner: user
 parent: "[[0055-cli-init-command-separate-project]]"

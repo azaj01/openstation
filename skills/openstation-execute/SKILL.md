@@ -149,7 +149,13 @@ for blocking rules.
 
 If your changes affect behavior, conventions, or structures
 documented in `docs/` or `CLAUDE.md`, update those files to
-stay in sync. Skip this step if no documentation is affected.
+stay in sync.
+
+When updating an artifact, check its `task` frontmatter field.
+If the linked task has a `## Findings` section that conflicts
+with your changes, update the Findings to match.
+
+Skip this step if no documentation or findings are affected.
 
 ## Completing a Task
 

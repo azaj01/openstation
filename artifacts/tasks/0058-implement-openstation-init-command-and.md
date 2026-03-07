@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0058-implement-openstation-init-command-and
-status: ready
+status: done
 assignee: developer
 owner: user
 parent: "[[0055-cli-init-command-separate-project]]"
@@ -28,11 +28,11 @@ References:
 1. Implement `openstation init` per the spec from [[0057-spec-for-openstation-init-command]], with the following overrides:
    - **Agent source**: use `templates/agents/` instead of `artifacts/agents/` (the spec predates task 0063)
    - **Default agent set**: install all 5 templates (researcher, author, architect, developer, project-manager), not just researcher + author
-2. Move scaffold logic out of `install.sh` into the new `init` command (directory creation, file downloads/copies, symlinks, CLAUDE.md injection, settings.json merge).
+2. Move scaffold logic out of `install.sh` into the new `init` command (directory creation, file downloads/copies, symlinks).
 3. Refactor `install.sh` to only install the `openstation` binary/CLI on PATH — optionally call `openstation init` at the end, or instruct the user to run it.
 4. `openstation init` must be idempotent: safe to re-run without data loss.
 5. Add tests for the `init` command (directory creation, idempotency, flag handling).
-6. Ensure existing `install.sh --local` and `--no-agents` flags are preserved or mapped to `init` flags.
+6. Ensure existing `install.sh` `--local` and `--no-agents` flags are preserved or mapped to `init` flags. Support new `--agents <name,...>` flag per spec.
 
 ## Verification
 

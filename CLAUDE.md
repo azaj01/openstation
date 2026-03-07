@@ -19,8 +19,8 @@ skills/            — Agent skills (operational knowledge, not user-invocable)
 commands/          — User-invocable slash commands
 ```
 
-Note: `install.sh` places these under `.openstation/` in target
-projects. In this source repo they live at the root.
+Note: In target projects, these live under `.openstation/`. In
+this source repo they live at the root.
 
 ## How Docs Connect
 

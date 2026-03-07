@@ -252,8 +252,8 @@ class TestListGroupedOutput(unittest.TestCase):
                     found.append(name)
         self.assertEqual(found, expected_order)
 
-    def test_filter_parent_only_no_matching_subtasks(self):
-        """If parent matches but subtasks don't, show only parent."""
+    def test_pull_in_subtask_of_matching_parent(self):
+        """Matching parent pulls in subtasks regardless of subtask status."""
         make_task(self.root, "0001-parent", status="ready", assignee="")
         make_task(self.root, "0002-child", status="done", assignee="researcher",
                   parent="0001-parent")
@@ -261,7 +261,7 @@ class TestListGroupedOutput(unittest.TestCase):
         out, _, rc = run_cli(["list", "--status", "ready"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001-parent", out)
-        self.assertNotIn("0002-child", out)
+        self.assertIn("0002-child", out)  # pulled in despite status=done
 
     def test_orphan_subtask_shown_as_top_level(self):
         """Subtask whose parent is filtered out appears as top-level row."""
@@ -316,6 +316,173 @@ class TestListGroupedOutput(unittest.TestCase):
         self.assertNotIn("\u2514\u2500", lines[root_idx])
 
 
+# ── List Pull-In and Positional Filter Tests ───────────────────────
+
+
+class TestListPullIn(unittest.TestCase):
+    """Test subtask pull-in rule: matching parents pull in all descendants."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_default_active_pulls_in_done_subtask(self):
+        """Default active filter pulls in subtasks even if done/backlog/failed."""
+        make_task(self.root, "0001-parent", status="ready", assignee="")
+        make_task(self.root, "0002-child-done", status="done", assignee="",
+                  parent="0001-parent")
+        make_task(self.root, "0003-child-backlog", status="backlog", assignee="",
+                  parent="0001-parent")
+        make_task(self.root, "0004-child-failed", status="failed", assignee="",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertIn("0002-child-done", out)
+        self.assertIn("0003-child-backlog", out)
+        self.assertIn("0004-child-failed", out)
+
+    def test_pull_in_nested_descendants(self):
+        """Pull-in works recursively through grandchildren."""
+        make_task(self.root, "0001-root", status="in-progress", assignee="")
+        make_task(self.root, "0002-child", status="done", assignee="",
+                  parent="0001-root")
+        make_task(self.root, "0003-grandchild", status="backlog", assignee="",
+                  parent="0002-child")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-root", out)
+        self.assertIn("0002-child", out)
+        self.assertIn("0003-grandchild", out)
+
+    def test_non_matching_top_level_still_excluded(self):
+        """A top-level task that doesn't match filters is excluded."""
+        make_task(self.root, "0001-matching", status="ready", assignee="")
+        make_task(self.root, "0002-nonmatching", status="done", assignee="")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-matching", out)
+        self.assertNotIn("0002-nonmatching", out)
+
+    def test_pull_in_with_assignee_filter(self):
+        """Pull-in works with assignee filter too."""
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher")
+        make_task(self.root, "0002-child", status="done", assignee="author",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "--assignee", "researcher"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertIn("0002-child", out)  # pulled in despite different assignee
+
+    def test_pulled_in_subtasks_display_with_prefix(self):
+        """Pulled-in subtasks render with └─ prefix."""
+        make_task(self.root, "0001-parent", status="review", assignee="")
+        make_task(self.root, "0002-child", status="done", assignee="",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        child_line = next(l for l in out.splitlines() if "0002-child" in l)
+        self.assertIn("\u2514\u2500", child_line)
+
+
+class TestListPositionalFilter(unittest.TestCase):
+    """Test positional filter argument for list command."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_positional_task_id_shows_tree(self):
+        """openstation list 0001 shows task and all subtasks."""
+        make_task(self.root, "0001-parent", status="ready")
+        make_task(self.root, "0002-child-a", status="done", parent="0001-parent")
+        make_task(self.root, "0003-child-b", status="backlog", parent="0001-parent")
+        make_task(self.root, "0004-unrelated", status="ready")
+
+        out, _, rc = run_cli(["list", "0001"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertIn("0002-child-a", out)
+        self.assertIn("0003-child-b", out)
+        self.assertNotIn("0004-unrelated", out)
+
+    def test_positional_task_short_id(self):
+        """Short ID works: openstation list 1."""
+        make_task(self.root, "0001-parent", status="ready")
+        make_task(self.root, "0002-child", status="done", parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "1"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertIn("0002-child", out)
+
+    def test_positional_task_with_status_flag(self):
+        """Positional task filter combined with --status narrows results."""
+        make_task(self.root, "0001-parent", status="ready")
+        make_task(self.root, "0002-child-ready", status="ready", parent="0001-parent")
+        make_task(self.root, "0003-child-done", status="done", parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "0001", "--status", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertIn("0002-child-ready", out)
+        # 0003 is pulled in because 0001-parent matches ready filter
+        self.assertIn("0003-child-done", out)
+
+    def test_positional_assignee_filter(self):
+        """openstation list researcher filters by assignee."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        make_task(self.root, "0002-beta", status="ready", assignee="author")
+
+        out, _, rc = run_cli(["list", "researcher"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha", out)
+        self.assertNotIn("0002-beta", out)
+
+    def test_positional_assignee_same_as_flag(self):
+        """Positional assignee gives same result as --assignee flag."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="author")
+        make_task(self.root, "0002-beta", status="ready", assignee="developer")
+
+        out1, _, rc1 = run_cli(["list", "author"], cwd=self.tmpdir)
+        out2, _, rc2 = run_cli(["list", "--assignee", "author"], cwd=self.tmpdir)
+        self.assertEqual(rc1, 0)
+        self.assertEqual(rc2, 0)
+        self.assertEqual(out1, out2)
+
+    def test_positional_task_not_found(self):
+        """Invalid task ID returns error."""
+        _, stderr, rc = run_cli(["list", "9999"], cwd=self.tmpdir)
+        self.assertEqual(rc, 3)
+        self.assertIn("not found", stderr)
+
+    def test_positional_filter_preserves_existing_flags(self):
+        """Positional filter works with --status and --assignee flags."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        make_task(self.root, "0002-beta", status="in-progress", assignee="researcher")
+
+        out, _, rc = run_cli(["list", "--status", "ready", "--assignee", "researcher"],
+                             cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha", out)
+        self.assertNotIn("0002-beta", out)
+
+    def test_positional_task_defaults_to_all_statuses(self):
+        """Task filter defaults to --status all (shows every status)."""
+        make_task(self.root, "0001-parent", status="done")
+        make_task(self.root, "0002-child", status="backlog", parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "0001"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)
+        self.assertIn("0002-child", out)
+
+
 # ── Show Command Tests ──────────────────────────────────────────────
 
 
@@ -359,6 +526,122 @@ class TestShowCommand(unittest.TestCase):
         _, err, rc = run_cli(["show", "0001-noexist"], cwd=self.tmpdir)
         self.assertEqual(rc, 3)
         self.assertIn("not found", err)
+
+
+# ── Flexible Task ID Resolution Tests ──────────────────────────────
+
+
+class TestFlexibleTaskResolution(unittest.TestCase):
+    """Test flexible task ID resolution: short IDs, slug-only lookup."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    # --- Short ID (no leading zeros) ---
+
+    def test_short_id_resolves(self):
+        """'58' resolves to '0058-implement-foo'."""
+        make_task(self.root, "0058-implement-foo")
+        out, _, rc = run_cli(["show", "58"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0058-implement-foo", out)
+
+    def test_short_id_single_digit(self):
+        """'3' resolves to '0003-some-task'."""
+        make_task(self.root, "0003-some-task")
+        out, _, rc = run_cli(["show", "3"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0003-some-task", out)
+
+    def test_short_id_two_digits(self):
+        """'12' resolves to '0012-another-task'."""
+        make_task(self.root, "0012-another-task")
+        out, _, rc = run_cli(["show", "12"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0012-another-task", out)
+
+    def test_zero_padded_id_still_works(self):
+        """'0058' still resolves (existing behavior)."""
+        make_task(self.root, "0058-implement-foo")
+        out, _, rc = run_cli(["show", "0058"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0058-implement-foo", out)
+
+    def test_full_name_still_works(self):
+        """Full name exact match still works."""
+        make_task(self.root, "0058-implement-foo")
+        out, _, rc = run_cli(["show", "0058-implement-foo"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0058-implement-foo", out)
+
+    # --- Slug-only lookup ---
+
+    def test_slug_exact_resolves(self):
+        """Exact slug 'implement-foo' resolves to '0058-implement-foo'."""
+        make_task(self.root, "0058-implement-foo")
+        out, _, rc = run_cli(["show", "implement-foo"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0058-implement-foo", out)
+
+    def test_slug_prefix_resolves(self):
+        """Slug prefix 'implement' resolves when unique."""
+        make_task(self.root, "0058-implement-foo")
+        out, _, rc = run_cli(["show", "implement"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0058-implement-foo", out)
+
+    def test_slug_ambiguous_returns_error(self):
+        """Ambiguous slug match returns error with candidates."""
+        make_task(self.root, "0058-implement-foo")
+        make_task(self.root, "0059-implement-bar")
+        _, stderr, rc = run_cli(["show", "implement"], cwd=self.tmpdir)
+        self.assertEqual(rc, 4)
+        self.assertIn("ambiguous", stderr)
+        self.assertIn("0058-implement-foo", stderr)
+        self.assertIn("0059-implement-bar", stderr)
+
+    def test_slug_not_found(self):
+        """Non-matching slug returns not found."""
+        make_task(self.root, "0058-implement-foo")
+        _, stderr, rc = run_cli(["show", "nonexistent-slug"], cwd=self.tmpdir)
+        self.assertEqual(rc, 3)
+        self.assertIn("not found", stderr)
+
+    # --- Resolution priority ---
+
+    def test_exact_match_takes_priority(self):
+        """Exact full name match wins over slug match."""
+        # Create a task whose full name could also be a slug of another
+        make_task(self.root, "0001-alpha")
+        out, _, rc = run_cli(["show", "0001-alpha"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha", out)
+
+    def test_id_match_takes_priority_over_slug(self):
+        """ID prefix match wins over slug match."""
+        make_task(self.root, "0058-implement-foo")
+        make_task(self.root, "0001-0058-confusing-name")
+        # '0058' should match as ID prefix first, not as slug
+        out, _, rc = run_cli(["show", "0058"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0058-implement-foo", out)
+
+    # --- Works across subcommands ---
+
+    def test_status_with_short_id(self):
+        """Status command works with short ID."""
+        make_task(self.root, "0058-implement-foo", status="backlog")
+        out, _, rc = run_cli(["status", "58", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
+
+    def test_status_with_slug(self):
+        """Status command works with slug-only lookup."""
+        make_task(self.root, "0058-implement-foo", status="backlog")
+        out, _, rc = run_cli(["status", "implement-foo", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
 
 
 # ── Root Detection Tests ────────────────────────────────────────────
@@ -1072,6 +1355,267 @@ class TestStatusCommand(unittest.TestCase):
         out, _, rc = run_cli(["status", "0001-alpha", "ready"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("backlog → ready", out)
+
+
+# ── Init Command Tests ──────────────────────────────────────────────
+
+
+def make_local_source(tmpdir):
+    """Create a minimal local source repo for --local mode."""
+    src = Path(tmpdir) / "source"
+    src.mkdir()
+    # Source repo markers
+    (src / "docs").mkdir(parents=True)
+    (src / "docs" / "lifecycle.md").write_text("# Lifecycle\n")
+    (src / "docs" / "task.spec.md").write_text("# Task Spec\n")
+    (src / "commands").mkdir()
+    for cmd in [
+        "openstation.create.md", "openstation.dispatch.md",
+        "openstation.done.md", "openstation.list.md",
+        "openstation.ready.md", "openstation.reject.md",
+        "openstation.show.md", "openstation.update.md",
+    ]:
+        (src / "commands" / cmd).write_text(f"# {cmd}\n")
+    (src / "skills" / "openstation-execute").mkdir(parents=True)
+    (src / "skills" / "openstation-execute" / "SKILL.md").write_text("# Skill\n")
+    (src / "templates" / "agents").mkdir(parents=True)
+    for agent in ["architect", "author", "developer", "project-manager", "researcher"]:
+        (src / "templates" / "agents" / f"{agent}.md").write_text(
+            f"---\nkind: agent\nname: {agent}\n"
+            f"description: Agent for the project\n"
+            f"allowed-tools:\n"
+            f"  # --- Role-based (defined by agent template) ---\n"
+            f"  - Read\n"
+            f"  # --- Task-system (added by openstation) ---\n"
+            f'  - "Bash(openstation *)"\n'
+            f"---\n\n# {agent.title()}\n"
+        )
+    return str(src)
+
+
+class TestInitCommand(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.target = Path(self.tmpdir) / "project"
+        self.target.mkdir()
+        self.local_src = make_local_source(self.tmpdir)
+
+    def test_first_init_creates_structure(self):
+        """First init creates full .openstation/ directory tree."""
+        out, _, rc = run_cli(
+            ["init", "--local", self.local_src],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0, f"stdout: {out}")
+        # Core directories exist
+        self.assertTrue((self.target / ".openstation" / "docs").is_dir())
+        self.assertTrue((self.target / ".openstation" / "artifacts" / "tasks").is_dir())
+        self.assertTrue((self.target / ".openstation" / "agents").is_dir())
+        self.assertTrue((self.target / ".openstation" / "commands").is_dir())
+        self.assertTrue((self.target / ".openstation" / "skills").is_dir())
+        self.assertTrue((self.target / ".claude").is_dir())
+
+    def test_first_init_installs_commands(self):
+        """AS-owned commands are installed."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        cmd_file = self.target / ".openstation" / "commands" / "openstation.create.md"
+        self.assertTrue(cmd_file.is_file())
+
+    def test_first_init_installs_all_5_agents(self):
+        """All 5 agent templates installed by default."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        agents_dir = self.target / ".openstation" / "artifacts" / "agents"
+        agents = sorted(p.stem for p in agents_dir.glob("*.md"))
+        self.assertEqual(agents, ["architect", "author", "developer",
+                                  "project-manager", "researcher"])
+
+    def test_agent_templates_sourced_from_templates_dir(self):
+        """Agent specs come from templates/agents/, not artifacts/agents/."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        agent = (self.target / ".openstation" / "artifacts" / "agents" / "researcher.md")
+        content = agent.read_text()
+        self.assertIn("kind: agent", content)
+
+    def test_agent_discovery_symlinks_created(self):
+        """Each agent gets a discovery symlink in .openstation/agents/."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        link = self.target / ".openstation" / "agents" / "researcher.md"
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(os.readlink(str(link)), "../artifacts/agents/researcher.md")
+
+    def test_claude_symlinks_created(self):
+        """.claude/ directory symlinks point to .openstation/."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        for name in ["commands", "agents", "skills"]:
+            link = self.target / ".claude" / name
+            self.assertTrue(link.is_symlink(), f".claude/{name} is not a symlink")
+
+    def test_idempotent_reinit(self):
+        """Second run doesn't break anything, user-owned files preserved."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        # Modify a user-owned file
+        agent_file = self.target / ".openstation" / "artifacts" / "agents" / "researcher.md"
+        agent_file.write_text("# My custom agent\n")
+
+        # Re-init
+        out, _, rc = run_cli(
+            ["init", "--local", self.local_src],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0)
+        # User-owned file preserved
+        self.assertEqual(agent_file.read_text(), "# My custom agent\n")
+        # AS-owned file still updated
+        cmd_file = self.target / ".openstation" / "commands" / "openstation.create.md"
+        self.assertTrue(cmd_file.is_file())
+
+    def test_reinit_with_force_overwrites_user_files(self):
+        """--force overwrites user-owned agent specs."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        agent_file = self.target / ".openstation" / "artifacts" / "agents" / "researcher.md"
+        agent_file.write_text("# My custom agent\n")
+
+        run_cli(
+            ["init", "--local", self.local_src, "--force"],
+            cwd=str(self.target),
+        )
+        # File overwritten
+        self.assertNotEqual(agent_file.read_text(), "# My custom agent\n")
+        self.assertIn("kind: agent", agent_file.read_text())
+
+    def test_no_agents_flag(self):
+        """--no-agents skips agent template installation."""
+        run_cli(
+            ["init", "--local", self.local_src, "--no-agents"],
+            cwd=str(self.target),
+        )
+        agents_dir = self.target / ".openstation" / "artifacts" / "agents"
+        agents = list(agents_dir.glob("*.md"))
+        self.assertEqual(agents, [])
+
+    def test_agents_filter_flag(self):
+        """--agents selects specific agents."""
+        run_cli(
+            ["init", "--local", self.local_src, "--agents", "researcher,author"],
+            cwd=str(self.target),
+        )
+        agents_dir = self.target / ".openstation" / "artifacts" / "agents"
+        agents = sorted(p.stem for p in agents_dir.glob("*.md"))
+        self.assertEqual(agents, ["author", "researcher"])
+
+    def test_dry_run_no_files_created(self):
+        """--dry-run doesn't create any files."""
+        out, _, rc = run_cli(
+            ["init", "--local", self.local_src, "--dry-run"],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0)
+        self.assertFalse((self.target / ".openstation").is_dir())
+        self.assertIn("[would]", out)
+
+    def test_source_repo_guard(self):
+        """Init refuses to run inside the source repo."""
+        src_dir = Path(self.tmpdir) / "src_repo"
+        src_dir.mkdir()
+        (src_dir / "agents").mkdir()
+        (src_dir / "install.sh").write_text("#!/bin/bash\n")
+
+        _, stderr, rc = run_cli(["init"], cwd=str(src_dir))
+        self.assertEqual(rc, 2)
+        self.assertIn("Cannot init inside the Open Station source repo", stderr)
+
+    def test_local_path_validation(self):
+        """--local with invalid path errors."""
+        _, stderr, rc = run_cli(
+            ["init", "--local", "/nonexistent/path"],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("does not exist", stderr)
+
+    def test_local_path_not_openstation(self):
+        """--local path without docs/lifecycle.md errors."""
+        bad_path = Path(self.tmpdir) / "not_os"
+        bad_path.mkdir()
+
+        _, stderr, rc = run_cli(
+            ["init", "--local", str(bad_path)],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("does not look like", stderr)
+
+    def test_symlink_recreation(self):
+        """Stale symlinks are corrected on re-init."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        # Create a stale symlink
+        link = self.target / ".claude" / "commands"
+        if link.is_symlink():
+            link.unlink()
+        os.symlink("/nonexistent", str(link))
+
+        # Re-init should fix it
+        _, _, rc = run_cli(
+            ["init", "--local", self.local_src],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0)
+        self.assertTrue(link.is_symlink())
+        self.assertTrue(link.resolve().is_dir() or not link.resolve().exists())
+        # The symlink target should point to openstation
+        self.assertIn(".openstation", os.readlink(str(link)))
+
+    def test_not_git_repo_succeeds_with_warning(self):
+        """Init succeeds with a warning when not in a git repo."""
+        out, stderr, rc = run_cli(
+            ["init", "--local", self.local_src],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("Not inside a git repository", stderr)
+
+    def test_template_adaptation_strips_comment_markers(self):
+        """Template comment markers are stripped from installed agents."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        agent = self.target / ".openstation" / "artifacts" / "agents" / "researcher.md"
+        content = agent.read_text()
+        self.assertNotIn("# --- Role-based", content)
+        self.assertNotIn("# --- Task-system", content)
+
+    def test_gitkeep_files_created(self):
+        """.gitkeep files are created in content directories."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        gk = self.target / ".openstation" / "artifacts" / "tasks" / ".gitkeep"
+        self.assertTrue(gk.is_file())
+
+    def test_reinit_summary_message(self):
+        """Re-init shows summary with file counts."""
+        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        out, _, rc = run_cli(
+            ["init", "--local", self.local_src],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("re-initialized", out)
+
+    def test_first_init_summary_message(self):
+        """First init shows success message with next steps."""
+        out, _, rc = run_cli(
+            ["init", "--local", self.local_src],
+            cwd=str(self.target),
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("initialized successfully", out)
+        self.assertIn("Next steps", out)
+
+    def test_mutual_exclusion_agents_no_agents(self):
+        """--agents and --no-agents are mutually exclusive."""
+        _, stderr, rc = run_cli(
+            ["init", "--local", self.local_src, "--agents", "researcher", "--no-agents"],
+            cwd=str(self.target),
+        )
+        self.assertNotEqual(rc, 0)
 
 
 if __name__ == "__main__":

@@ -61,7 +61,7 @@ agents/researcher.md → ../artifacts/agents/researcher.md
 
 Discovery symlinks are created by:
 
-- `install.sh` — for bundled example agents at install time.
+- `openstation init` — for bundled example agents at install time.
 - `/openstation.done` — for agents produced by tasks, after
   verification passes (agent promotion).
 
@@ -181,7 +181,7 @@ frontmatter field, or by querying all tasks with a given
 
 ### 6. Install-time Layout
 
-When installed into a target project via `install.sh`, the entire
+When installed into a target project via `openstation init`, the entire
 vault is placed under `.openstation/`:
 
 ```
@@ -263,8 +263,8 @@ machine-parseable. This means:
 - Git-native — all state is versioned, diffable, and mergeable.
 - Agent-friendly — LLM agents can read and write tasks with
   standard file tools (Read, Write, Edit, Glob, Grep).
-- Portable — `install.sh` bootstraps the full system from a
-  single script.
+- Portable — `openstation init` bootstraps the full system from
+  a single command.
 
 **Dual-path query model.** The Obsidian CLI
 (`/Applications/Obsidian.app/Contents/MacOS/obsidian`) provides
@@ -394,7 +394,7 @@ claude --agent researcher
 
 Discovery symlinks are created by:
 
-- `install.sh` — for bundled example agents at install time.
+- `openstation init` — for bundled example agents at install time.
 - `/openstation.done` — for agents produced by tasks, after
   verification passes (agent promotion).
 

@@ -9,14 +9,18 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.request
 from pathlib import Path
 
 # --- Constants ---------------------------------------------------------------
+
+VERSION = "0.4.0"
 
 EXIT_OK = 0
 EXIT_USAGE = 1
 EXIT_NO_PROJECT = 2
 EXIT_NO_AGENT = 2
+EXIT_SOURCE_GUARD = 2
 EXIT_NO_CLAUDE = 3
 EXIT_TASK_NOT_FOUND = 3
 EXIT_AGENT_ERROR = 4
@@ -287,12 +291,89 @@ def format_table(rows):
     return "\n".join(lines)
 
 
+def collect_task_tree(tasks, root_name):
+    """Return the task named *root_name* and all its descendants.
+
+    Descendants are discovered via the ``parent`` field on each task.
+    Returns a list of task dicts.
+    """
+    by_name = {t["name"]: t for t in tasks}
+    children_map = {}
+    for t in tasks:
+        parent = t.get("parent", "")
+        if parent:
+            children_map.setdefault(parent, []).append(t)
+
+    root_task = by_name.get(root_name)
+    if not root_task:
+        return []
+
+    result = []
+    queue = [root_task]
+    while queue:
+        task = queue.pop(0)
+        result.append(task)
+        queue.extend(children_map.get(task["name"], []))
+    return result
+
+
+def pull_in_subtasks(filtered_tasks, all_tasks):
+    """Include all descendants of *filtered_tasks* from *all_tasks*.
+
+    For every task in *filtered_tasks*, recursively adds its children
+    (and their children, etc.) from *all_tasks*, even if those
+    descendants did not match the original filter.
+    """
+    children_map = {}
+    for t in all_tasks:
+        parent = t.get("parent", "")
+        if parent:
+            children_map.setdefault(parent, []).append(t)
+
+    result_names = {t["name"] for t in filtered_tasks}
+    result = list(filtered_tasks)
+
+    def add_descendants(name):
+        for child in children_map.get(name, []):
+            if child["name"] not in result_names:
+                result_names.add(child["name"])
+                result.append(child)
+                add_descendants(child["name"])
+
+    for t in list(filtered_tasks):
+        add_descendants(t["name"])
+
+    return result
+
+
 def cmd_list(args, root, prefix):
     """Handle the list subcommand."""
-    tasks = discover_tasks(root, prefix)
+    all_tasks = discover_tasks(root, prefix)
+    tasks = list(all_tasks)
+
+    # Handle positional filter
+    positional_filter = args.filter
+    task_tree_mode = False
+    if positional_filter:
+        if positional_filter[0].isdigit():
+            # Task ID/slug → scope to that task's tree
+            task_name, error, code = resolve_task(root, prefix, positional_filter)
+            if error:
+                err(error)
+                return code
+            tasks = collect_task_tree(all_tasks, task_name)
+            task_tree_mode = True
+        else:
+            # Non-numeric → assignee name
+            if not args.assignee:
+                args.assignee = positional_filter
+
+    # Determine status filter (default: "all" for task-tree, "active" otherwise)
+    status_filter = args.status
+    if status_filter is None:
+        status_filter = "all" if task_tree_mode else "active"
 
     # Filter by status
-    status_filter = args.status
     if status_filter == "active":
         tasks = [t for t in tasks if t["status"] in ("ready", "in-progress", "review")]
     elif status_filter != "all":
@@ -301,6 +382,9 @@ def cmd_list(args, root, prefix):
     # Filter by assignee
     if args.assignee:
         tasks = [t for t in tasks if t["assignee"] == args.assignee]
+
+    # Pull-in: include all descendants of matching tasks
+    tasks = pull_in_subtasks(tasks, all_tasks)
 
     # Group subtasks under parents and sort
     rows = group_tasks_for_display(tasks)
@@ -311,24 +395,44 @@ def cmd_list(args, root, prefix):
 
 
 def resolve_task(root, prefix, query):
-    """Resolve a task query to a task name. Returns (name, error_msg, exit_code)."""
+    """Resolve a task query to a task name. Returns (name, error_msg, exit_code).
+
+    Resolution priority (first match wins):
+    1. Exact match (full name)
+    2. Zero-padded ID prefix match (e.g. "0058" or "58" → "0058-slug")
+    3. Slug match (e.g. "implement-foo" matches "0058-implement-foo")
+    """
     tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
     if not tasks_dir.is_dir():
         return None, "artifacts/tasks directory not found", 3
 
     entries = sorted(e.stem for e in tasks_dir.iterdir() if e.is_file() and e.suffix == ".md")
 
-    # Exact match
+    # 1. Exact match
     if query in entries:
         return query, None, 0
 
-    # Prefix match
-    matches = [e for e in entries if e.startswith(query)]
+    # 2. Zero-padded ID prefix match
+    # If query is purely numeric, zero-pad to 4 digits first
+    padded = query.zfill(4) if query.isdigit() else query
+    matches = [e for e in entries if e.startswith(padded)]
     if len(matches) == 1:
         return matches[0], None, 0
     if len(matches) > 1:
         match_list = "\n".join(f"  {m}" for m in matches)
         return None, f"ambiguous task '{query}', matches:\n{match_list}", 4
+
+    # 3. Slug match — match against the portion after the NNNN- prefix
+    slug_matches = [e for e in entries if "-" in e and e.split("-", 1)[1] == query]
+    if not slug_matches:
+        # Try substring/prefix matching on the slug portion
+        slug_matches = [e for e in entries if "-" in e and e.split("-", 1)[1].startswith(query)]
+    if len(slug_matches) == 1:
+        return slug_matches[0], None, 0
+    if len(slug_matches) > 1:
+        match_list = "\n".join(f"  {m}" for m in slug_matches)
+        return None, f"ambiguous task '{query}', matches:\n{match_list}", 4
+
     return None, f"task not found: {query}", 3
 
 
@@ -996,16 +1100,401 @@ def cmd_status(args, root, prefix):
     return EXIT_OK
 
 
+# --- Init command ---------------------------------------------------------------
+
+INIT_BASE_URL = "https://raw.githubusercontent.com/leonprou/openstation/main"
+
+INIT_DIRS = [
+    ".openstation/docs",
+    ".openstation/artifacts/tasks",
+    ".openstation/artifacts/agents",
+    ".openstation/artifacts/research",
+    ".openstation/artifacts/specs",
+    ".openstation/agents",
+    ".openstation/skills",
+    ".openstation/commands",
+    ".claude",
+]
+
+INIT_GITKEEP_DIRS = [
+    ".openstation/artifacts/tasks",
+    ".openstation/artifacts/agents",
+    ".openstation/artifacts/research",
+    ".openstation/artifacts/specs",
+    ".openstation/agents",
+    ".openstation/skills",
+    ".openstation/commands",
+]
+
+INIT_COMMANDS = [
+    "commands/openstation.create.md",
+    "commands/openstation.dispatch.md",
+    "commands/openstation.done.md",
+    "commands/openstation.list.md",
+    "commands/openstation.ready.md",
+    "commands/openstation.reject.md",
+    "commands/openstation.show.md",
+    "commands/openstation.update.md",
+]
+
+INIT_SKILLS = [
+    "skills/openstation-execute/SKILL.md",
+]
+
+INIT_DOCS = [
+    "docs/lifecycle.md",
+    "docs/task.spec.md",
+]
+
+INIT_DEFAULT_AGENTS = [
+    "architect",
+    "author",
+    "developer",
+    "project-manager",
+    "researcher",
+]
+
+
+class _InitStats:
+    def __init__(self):
+        self.created = 0
+        self.updated = 0
+        self.skipped = 0
+
+
+def _init_info(msg, dry_run=False):
+    prefix = "[would] " if dry_run else ""
+    print(f"  {prefix}\033[1;32m\u2713\033[0m {msg}")
+
+
+def _init_skip(msg, dry_run=False):
+    prefix = "[would] " if dry_run else ""
+    print(f"  {prefix}\033[1;33m\u2298\033[0m {msg}")
+
+
+def _init_warn(msg):
+    print(f"  \033[1;33m!\033[0m {msg}", file=sys.stderr)
+
+
+def _init_err(msg):
+    print(f"  \033[1;31m\u2717\033[0m {msg}", file=sys.stderr)
+
+
+def _fetch_to(src_relative, dst, local_path=None, dry_run=False):
+    """Fetch a file from local clone or GitHub. Returns True on success."""
+    if dry_run:
+        return True
+    try:
+        Path(dst).parent.mkdir(parents=True, exist_ok=True)
+        if local_path:
+            shutil.copy2(os.path.join(local_path, src_relative), dst)
+        else:
+            url = f"{INIT_BASE_URL}/{src_relative}"
+            urllib.request.urlretrieve(url, dst)
+        return True
+    except Exception as e:
+        _init_err(f"Failed to download {src_relative}: {e}")
+        return False
+
+
+def _discover_local_templates(local_path):
+    """Discover agent template names from a local clone."""
+    tdir = Path(local_path) / "templates" / "agents"
+    if not tdir.is_dir():
+        return []
+    return sorted(p.stem for p in tdir.glob("*.md"))
+
+
+def _get_project_name():
+    """Extract project name from CLAUDE.md H1 or fall back to dir name."""
+    claude_md = Path("CLAUDE.md")
+    if claude_md.is_file():
+        try:
+            for line in claude_md.read_text(encoding="utf-8").splitlines():
+                if line.startswith("# "):
+                    name = line[2:].strip()
+                    if name != "Open Station":
+                        return name
+        except OSError:
+            pass
+    return Path.cwd().name
+
+
+def _adapt_template(content, project_name):
+    """Adapt agent template for the target project."""
+    content = content.replace("the project", project_name)
+    lines = content.splitlines()
+    filtered = [
+        l for l in lines
+        if not re.match(r"^\s*#\s*---\s*(Role-based|Task-system).*---\s*$", l)
+    ]
+    return "\n".join(filtered) + "\n"
+
+
+def _install_agents(local_path, agents_filter, force, dry_run, stats):
+    """Install agent templates into .openstation/artifacts/agents/."""
+    print("Installing agent templates...")
+
+    if local_path:
+        agent_names = _discover_local_templates(local_path)
+    else:
+        agent_names = list(INIT_DEFAULT_AGENTS)
+
+    if agents_filter:
+        requested = [n.strip() for n in agents_filter.split(",")]
+        agent_names = [n for n in agent_names if n in requested]
+
+    project_name = _get_project_name()
+
+    for name in agent_names:
+        dst = f".openstation/artifacts/agents/{name}.md"
+        dst_path = Path(dst)
+
+        if dst_path.is_file() and not force:
+            _init_skip(f"{dst} (exists, skipped)", dry_run)
+            stats.skipped += 1
+        else:
+            if dry_run:
+                _init_info(dst, dry_run=True)
+            else:
+                try:
+                    if local_path:
+                        src = Path(local_path) / "templates" / "agents" / f"{name}.md"
+                        content = src.read_text(encoding="utf-8")
+                    else:
+                        url = f"{INIT_BASE_URL}/templates/agents/{name}.md"
+                        with urllib.request.urlopen(url) as resp:
+                            content = resp.read().decode("utf-8")
+                    adapted = _adapt_template(content, project_name)
+                    dst_path.parent.mkdir(parents=True, exist_ok=True)
+                    dst_path.write_text(adapted, encoding="utf-8")
+                    _init_info(dst)
+                except Exception as e:
+                    _init_err(f"Failed to install agent template {name}: {e}")
+                    continue
+            stats.created += 1
+
+        # Discovery symlink (always recreate — AS-owned)
+        link = f".openstation/agents/{name}.md"
+        target = f"../artifacts/agents/{name}.md"
+        link_path = Path(link)
+        if not dry_run:
+            if link_path.is_symlink() or link_path.is_file():
+                link_path.unlink()
+            link_path.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(target, str(link_path))
+        _init_info(f"{link} \u2192 {target}", dry_run)
+
+
+def _create_claude_symlinks(dry_run):
+    """Create .claude/ \u2192 .openstation/ directory symlinks."""
+    print("Creating symlinks...")
+
+    if dry_run:
+        _init_info(".claude/commands \u2192 ../.openstation/commands", dry_run=True)
+        _init_info(".claude/agents \u2192 ../.openstation/agents", dry_run=True)
+        _init_info(".claude/skills \u2192 ../.openstation/skills", dry_run=True)
+        return
+
+    # .claude/commands
+    cp = Path(".claude/commands")
+    if cp.is_symlink():
+        cp.unlink()
+        os.symlink("../.openstation/commands", str(cp))
+        _init_info(".claude/commands \u2192 ../.openstation/commands")
+    elif cp.is_dir():
+        if any(cp.iterdir()):
+            _init_warn(".claude/commands/ exists with files \u2014 merging")
+            for f in INIT_COMMANDS:
+                fname = Path(f).name
+                fl = cp / fname
+                ft = f"../../.openstation/{f}"
+                if fl.is_symlink() or fl.is_file():
+                    fl.unlink()
+                os.symlink(ft, str(fl))
+                _init_info(f"{fl} \u2192 {ft}")
+        else:
+            cp.rmdir()
+            os.symlink("../.openstation/commands", str(cp))
+            _init_info(".claude/commands \u2192 ../.openstation/commands")
+    elif not cp.exists():
+        os.symlink("../.openstation/commands", str(cp))
+        _init_info(".claude/commands \u2192 ../.openstation/commands")
+
+    # .claude/agents (always replace)
+    ap = Path(".claude/agents")
+    if ap.is_symlink():
+        ap.unlink()
+    elif ap.is_dir():
+        shutil.rmtree(str(ap))
+    os.symlink("../.openstation/agents", str(ap))
+    _init_info(".claude/agents \u2192 ../.openstation/agents")
+
+    # .claude/skills
+    sp = Path(".claude/skills")
+    if sp.is_symlink():
+        sp.unlink()
+        os.symlink("../.openstation/skills", str(sp))
+        _init_info(".claude/skills \u2192 ../.openstation/skills")
+    elif sp.is_dir():
+        if any(sp.iterdir()):
+            _init_warn(".claude/skills/ exists with files \u2014 merging")
+            for f in INIT_SKILLS:
+                parts = Path(f).parts
+                if len(parts) >= 2 and parts[0] == "skills":
+                    skill_name = parts[1]
+                    fl = sp / skill_name
+                    ft = f"../../.openstation/skills/{skill_name}"
+                    if fl.is_symlink():
+                        fl.unlink()
+                    elif fl.is_dir():
+                        shutil.rmtree(str(fl))
+                    os.symlink(ft, str(fl))
+                    _init_info(f"{fl} \u2192 {ft}")
+        else:
+            sp.rmdir()
+            os.symlink("../.openstation/skills", str(sp))
+            _init_info(".claude/skills \u2192 ../.openstation/skills")
+    elif not sp.exists():
+        os.symlink("../.openstation/skills", str(sp))
+        _init_info(".claude/skills \u2192 ../.openstation/skills")
+
+
+def cmd_init(args):
+    """Handle the init subcommand."""
+    local_path = args.local
+    no_agents = args.no_agents
+    agents_filter = args.agents
+    dry_run = args.dry_run
+    force = args.force
+
+    # Step 1: Source repo guard
+    cwd = Path.cwd()
+    if (cwd / "agents").is_dir() and (cwd / "install.sh").is_file():
+        _init_err("Cannot init inside the Open Station source repo.")
+        return EXIT_SOURCE_GUARD
+
+    is_reinit = (cwd / ".openstation").is_dir()
+
+    # Step 2: Validate prerequisites
+    if local_path:
+        lp = Path(local_path)
+        if not lp.is_dir():
+            _init_err(f"Local path does not exist: {local_path}")
+            return EXIT_USAGE
+        if not (lp / "docs" / "lifecycle.md").is_file():
+            _init_err(
+                f"Local path does not look like an Open Station repo: {local_path}"
+            )
+            return EXIT_USAGE
+        local_path = str(lp.resolve())
+
+    # Warn if not in a git repo
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        _init_warn("Not inside a git repository. Proceeding anyway.")
+
+    stats = _InitStats()
+
+    # Banner
+    print()
+    print("\033[1mOpen Station\033[0m")
+    print()
+
+    # Step 3: Create directories
+    print("Creating directories...")
+    for d in INIT_DIRS:
+        dp = Path(d)
+        if not dp.is_dir():
+            if not dry_run:
+                dp.mkdir(parents=True, exist_ok=True)
+            _init_info(f"{d}/", dry_run)
+            stats.created += 1
+
+    for d in INIT_GITKEEP_DIRS:
+        gk = Path(d) / ".gitkeep"
+        if not gk.is_file():
+            if not dry_run:
+                Path(d).mkdir(parents=True, exist_ok=True)
+                gk.touch()
+
+    # Step 4: Install AS-owned files
+    print("Installing commands...")
+    for f in INIT_COMMANDS:
+        dst = f".openstation/{f}"
+        if not _fetch_to(f, dst, local_path, dry_run):
+            return EXIT_USAGE
+        _init_info(dst, dry_run)
+        stats.updated += 1
+
+    print("Installing skills...")
+    for f in INIT_SKILLS:
+        dst = f".openstation/{f}"
+        if not dry_run:
+            Path(dst).parent.mkdir(parents=True, exist_ok=True)
+        if not _fetch_to(f, dst, local_path, dry_run):
+            return EXIT_USAGE
+        _init_info(dst, dry_run)
+        stats.updated += 1
+
+    print("Installing docs...")
+    for f in INIT_DOCS:
+        dst = f".openstation/{f}"
+        if not _fetch_to(f, dst, local_path, dry_run):
+            return EXIT_USAGE
+        _init_info(dst, dry_run)
+        stats.updated += 1
+
+    # Step 5: Install agent templates
+    if no_agents:
+        print("Skipping agent specs (--no-agents)")
+    else:
+        _install_agents(local_path, agents_filter, force, dry_run, stats)
+
+    # Step 6: .claude/ symlinks
+    _create_claude_symlinks(dry_run)
+
+    # Summary
+    print()
+    if is_reinit:
+        total = stats.updated + stats.created
+        print(
+            f"\033[1;32mOpen Station re-initialized "
+            f"({total} files updated, {stats.skipped} skipped).\033[0m"
+        )
+    else:
+        print("\033[1;32mOpen Station initialized successfully!\033[0m")
+        print()
+        print("Next steps:")
+        print("  1. Review .openstation/docs/lifecycle.md")
+        print("  2. Customize agent specs in .openstation/agents/")
+        print("  3. Create your first task: /openstation.create <description>")
+        print("  4. Run an agent: claude --agent <name>")
+    print()
+
+    return EXIT_OK
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="openstation",
         description="CLI for the Open Station task vault.",
     )
+    parser.add_argument(
+        "--version", action="version", version=f"openstation {VERSION}",
+    )
     sub = parser.add_subparsers(dest="command")
 
     # list
     list_p = sub.add_parser("list", help="List tasks")
-    list_p.add_argument("--status", default="active",
+    list_p.add_argument("filter", nargs="?", default=None,
+                        help="Task ID/slug or assignee name (auto-detected)")
+    list_p.add_argument("--status", default=None,
                         help="Filter by status (default: active = ready + in-progress + review, use 'all' for everything)")
     list_p.add_argument("--assignee", default="",
                         help="Filter by assignee (exact match)")
@@ -1052,11 +1541,29 @@ def main():
     run_p.add_argument("--dry-run", action="store_true",
                        help="Print command without executing")
 
+    # init
+    init_p = sub.add_parser("init", help="Initialize Open Station in current directory")
+    init_p.add_argument("--local", default=None, metavar="PATH",
+                        help="Copy files from a local Open Station clone")
+    agent_grp = init_p.add_mutually_exclusive_group()
+    agent_grp.add_argument("--agents", default=None, metavar="NAMES",
+                           help="Comma-separated agent names to install (default: all)")
+    agent_grp.add_argument("--no-agents", action="store_true",
+                           help="Skip installing example agent specs")
+    init_p.add_argument("--dry-run", action="store_true",
+                        help="Show what would be done without writing")
+    init_p.add_argument("--force", action="store_true",
+                        help="Overwrite user-owned files too")
+
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
         return 1
+
+    # init operates on CWD, doesn't need find_root()
+    if args.command == "init":
+        return cmd_init(args) or 0
 
     root, prefix = find_root()
     if root is None:

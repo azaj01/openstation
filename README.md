@@ -8,11 +8,18 @@ Open Station gives coding AI agents a structured way to receive, execute, and co
 
 ## Install
 
+**One-liner** (installs the CLI and scaffolds the project):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/leonprou/openstation/main/install.sh | bash
 ```
 
-This creates the vault directories, installs skills and the manual, sets up symlinks for slash-command discovery, and adds an Open Station section to your `CLAUDE.md`.
+This does two things:
+
+1. **Installs the CLI** — downloads `openstation` to `~/.local/bin/`
+2. **Scaffolds the project** — runs `openstation init` to create the `.openstation/` vault, set up `.claude/` symlinks, and inject the managed section into `CLAUDE.md`
+
+To scaffold additional projects after the CLI is installed, run `openstation init` directly from the project directory.
 
 **Options:**
 
@@ -20,22 +27,32 @@ This creates the vault directories, installs skills and the manual, sets up syml
 |------|-------------|
 | `--local PATH` | Copy from a local clone instead of downloading |
 | `--no-agents` | Skip installing example agent specs |
+| `--force` | Overwrite user-owned files during re-init |
+| `--dry-run` | Show what would be done without writing |
 
 ## Quick Start
 
-**1. Create a task**
+**1. Initialize Open Station**
+
+```bash
+openstation init
+```
+
+Creates the `.openstation/` vault (directories, docs, commands, skills), installs agent templates, and sets up `.claude/` symlinks so Claude Code discovers agents and commands. Safe to re-run — existing files are preserved.
+
+**2. Create a task**
 
 ```
 /openstation.create Add input validation to the signup form
 ```
 
-**2. Set it ready**
+**3. Set it ready**
 
 ```
 /openstation.ready 0001-add-input-validation agent:researcher
 ```
 
-**3. Dispatch an agent**
+**4. Dispatch an agent**
 
 ```bash
 claude --agent researcher
@@ -43,7 +60,7 @@ claude --agent researcher
 
 The agent finds its ready tasks, follows the manual, executes the work, and sets `status: review` when done.
 
-**4. Mark done**
+**5. Mark done**
 
 ```
 /openstation.done 0001-add-input-validation
@@ -68,8 +85,8 @@ skills/            — Agent skills (not user-invocable)
 commands/          — User-invocable slash commands
 ```
 
-When installed into another project via `install.sh`, these are
-placed under `.openstation/`.
+When installed into another project, these are placed under
+`.openstation/`.
 
 ## Architecture
 

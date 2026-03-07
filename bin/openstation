@@ -14,21 +14,7 @@ from pathlib import Path
 
 # --- Constants ---------------------------------------------------------------
 
-def _version_from_git():
-    """Derive version from the latest git tag (vX.Y.Z → X.Y.Z)."""
-    try:
-        tag = subprocess.check_output(
-            ["git", "tag", "--sort=-v:refname"],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).split("\n", 1)[0].strip()
-        if tag.startswith("v"):
-            return tag[1:]
-    except Exception:
-        pass
-    return "dev"
-
-VERSION = _version_from_git()
+VERSION = "0.5.0"
 
 EXIT_OK = 0
 EXIT_USAGE = 1

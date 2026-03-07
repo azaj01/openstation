@@ -181,23 +181,30 @@ On approval, insert the new entry into `CHANGELOG.md`:
 - Keep a blank line before and after the new entry.
 - Do not modify existing entries.
 
-### Step 8 — Suggest Tagging
+**Do not commit, tag, or push yet.** The changelog write is a
+working-tree change only. Committing and tagging happen in Step 8
+after the user approves the full release.
 
-After the changelog is written, suggest creating a git tag:
+### Step 8 — Release
+
+After writing the changelog, present this release checklist and
+**wait for the user to approve before executing**:
 
 ```
-Ready to tag? Run: git tag v<VERSION>
+Release v<VERSION>:
+1. Update VERSION in bin/openstation → "<VERSION>"
+2. Commit: "chore: release v<VERSION>"
+3. Tag: git tag v<VERSION>
+4. Push: git push origin main --tags
 ```
 
-Do not create the tag yourself — wait for the user to confirm.
+On approval, execute all four steps in sequence. Stop immediately
+if any step fails.
 
 ## What This Skill Does NOT Do
 
-- **Never auto-commit or auto-tag.** The human creates tags.
-- **Never bump version numbers.** Version = tag name, managed
-  by the user.
-- **Never write per-version release files.** Single
-  `CHANGELOG.md` only.
 - **Never scan for changesets, migrations, or API routes.**
   Single-package Python project.
 - **Never fetch PR metadata.** Commits are self-descriptive.
+- **Never write per-version release files.** Single
+  `CHANGELOG.md` only.

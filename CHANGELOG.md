@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.5.1
+
+Delivers the release-changelog skill and switches CLI versioning
+to derive from git tags automatically.
+
+### Skills
+
+- **Release changelog skill** — Delivered `skills/release-changelog/SKILL.md`
+  with full workflow: conventional-commit parsing, domain-category mapping,
+  version recommendation, and idempotency checks. Completes tasks 0072/0073.
+
+### CLI
+
+- **Git-derived version** — `openstation --version` now reads the version
+  from `git describe --tags` instead of a hardcoded string, eliminating
+  manual version bumps on release.
+
 ## v0.5.0
 
 New `openstation init` command for project setup, flexible task ID

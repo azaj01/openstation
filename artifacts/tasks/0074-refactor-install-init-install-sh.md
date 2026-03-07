@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0074-refactor-install-init-install-sh
-status: review
+status: done
 assignee: developer
 owner: user
 created: 2026-03-07

@@ -1,5 +1,64 @@
 # Changelog
 
+## v0.5.0
+
+New `openstation init` command for project setup, flexible task ID
+resolution, and a field rename from `agent` to `assignee` across
+the vault.
+
+### CLI
+
+- **`openstation init`** — New project setup command replacing the
+  monolithic `install.sh`. Creates `.openstation/` directory structure,
+  copies agent templates, installs commands and skills, and sets up
+  `.claude/` discovery symlinks. Simpler, more focused than the old
+  installer.
+- **Flexible task ID resolution** — `openstation show`, `status`, and
+  other task commands now accept bare numbers (`42`), zero-padded IDs
+  (`0042`), or full slugs (`0042-my-task`). Prefix matching finds the
+  right file.
+- **`--version` flag** — `openstation --version` prints the current
+  version.
+- **`openstation list --all`** — New `--all` flag shows done/failed
+  tasks alongside active ones. Default behavior unchanged (active only).
+
+### Agents
+
+- **Tightened author agent spec** — Applied prompting best practices
+  from research task 0066. Clearer constraints, better-structured
+  instructions.
+- **Agent templates** — Project-agnostic agent templates in
+  `templates/agents/` (architect, author, developer, project-manager,
+  researcher) for use by `openstation init`.
+
+### Specs & Docs
+
+- **`agent.spec.md`** — New agent specification document defining
+  the schema, format, and conventions for agent specs.
+- **General agent templates spec** — Design spec for project-agnostic
+  agent templates with role-based customization.
+- **`init` command spec** — Simplified from the original design,
+  removing hooks, CLAUDE.md injection, and deprecated launcher
+  references.
+
+### Skills
+
+- **Release changelog skill** — New skill at
+  `skills/release-changelog/SKILL.md` for generating changelog entries
+  from conventional commits with domain-specific categorization.
+  Includes research artifact at
+  `artifacts/research/changelog-skill-patterns.md`.
+
+### Architecture
+
+- **`agent` → `assignee` rename** — Task frontmatter field renamed
+  from `agent` to `assignee` across all task files, CLI, commands,
+  docs, and skills. Better reflects the field's purpose.
+- **Removed `openstation-run.sh`** — Deprecated shell launcher removed.
+  Agent execution now uses `claude --agent` directly.
+- **Simplified `install.sh`** — Reduced from ~450 lines to a minimal
+  bootstrap that delegates to `openstation init`.
+
 ## v0.4.0
 
 Single-file task storage, CLI write commands, and a new storage &

@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.6.0
+
+Switches to an nvm-style installation model — the installer clones
+the full repo locally and `openstation init` copies from that cache
+instead of downloading files from GitHub.
+
+### Install
+
+- **nvm-style installer** — `install.sh` now clones the repo to
+  `~/.local/share/openstation/` (or `$OPENSTATION_DIR`), symlinks
+  the CLI binary to `~/.local/bin/openstation`, and auto-configures
+  PATH in the user's shell profile. Falls back to curl-based
+  download when git is unavailable.
+- **Local-cache init** — `openstation init` reads files from the
+  local install cache instead of fetching from GitHub. Removes the
+  `--local` flag; uses `OPENSTATION_DIR` environment variable for
+  source resolution.
+- **`.version` file** — CLI version is now read from a `.version`
+  file at the repo root, replacing the previous `git describe`
+  approach for reliable version reporting in installed copies.
+
+### Skills
+
+- **Release changelog steps** — Updated release checklist to include
+  writing `.version` and updating `OPENSTATION_VERSION` in `install.sh`.
+
 ## v0.5.1
 
 Delivers the release-changelog skill and switches CLI versioning

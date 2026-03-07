@@ -9,12 +9,19 @@ import re
 import shutil
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 
 # --- Constants ---------------------------------------------------------------
 
-VERSION = "0.5.0"
+def _read_version():
+    """Read version from .version file relative to this script."""
+    try:
+        vfile = Path(__file__).resolve().parent.parent / ".version"
+        return vfile.read_text(encoding="utf-8").strip()
+    except Exception:
+        return "dev"
+
+VERSION = _read_version()
 
 EXIT_OK = 0
 EXIT_USAGE = 1
@@ -1102,7 +1109,9 @@ def cmd_status(args, root, prefix):
 
 # --- Init command ---------------------------------------------------------------
 
-INIT_BASE_URL = "https://raw.githubusercontent.com/leonprou/openstation/main"
+OPENSTATION_HOME = Path(
+    os.environ.get("OPENSTATION_DIR", Path.home() / ".local" / "share" / "openstation")
+)
 
 INIT_DIRS = [
     ".openstation/docs",
@@ -1180,26 +1189,22 @@ def _init_err(msg):
     print(f"  \033[1;31m\u2717\033[0m {msg}", file=sys.stderr)
 
 
-def _fetch_to(src_relative, dst, local_path=None, dry_run=False):
-    """Fetch a file from local clone or GitHub. Returns True on success."""
+def _copy_from_cache(src_relative, dst, source_dir, dry_run=False):
+    """Copy a file from the local openstation cache. Returns True on success."""
     if dry_run:
         return True
     try:
         Path(dst).parent.mkdir(parents=True, exist_ok=True)
-        if local_path:
-            shutil.copy2(os.path.join(local_path, src_relative), dst)
-        else:
-            url = f"{INIT_BASE_URL}/{src_relative}"
-            urllib.request.urlretrieve(url, dst)
+        shutil.copy2(os.path.join(source_dir, src_relative), dst)
         return True
     except Exception as e:
-        _init_err(f"Failed to download {src_relative}: {e}")
+        _init_err(f"Failed to copy {src_relative}: {e}")
         return False
 
 
-def _discover_local_templates(local_path):
-    """Discover agent template names from a local clone."""
-    tdir = Path(local_path) / "templates" / "agents"
+def _discover_templates(source_dir):
+    """Discover agent template names from the local cache."""
+    tdir = Path(source_dir) / "templates" / "agents"
     if not tdir.is_dir():
         return []
     return sorted(p.stem for p in tdir.glob("*.md"))
@@ -1231,13 +1236,12 @@ def _adapt_template(content, project_name):
     return "\n".join(filtered) + "\n"
 
 
-def _install_agents(local_path, agents_filter, force, dry_run, stats):
+def _install_agents(source_dir, agents_filter, force, dry_run, stats):
     """Install agent templates into .openstation/artifacts/agents/."""
     print("Installing agent templates...")
 
-    if local_path:
-        agent_names = _discover_local_templates(local_path)
-    else:
+    agent_names = _discover_templates(source_dir)
+    if not agent_names:
         agent_names = list(INIT_DEFAULT_AGENTS)
 
     if agents_filter:
@@ -1258,13 +1262,8 @@ def _install_agents(local_path, agents_filter, force, dry_run, stats):
                 _init_info(dst, dry_run=True)
             else:
                 try:
-                    if local_path:
-                        src = Path(local_path) / "templates" / "agents" / f"{name}.md"
-                        content = src.read_text(encoding="utf-8")
-                    else:
-                        url = f"{INIT_BASE_URL}/templates/agents/{name}.md"
-                        with urllib.request.urlopen(url) as resp:
-                            content = resp.read().decode("utf-8")
+                    src = Path(source_dir) / "templates" / "agents" / f"{name}.md"
+                    content = src.read_text(encoding="utf-8")
                     adapted = _adapt_template(content, project_name)
                     dst_path.parent.mkdir(parents=True, exist_ok=True)
                     dst_path.write_text(adapted, encoding="utf-8")
@@ -1362,7 +1361,6 @@ def _create_claude_symlinks(dry_run):
 
 def cmd_init(args):
     """Handle the init subcommand."""
-    local_path = args.local
     no_agents = args.no_agents
     agents_filter = args.agents
     dry_run = args.dry_run
@@ -1376,18 +1374,24 @@ def cmd_init(args):
 
     is_reinit = (cwd / ".openstation").is_dir()
 
-    # Step 2: Validate prerequisites
-    if local_path:
-        lp = Path(local_path)
-        if not lp.is_dir():
-            _init_err(f"Local path does not exist: {local_path}")
-            return EXIT_USAGE
-        if not (lp / "docs" / "lifecycle.md").is_file():
-            _init_err(
-                f"Local path does not look like an Open Station repo: {local_path}"
-            )
-            return EXIT_USAGE
-        local_path = str(lp.resolve())
+    # Step 2: Locate the local openstation cache
+    source_dir = OPENSTATION_HOME
+    if not source_dir.is_dir():
+        _init_err(
+            "openstation not installed. Run:\n"
+            "  curl -fsSL https://raw.githubusercontent.com/"
+            "leonprou/openstation/main/install.sh | bash"
+        )
+        return EXIT_USAGE
+
+    if not (source_dir / "docs" / "lifecycle.md").is_file():
+        _init_err(
+            f"Install directory does not look like an Open Station repo: "
+            f"{source_dir}\n  Re-run the installer to fix."
+        )
+        return EXIT_USAGE
+
+    source_dir_str = str(source_dir.resolve())
 
     # Warn if not in a git repo
     try:
@@ -1423,11 +1427,11 @@ def cmd_init(args):
                 Path(d).mkdir(parents=True, exist_ok=True)
                 gk.touch()
 
-    # Step 4: Install AS-owned files
+    # Step 4: Install AS-owned files (from local cache)
     print("Installing commands...")
     for f in INIT_COMMANDS:
         dst = f".openstation/{f}"
-        if not _fetch_to(f, dst, local_path, dry_run):
+        if not _copy_from_cache(f, dst, source_dir_str, dry_run):
             return EXIT_USAGE
         _init_info(dst, dry_run)
         stats.updated += 1
@@ -1437,7 +1441,7 @@ def cmd_init(args):
         dst = f".openstation/{f}"
         if not dry_run:
             Path(dst).parent.mkdir(parents=True, exist_ok=True)
-        if not _fetch_to(f, dst, local_path, dry_run):
+        if not _copy_from_cache(f, dst, source_dir_str, dry_run):
             return EXIT_USAGE
         _init_info(dst, dry_run)
         stats.updated += 1
@@ -1445,7 +1449,7 @@ def cmd_init(args):
     print("Installing docs...")
     for f in INIT_DOCS:
         dst = f".openstation/{f}"
-        if not _fetch_to(f, dst, local_path, dry_run):
+        if not _copy_from_cache(f, dst, source_dir_str, dry_run):
             return EXIT_USAGE
         _init_info(dst, dry_run)
         stats.updated += 1
@@ -1454,7 +1458,7 @@ def cmd_init(args):
     if no_agents:
         print("Skipping agent specs (--no-agents)")
     else:
-        _install_agents(local_path, agents_filter, force, dry_run, stats)
+        _install_agents(source_dir_str, agents_filter, force, dry_run, stats)
 
     # Step 6: .claude/ symlinks
     _create_claude_symlinks(dry_run)
@@ -1543,8 +1547,6 @@ def main():
 
     # init
     init_p = sub.add_parser("init", help="Initialize Open Station in current directory")
-    init_p.add_argument("--local", default=None, metavar="PATH",
-                        help="Copy files from a local Open Station clone")
     agent_grp = init_p.add_mutually_exclusive_group()
     agent_grp.add_argument("--agents", default=None, metavar="NAMES",
                            help="Comma-separated agent names to install (default: all)")

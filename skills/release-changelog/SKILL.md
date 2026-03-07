@@ -192,13 +192,14 @@ After writing the changelog, present this release checklist and
 
 ```
 Release v<VERSION>:
-1. Update VERSION in bin/openstation → "<VERSION>"
-2. Commit: "chore: release v<VERSION>"
-3. Tag: git tag v<VERSION>
-4. Push: git push origin main --tags
+1. Write new version to .version file: echo "<VERSION>" > .version
+2. Update OPENSTATION_VERSION in install.sh → "v<VERSION>"
+3. Commit: "chore: release v<VERSION>"
+4. Tag: git tag v<VERSION>
+5. Push: git push origin main --tags
 ```
 
-On approval, execute all four steps in sequence. Stop immediately
+On approval, execute all five steps in sequence. Stop immediately
 if any step fails.
 
 ## What This Skill Does NOT Do

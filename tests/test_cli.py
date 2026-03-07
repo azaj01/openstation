@@ -11,13 +11,14 @@ from pathlib import Path
 CLI = str(Path(__file__).resolve().parent.parent / "bin" / "openstation")
 
 
-def run_cli(args, cwd=None):
+def run_cli(args, cwd=None, env=None):
     """Run the CLI and return (stdout, stderr, returncode)."""
     result = subprocess.run(
         [sys.executable, CLI] + args,
         capture_output=True,
         text=True,
         cwd=cwd,
+        env=env,
     )
     return result.stdout, result.stderr, result.returncode
 
@@ -1400,13 +1401,18 @@ class TestInitCommand(unittest.TestCase):
         self.target = Path(self.tmpdir) / "project"
         self.target.mkdir()
         self.local_src = make_local_source(self.tmpdir)
+        # Set OPENSTATION_DIR so init reads from local source
+        self.env = os.environ.copy()
+        self.env["OPENSTATION_DIR"] = self.local_src
+
+    def _run_init(self, extra_args=None):
+        """Run init with OPENSTATION_DIR pointing to local source."""
+        args = ["init"] + (extra_args or [])
+        return run_cli(args, cwd=str(self.target), env=self.env)
 
     def test_first_init_creates_structure(self):
         """First init creates full .openstation/ directory tree."""
-        out, _, rc = run_cli(
-            ["init", "--local", self.local_src],
-            cwd=str(self.target),
-        )
+        out, _, rc = self._run_init()
         self.assertEqual(rc, 0, f"stdout: {out}")
         # Core directories exist
         self.assertTrue((self.target / ".openstation" / "docs").is_dir())
@@ -1418,13 +1424,13 @@ class TestInitCommand(unittest.TestCase):
 
     def test_first_init_installs_commands(self):
         """AS-owned commands are installed."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         cmd_file = self.target / ".openstation" / "commands" / "openstation.create.md"
         self.assertTrue(cmd_file.is_file())
 
     def test_first_init_installs_all_5_agents(self):
         """All 5 agent templates installed by default."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         agents_dir = self.target / ".openstation" / "artifacts" / "agents"
         agents = sorted(p.stem for p in agents_dir.glob("*.md"))
         self.assertEqual(agents, ["architect", "author", "developer",
@@ -1432,37 +1438,34 @@ class TestInitCommand(unittest.TestCase):
 
     def test_agent_templates_sourced_from_templates_dir(self):
         """Agent specs come from templates/agents/, not artifacts/agents/."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         agent = (self.target / ".openstation" / "artifacts" / "agents" / "researcher.md")
         content = agent.read_text()
         self.assertIn("kind: agent", content)
 
     def test_agent_discovery_symlinks_created(self):
         """Each agent gets a discovery symlink in .openstation/agents/."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         link = self.target / ".openstation" / "agents" / "researcher.md"
         self.assertTrue(link.is_symlink())
         self.assertEqual(os.readlink(str(link)), "../artifacts/agents/researcher.md")
 
     def test_claude_symlinks_created(self):
         """.claude/ directory symlinks point to .openstation/."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         for name in ["commands", "agents", "skills"]:
             link = self.target / ".claude" / name
             self.assertTrue(link.is_symlink(), f".claude/{name} is not a symlink")
 
     def test_idempotent_reinit(self):
         """Second run doesn't break anything, user-owned files preserved."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         # Modify a user-owned file
         agent_file = self.target / ".openstation" / "artifacts" / "agents" / "researcher.md"
         agent_file.write_text("# My custom agent\n")
 
         # Re-init
-        out, _, rc = run_cli(
-            ["init", "--local", self.local_src],
-            cwd=str(self.target),
-        )
+        out, _, rc = self._run_init()
         self.assertEqual(rc, 0)
         # User-owned file preserved
         self.assertEqual(agent_file.read_text(), "# My custom agent\n")
@@ -1472,44 +1475,32 @@ class TestInitCommand(unittest.TestCase):
 
     def test_reinit_with_force_overwrites_user_files(self):
         """--force overwrites user-owned agent specs."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         agent_file = self.target / ".openstation" / "artifacts" / "agents" / "researcher.md"
         agent_file.write_text("# My custom agent\n")
 
-        run_cli(
-            ["init", "--local", self.local_src, "--force"],
-            cwd=str(self.target),
-        )
+        self._run_init(["--force"])
         # File overwritten
         self.assertNotEqual(agent_file.read_text(), "# My custom agent\n")
         self.assertIn("kind: agent", agent_file.read_text())
 
     def test_no_agents_flag(self):
         """--no-agents skips agent template installation."""
-        run_cli(
-            ["init", "--local", self.local_src, "--no-agents"],
-            cwd=str(self.target),
-        )
+        self._run_init(["--no-agents"])
         agents_dir = self.target / ".openstation" / "artifacts" / "agents"
         agents = list(agents_dir.glob("*.md"))
         self.assertEqual(agents, [])
 
     def test_agents_filter_flag(self):
         """--agents selects specific agents."""
-        run_cli(
-            ["init", "--local", self.local_src, "--agents", "researcher,author"],
-            cwd=str(self.target),
-        )
+        self._run_init(["--agents", "researcher,author"])
         agents_dir = self.target / ".openstation" / "artifacts" / "agents"
         agents = sorted(p.stem for p in agents_dir.glob("*.md"))
         self.assertEqual(agents, ["author", "researcher"])
 
     def test_dry_run_no_files_created(self):
         """--dry-run doesn't create any files."""
-        out, _, rc = run_cli(
-            ["init", "--local", self.local_src, "--dry-run"],
-            cwd=str(self.target),
-        )
+        out, _, rc = self._run_init(["--dry-run"])
         self.assertEqual(rc, 0)
         self.assertFalse((self.target / ".openstation").is_dir())
         self.assertIn("[would]", out)
@@ -1521,34 +1512,33 @@ class TestInitCommand(unittest.TestCase):
         (src_dir / "agents").mkdir()
         (src_dir / "install.sh").write_text("#!/bin/bash\n")
 
-        _, stderr, rc = run_cli(["init"], cwd=str(src_dir))
+        _, stderr, rc = run_cli(["init"], cwd=str(src_dir), env=self.env)
         self.assertEqual(rc, 2)
         self.assertIn("Cannot init inside the Open Station source repo", stderr)
 
-    def test_local_path_validation(self):
-        """--local with invalid path errors."""
-        _, stderr, rc = run_cli(
-            ["init", "--local", "/nonexistent/path"],
-            cwd=str(self.target),
-        )
+    def test_missing_install_gives_clear_error(self):
+        """Init without prior install gives clear error message."""
+        env = os.environ.copy()
+        env["OPENSTATION_DIR"] = "/nonexistent/path"
+        _, stderr, rc = run_cli(["init"], cwd=str(self.target), env=env)
         self.assertEqual(rc, 1)
-        self.assertIn("does not exist", stderr)
+        self.assertIn("openstation not installed", stderr)
+        self.assertIn("curl", stderr)
 
-    def test_local_path_not_openstation(self):
-        """--local path without docs/lifecycle.md errors."""
+    def test_bad_install_dir_gives_error(self):
+        """Init with an invalid install dir (no docs/lifecycle.md) errors."""
         bad_path = Path(self.tmpdir) / "not_os"
         bad_path.mkdir()
+        env = os.environ.copy()
+        env["OPENSTATION_DIR"] = str(bad_path)
 
-        _, stderr, rc = run_cli(
-            ["init", "--local", str(bad_path)],
-            cwd=str(self.target),
-        )
+        _, stderr, rc = run_cli(["init"], cwd=str(self.target), env=env)
         self.assertEqual(rc, 1)
         self.assertIn("does not look like", stderr)
 
     def test_symlink_recreation(self):
         """Stale symlinks are corrected on re-init."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         # Create a stale symlink
         link = self.target / ".claude" / "commands"
         if link.is_symlink():
@@ -1556,10 +1546,7 @@ class TestInitCommand(unittest.TestCase):
         os.symlink("/nonexistent", str(link))
 
         # Re-init should fix it
-        _, _, rc = run_cli(
-            ["init", "--local", self.local_src],
-            cwd=str(self.target),
-        )
+        _, _, rc = self._run_init()
         self.assertEqual(rc, 0)
         self.assertTrue(link.is_symlink())
         self.assertTrue(link.resolve().is_dir() or not link.resolve().exists())
@@ -1568,16 +1555,13 @@ class TestInitCommand(unittest.TestCase):
 
     def test_not_git_repo_succeeds_with_warning(self):
         """Init succeeds with a warning when not in a git repo."""
-        out, stderr, rc = run_cli(
-            ["init", "--local", self.local_src],
-            cwd=str(self.target),
-        )
+        out, stderr, rc = self._run_init()
         self.assertEqual(rc, 0)
         self.assertIn("Not inside a git repository", stderr)
 
     def test_template_adaptation_strips_comment_markers(self):
         """Template comment markers are stripped from installed agents."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         agent = self.target / ".openstation" / "artifacts" / "agents" / "researcher.md"
         content = agent.read_text()
         self.assertNotIn("# --- Role-based", content)
@@ -1585,36 +1569,27 @@ class TestInitCommand(unittest.TestCase):
 
     def test_gitkeep_files_created(self):
         """.gitkeep files are created in content directories."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
+        self._run_init()
         gk = self.target / ".openstation" / "artifacts" / "tasks" / ".gitkeep"
         self.assertTrue(gk.is_file())
 
     def test_reinit_summary_message(self):
         """Re-init shows summary with file counts."""
-        run_cli(["init", "--local", self.local_src], cwd=str(self.target))
-        out, _, rc = run_cli(
-            ["init", "--local", self.local_src],
-            cwd=str(self.target),
-        )
+        self._run_init()
+        out, _, rc = self._run_init()
         self.assertEqual(rc, 0)
         self.assertIn("re-initialized", out)
 
     def test_first_init_summary_message(self):
         """First init shows success message with next steps."""
-        out, _, rc = run_cli(
-            ["init", "--local", self.local_src],
-            cwd=str(self.target),
-        )
+        out, _, rc = self._run_init()
         self.assertEqual(rc, 0)
         self.assertIn("initialized successfully", out)
         self.assertIn("Next steps", out)
 
     def test_mutual_exclusion_agents_no_agents(self):
         """--agents and --no-agents are mutually exclusive."""
-        _, stderr, rc = run_cli(
-            ["init", "--local", self.local_src, "--agents", "researcher", "--no-agents"],
-            cwd=str(self.target),
-        )
+        _, stderr, rc = self._run_init(["--agents", "researcher", "--no-agents"])
         self.assertNotEqual(rc, 0)
 
 

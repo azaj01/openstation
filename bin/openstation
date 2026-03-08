@@ -1046,6 +1046,11 @@ def cmd_show(args, root, prefix):
         err(f"cannot read task: {e}")
         return EXIT_NOT_FOUND
 
+    if getattr(args, "vim", False):
+        editor = os.environ.get("EDITOR", "vim")
+        os.execvp(editor, [editor, str(spec)])
+        return EXIT_OK  # unreachable
+
     if getattr(args, "json", False):
         fm = parse_frontmatter_for_json(text)
         fm["body"] = extract_body(text)
@@ -1615,10 +1620,13 @@ examples:
   openstation show 42                       # short ID (auto-padded)
   openstation show 0042-cli-improvements    # show by full name
   openstation show cli-improvements         # show by slug
-  openstation show 0042 --json              # frontmatter + body as JSON""")
+  openstation show 0042 --json              # frontmatter + body as JSON
+  openstation show 0042 --vim               # open in vim with markdown support""")
     show_p.add_argument("task", help="Task ID or slug (e.g. 0023, 23, or cli-feature-spec)")
     show_p.add_argument("--json", action="store_true",
                         help="Emit parsed frontmatter and body as a JSON object")
+    show_p.add_argument("--vim", action="store_true",
+                        help="Open the task file in vim (markdown plugins work)")
 
     # create
     create_p = sub.add_parser("create", help="Create a new task", formatter_class=fmt, epilog="""\

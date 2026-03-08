@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0016-agent-templates
-status: backlog
+status: done
 assignee:
 owner: user
 created: 2026-02-28

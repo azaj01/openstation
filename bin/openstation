@@ -4,6 +4,7 @@
 import argparse
 import datetime
 import errno
+import json
 import os
 import re
 import shutil
@@ -26,14 +27,13 @@ VERSION = _read_version()
 EXIT_OK = 0
 EXIT_USAGE = 1
 EXIT_NO_PROJECT = 2
-EXIT_NO_AGENT = 2
-EXIT_SOURCE_GUARD = 2
-EXIT_NO_CLAUDE = 3
-EXIT_TASK_NOT_FOUND = 3
-EXIT_AGENT_ERROR = 4
+EXIT_NOT_FOUND = 3
 EXIT_AMBIGUOUS = 4
 EXIT_TASK_NOT_READY = 5
-EXIT_INVALID_TRANSITION = 5
+EXIT_INVALID_TRANSITION = 6
+EXIT_NO_CLAUDE = 7
+EXIT_AGENT_ERROR = 8
+EXIT_SOURCE_GUARD = 9
 
 DEFAULT_TIER = 2
 DEFAULT_BUDGET = 5
@@ -396,9 +396,25 @@ def cmd_list(args, root, prefix):
     # Group subtasks under parents and sort
     rows = group_tasks_for_display(tasks)
 
-    output = format_table(rows)
-    if output:
-        print(output)
+    # Output mode: --json, --quiet, or default table
+    if getattr(args, "json", False):
+        task_list = []
+        for t, _is_sub in rows:
+            task_list.append({
+                "id": t["id"],
+                "name": t["name"],
+                "status": t["status"],
+                "assignee": t["assignee"],
+                "owner": t["owner"],
+            })
+        print(json.dumps(task_list, indent=2))
+    elif getattr(args, "quiet", False):
+        for t, _is_sub in rows:
+            print(t["name"])
+    else:
+        output = format_table(rows)
+        if output:
+            print(output)
 
 
 def resolve_task(root, prefix, query):
@@ -417,17 +433,17 @@ def resolve_task(root, prefix, query):
 
     # 1. Exact match
     if query in entries:
-        return query, None, 0
+        return query, None, EXIT_OK
 
     # 2. Zero-padded ID prefix match
     # If query is purely numeric, zero-pad to 4 digits first
     padded = query.zfill(4) if query.isdigit() else query
     matches = [e for e in entries if e.startswith(padded)]
     if len(matches) == 1:
-        return matches[0], None, 0
+        return matches[0], None, EXIT_OK
     if len(matches) > 1:
         match_list = "\n".join(f"  {m}" for m in matches)
-        return None, f"ambiguous task '{query}', matches:\n{match_list}", 4
+        return None, f"ambiguous task '{query}', matches:\n{match_list}", EXIT_AMBIGUOUS
 
     # 3. Slug match — match against the portion after the NNNN- prefix
     slug_matches = [e for e in entries if "-" in e and e.split("-", 1)[1] == query]
@@ -435,12 +451,12 @@ def resolve_task(root, prefix, query):
         # Try substring/prefix matching on the slug portion
         slug_matches = [e for e in entries if "-" in e and e.split("-", 1)[1].startswith(query)]
     if len(slug_matches) == 1:
-        return slug_matches[0], None, 0
+        return slug_matches[0], None, EXIT_OK
     if len(slug_matches) > 1:
         match_list = "\n".join(f"  {m}" for m in slug_matches)
-        return None, f"ambiguous task '{query}', matches:\n{match_list}", 4
+        return None, f"ambiguous task '{query}', matches:\n{match_list}", EXIT_AMBIGUOUS
 
-    return None, f"task not found: {query}", 3
+    return None, f"task not found: {query}\n  hint: run 'openstation list' to see available tasks", EXIT_NOT_FOUND
 
 
 # --- Run subcommand helpers --------------------------------------------------
@@ -572,6 +588,35 @@ def parse_frontmatter_list(text, key):
             else:
                 break
     return items
+
+
+def extract_body(text):
+    """Extract the markdown body after YAML frontmatter."""
+    lines = text.splitlines(keepends=True)
+    fm_count = 0
+    body_start = 0
+    for i, line in enumerate(lines):
+        if line.strip() == "---":
+            fm_count += 1
+            if fm_count == 2:
+                body_start = i + 1
+                break
+    return "".join(lines[body_start:]).strip()
+
+
+def parse_frontmatter_for_json(text):
+    """Parse frontmatter into a dict suitable for JSON serialization.
+
+    Handles simple key-value fields and list fields (subtasks, artifacts).
+    """
+    fm = parse_frontmatter(text)
+    for list_key in ("subtasks", "artifacts"):
+        items = parse_frontmatter_list(text, list_key)
+        if items:
+            fm[list_key] = items
+        elif list_key in fm:
+            del fm[list_key]
+    return fm
 
 
 def find_ready_subtasks(tasks_dir, task_name, force=False):
@@ -748,7 +793,8 @@ def append_frontmatter_list(file_path, key, value):
     file_path.write_text("".join(lines), encoding="utf-8")
 
 
-def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry_run):
+def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry_run,
+                    json_output=False):
     """Execute one task: resolve agent, build command, launch.
 
     Returns the exit code.
@@ -773,11 +819,13 @@ def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry
     agent_spec = find_agent_spec(root, prefix, agent)
     if agent_spec is None:
         err(f"Agent spec not found: {agent}")
-        return EXIT_NO_AGENT
+        err("  hint: check agents/ directory for available agent specs")
+        return EXIT_NOT_FOUND
 
     tools = parse_allowed_tools(agent_spec)
     if not tools:
         err(f"No allowed-tools found in agent spec: {agent_spec}")
+        err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return EXIT_USAGE
 
     # Build command with task-specific prompt
@@ -789,7 +837,14 @@ def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry
     cmd = build_command(agent, tier, budget, turns, prompt, tools)
 
     if dry_run:
-        print(shlex_join(cmd))
+        if json_output:
+            print(json.dumps({
+                "command": cmd,
+                "task": task_name,
+                "agent": agent,
+            }, indent=2))
+        else:
+            print(shlex_join(cmd))
         return EXIT_OK
 
     info(f"Launching agent {agent} for task {task_name}...")
@@ -824,6 +879,7 @@ def cmd_run(args, root, prefix):
     # Check claude is available
     if not shutil.which("claude"):
         err("claude CLI not found on $PATH")
+        err("  hint: install Claude Code CLI: https://docs.anthropic.com/en/docs/claude-code")
         return EXIT_NO_CLAUDE
 
     tier = args.tier
@@ -832,6 +888,7 @@ def cmd_run(args, root, prefix):
     dry_run = args.dry_run
     force = args.force
     max_tasks = args.max_tasks
+    json_output = getattr(args, "json", False)
 
     if task_ref:
         # --- BY-TASK MODE ---
@@ -847,6 +904,7 @@ def cmd_run(args, root, prefix):
             ok, status = assert_task_ready(spec, task_name)
             if not ok:
                 err(f"Task {task_name} has status '{status}' (expected 'ready')")
+                err(f"  hint: current status is '{status}'; use --force to override")
                 return EXIT_TASK_NOT_READY
 
         info(f"Task collection: {task_name}")
@@ -863,7 +921,8 @@ def cmd_run(args, root, prefix):
                 if completed >= max_tasks:
                     break
                 info(f"[{completed + 1}/{max_tasks}] Executing subtask: {sub_name}")
-                rc = run_single_task(root, prefix, sub_spec, sub_name, tier, budget, turns, dry_run)
+                rc = run_single_task(root, prefix, sub_spec, sub_name, tier, budget, turns,
+                                     dry_run, json_output=json_output)
                 if rc == EXIT_OK:
                     completed += 1
                     remaining -= 1
@@ -878,24 +937,33 @@ def cmd_run(args, root, prefix):
         else:
             # No subtasks — run parent task directly
             info("No subtasks found, executing task directly")
-            return _exec_or_run(root, prefix, tdir, task_name, agent_name, tier, budget, turns, dry_run)
+            return _exec_or_run(root, prefix, tdir, task_name, agent_name, tier, budget, turns,
+                                dry_run, json_output=json_output)
     else:
         # --- BY-AGENT MODE ---
         agent_spec = find_agent_spec(root, prefix, agent_name)
         if agent_spec is None:
             err(f"Agent spec not found: {agent_name}")
-            return EXIT_NO_AGENT
+            err("  hint: check agents/ directory for available agent specs")
+            return EXIT_NOT_FOUND
 
         tools = parse_allowed_tools(agent_spec)
         if not tools:
             err(f"No allowed-tools found in agent spec: {agent_spec}")
+            err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
             return EXIT_USAGE
 
         prompt = "Execute your ready tasks."
         cmd = build_command(agent_name, tier, budget, turns, prompt, tools)
 
         if dry_run:
-            print(shlex_join(cmd))
+            if json_output:
+                print(json.dumps({
+                    "command": cmd,
+                    "agent": agent_name,
+                }, indent=2))
+            else:
+                print(shlex_join(cmd))
             return EXIT_OK
 
         # By-agent: exec replaces the process (no post-exec work)
@@ -905,7 +973,8 @@ def cmd_run(args, root, prefix):
         return EXIT_OK  # unreachable, but satisfies type checkers
 
 
-def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, budget, turns, dry_run):
+def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, budget, turns,
+                  dry_run, json_output=False):
     """Execute a single task, using execvp when possible (no queue to iterate)."""
     tasks_dir = Path(tasks_dir)
     spec = tasks_dir / f"{task_name}.md"
@@ -924,11 +993,13 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
     agent_spec = find_agent_spec(root, prefix, agent)
     if agent_spec is None:
         err(f"Agent spec not found: {agent}")
-        return EXIT_NO_AGENT
+        err("  hint: check agents/ directory for available agent specs")
+        return EXIT_NOT_FOUND
 
     tools = parse_allowed_tools(agent_spec)
     if not tools:
         err(f"No allowed-tools found in agent spec: {agent_spec}")
+        err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return EXIT_USAGE
 
     prompt = (
@@ -939,7 +1010,14 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
     cmd = build_command(agent, tier, budget, turns, prompt, tools)
 
     if dry_run:
-        print(shlex_join(cmd))
+        if json_output:
+            print(json.dumps({
+                "command": cmd,
+                "task": task_name,
+                "agent": agent,
+            }, indent=2))
+        else:
+            print(shlex_join(cmd))
         return EXIT_OK
 
     # Single task, no queue — exec replaces process
@@ -959,15 +1037,22 @@ def cmd_show(args, root, prefix):
     spec = tasks_dir / f"{task_name}.md"
 
     if not spec.exists():
-        err("task spec missing")
-        return 3
+        err(f"task spec missing: {task_name}")
+        return EXIT_NOT_FOUND
 
     try:
-        print(spec.read_text(encoding="utf-8"), end="")
+        text = spec.read_text(encoding="utf-8")
     except OSError as e:
         err(f"cannot read task: {e}")
-        return 3
-    return 0
+        return EXIT_NOT_FOUND
+
+    if getattr(args, "json", False):
+        fm = parse_frontmatter_for_json(text)
+        fm["body"] = extract_body(text)
+        print(json.dumps(fm, indent=2))
+    else:
+        print(text, end="")
+    return EXIT_OK
 
 
 def cmd_create(args, root, prefix):
@@ -995,7 +1080,7 @@ def cmd_create(args, root, prefix):
         parent_name, error, code = resolve_task(root, prefix, parent)
         if error:
             err(f"parent task not found: {parent}")
-            return EXIT_TASK_NOT_FOUND
+            return EXIT_NOT_FOUND
 
     slug = slugify(description)
     title = title_from_description(description)
@@ -1079,7 +1164,7 @@ def cmd_status(args, root, prefix):
         text = spec.read_text(encoding="utf-8")
     except OSError:
         err(f"cannot read task: {spec}")
-        return EXIT_TASK_NOT_FOUND
+        return EXIT_NOT_FOUND
 
     fm = parse_frontmatter(text)
     current = fm.get("status", "")
@@ -1485,9 +1570,12 @@ def cmd_init(args):
 
 
 def main():
+    fmt = argparse.RawDescriptionHelpFormatter
+
     parser = argparse.ArgumentParser(
         prog="openstation",
         description="CLI for the Open Station task vault.",
+        formatter_class=fmt,
     )
     parser.add_argument(
         "--version", action="version", version=f"openstation {VERSION}",
@@ -1495,23 +1583,49 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     # list
-    list_p = sub.add_parser("list", help="List tasks")
+    list_p = sub.add_parser("list", help="List tasks", formatter_class=fmt, epilog="""\
+examples:
+  openstation list                          # active tasks (ready + in-progress + review)
+  openstation list --status all             # all tasks regardless of status
+  openstation list --status ready --assignee researcher
+  openstation list -q --status ready        # one task name per line (pipe-friendly)
+  openstation list --json                   # JSON array of task objects
+  openstation list 0042                     # show task 0042 and its subtask tree""")
     list_p.add_argument("filter", nargs="?", default=None,
                         help="Task ID/slug or assignee name (auto-detected)")
     list_p.add_argument("--status", default=None,
-                        help="Filter by status (default: active = ready + in-progress + review, use 'all' for everything)")
+                        help="Filter by status: backlog|ready|in-progress|review|done|failed|active|all "
+                             "(default: active = ready + in-progress + review)")
     list_p.add_argument("--assignee", default="",
                         help="Filter by assignee (exact match)")
+    list_p.add_argument("--json", action="store_true",
+                        help="Emit output as a JSON array of task objects")
+    list_p.add_argument("-q", "--quiet", action="store_true",
+                        help="Emit one task name per line, no header (pipe-friendly)")
 
     # agents
-    sub.add_parser("agents", help="List available agents")
+    sub.add_parser("agents", help="List available agents", formatter_class=fmt, epilog="""\
+examples:
+  openstation agents                        # list all agent specs""")
 
     # show
-    show_p = sub.add_parser("show", help="Show a task spec")
-    show_p.add_argument("task", help="Task ID or slug (e.g. 0023 or 0023-cli-feature-spec)")
+    show_p = sub.add_parser("show", help="Show a task spec", formatter_class=fmt, epilog="""\
+examples:
+  openstation show 0042                     # show by numeric ID
+  openstation show 42                       # short ID (auto-padded)
+  openstation show 0042-cli-improvements    # show by full name
+  openstation show cli-improvements         # show by slug
+  openstation show 0042 --json              # frontmatter + body as JSON""")
+    show_p.add_argument("task", help="Task ID or slug (e.g. 0023, 23, or cli-feature-spec)")
+    show_p.add_argument("--json", action="store_true",
+                        help="Emit parsed frontmatter and body as a JSON object")
 
     # create
-    create_p = sub.add_parser("create", help="Create a new task")
+    create_p = sub.add_parser("create", help="Create a new task", formatter_class=fmt, epilog="""\
+examples:
+  openstation create "add login page"
+  openstation create "fix auth bug" --assignee developer --status ready
+  openstation create "child task" --parent 0042""")
     create_p.add_argument("description", help="Task description (free text)")
     create_p.add_argument("--assignee", default="", help="Agent name to assign")
     create_p.add_argument("--owner", default="user", help="Who verifies (default: user)")
@@ -1521,19 +1635,39 @@ def main():
                           help="Parent task name (wikilink added automatically)")
 
     # status
-    status_p = sub.add_parser("status", help="Change a task's status")
+    status_p = sub.add_parser("status", help="Change a task's status", formatter_class=fmt, epilog="""\
+examples:
+  openstation status 0042 ready             # backlog → ready
+  openstation status 42 in-progress         # short ID works
+  openstation status cli-improvements review
+
+valid transitions:
+  backlog → ready → in-progress → review → done
+                                  review → failed → in-progress""")
     status_p.add_argument("task", help="Task ID or slug")
-    status_p.add_argument("new_status", help="Target status value")
+    status_p.add_argument("new_status", help="Target status: backlog|ready|in-progress|review|done|failed")
 
     # run
-    run_p = sub.add_parser("run", help="Launch an agent")
+    run_p = sub.add_parser("run", help="Launch an agent", formatter_class=fmt, epilog="""\
+Two modes of operation:
+
+  By-agent:  openstation run <agent>          Execute agent's ready tasks
+  By-task:   openstation run --task <id>      Execute a specific task
+
+examples:
+  openstation run researcher                # launch researcher agent
+  openstation run researcher --dry-run      # show command without executing
+  openstation run --task 0042 --dry-run     # preview task execution command
+  openstation run --task 0042 --force       # skip status check
+  openstation run --task 0042 --tier 1      # interactive mode
+  openstation run --task 42 --dry-run --json  # structured JSON dry-run output""")
     run_p.add_argument("agent", nargs="?", default=None,
                        help="Agent name or task ID (auto-detected: numeric prefix → task)")
     run_p.add_argument("--task", default=None,
                        help="Task ID or slug (explicit, same as positional)")
     run_p.add_argument("--tier", type=int, default=DEFAULT_TIER,
                        choices=[1, 2],
-                       help="Execution tier (default: 2)")
+                       help="Execution tier: 1=interactive, 2=autonomous (default: 2)")
     run_p.add_argument("--budget", type=float, default=DEFAULT_BUDGET,
                        help="Max USD per invocation (tier 2, default: 5)")
     run_p.add_argument("--turns", type=int, default=DEFAULT_TURNS,
@@ -1544,9 +1678,17 @@ def main():
                        help="Skip task status checks")
     run_p.add_argument("--dry-run", action="store_true",
                        help="Print command without executing")
+    run_p.add_argument("--json", action="store_true",
+                       help="With --dry-run, emit structured JSON instead of shell command")
 
     # init
-    init_p = sub.add_parser("init", help="Initialize Open Station in current directory")
+    init_p = sub.add_parser("init", help="Initialize Open Station in current directory",
+                            formatter_class=fmt, epilog="""\
+examples:
+  openstation init                          # full init with all agents
+  openstation init --agents researcher,author
+  openstation init --no-agents
+  openstation init --dry-run                # preview without writing""")
     agent_grp = init_p.add_mutually_exclusive_group()
     agent_grp.add_argument("--agents", default=None, metavar="NAMES",
                            help="Comma-separated agent names to install (default: all)")
@@ -1561,7 +1703,7 @@ def main():
 
     if not args.command:
         parser.print_help()
-        return 1
+        return EXIT_USAGE
 
     # init operates on CWD, doesn't need find_root()
     if args.command == "init":
@@ -1570,7 +1712,8 @@ def main():
     root, prefix = find_root()
     if root is None:
         err("not in an Open Station project")
-        return 2
+        err("  hint: run from a directory containing .openstation/")
+        return EXIT_NO_PROJECT
 
     if args.command == "list":
         return cmd_list(args, root, prefix) or 0
@@ -1584,7 +1727,7 @@ def main():
         return cmd_status(args, root, prefix)
     elif args.command == "run":
         return cmd_run(args, root, prefix)
-    return 0
+    return EXIT_OK
 
 
 if __name__ == "__main__":

@@ -809,8 +809,9 @@ class TestRunArgValidation(unittest.TestCase):
             ["run", "nonexistent", "--dry-run"],
             cwd=self.tmpdir,
         )
-        self.assertEqual(rc, 2)
+        self.assertEqual(rc, 3)  # EXIT_NOT_FOUND
         self.assertIn("Agent spec not found", stderr)
+        self.assertIn("hint", stderr)
 
     def test_missing_allowed_tools(self):
         # Create agent spec without allowed-tools
@@ -1006,7 +1007,7 @@ class TestRunClaude(unittest.TestCase):
             cwd=self.tmpdir,
             env=env,
         )
-        self.assertEqual(result.returncode, 3)
+        self.assertEqual(result.returncode, 7)  # EXIT_NO_CLAUDE
         self.assertIn("claude CLI not found", result.stderr)
 
 
@@ -1309,7 +1310,7 @@ class TestStatusCommand(unittest.TestCase):
     def test_status_invalid_transition(self):
         make_task(self.root, "0001-alpha", status="backlog")
         _, stderr, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)
-        self.assertEqual(rc, 5)
+        self.assertEqual(rc, 6)  # EXIT_INVALID_TRANSITION
         self.assertIn("invalid transition", stderr)
         self.assertIn("allowed from backlog", stderr)
 
@@ -1513,7 +1514,7 @@ class TestInitCommand(unittest.TestCase):
         (src_dir / "install.sh").write_text("#!/bin/bash\n")
 
         _, stderr, rc = run_cli(["init"], cwd=str(src_dir), env=self.env)
-        self.assertEqual(rc, 2)
+        self.assertEqual(rc, 9)  # EXIT_SOURCE_GUARD
         self.assertIn("Cannot init inside the Open Station source repo", stderr)
 
     def test_missing_install_gives_clear_error(self):
@@ -1591,6 +1592,280 @@ class TestInitCommand(unittest.TestCase):
         """--agents and --no-agents are mutually exclusive."""
         _, stderr, rc = self._run_init(["--agents", "researcher", "--no-agents"])
         self.assertNotEqual(rc, 0)
+
+
+# ── JSON Output Tests ────────────────────────────────────────────────
+
+
+class TestListJson(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_list_json_valid_array(self):
+        """--json emits a valid JSON array."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        make_task(self.root, "0002-beta", status="ready", assignee="author")
+
+        import json
+        out, _, rc = run_cli(["list", "--json"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 2)
+
+    def test_list_json_task_fields(self):
+        """JSON task objects have required keys."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher", owner="user")
+
+        import json
+        out, _, rc = run_cli(["list", "--json"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        task = data[0]
+        for key in ("id", "name", "status", "assignee", "owner"):
+            self.assertIn(key, task)
+        self.assertEqual(task["id"], "0001")
+        self.assertEqual(task["name"], "0001-alpha")
+        self.assertEqual(task["status"], "ready")
+        self.assertEqual(task["assignee"], "researcher")
+
+    def test_list_json_empty(self):
+        """--json with no tasks emits an empty array."""
+        import json
+        out, _, rc = run_cli(["list", "--json"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertEqual(data, [])
+
+    def test_list_json_with_filters(self):
+        """--json respects --status and --assignee filters."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        make_task(self.root, "0002-beta", status="done", assignee="author")
+
+        import json
+        out, _, rc = run_cli(["list", "--json", "--status", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["name"], "0001-alpha")
+
+
+class TestShowJson(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_show_json_valid_object(self):
+        """--json emits a valid JSON object with frontmatter + body."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+
+        import json
+        out, _, rc = run_cli(["show", "0001", "--json"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(data["name"], "0001-alpha")
+        self.assertEqual(data["status"], "ready")
+        self.assertIn("body", data)
+
+    def test_show_json_body_contains_markdown(self):
+        """body field contains the markdown body after frontmatter."""
+        make_task(self.root, "0001-alpha", status="ready")
+
+        import json
+        out, _, rc = run_cli(["show", "0001", "--json"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("# 0001-alpha", data["body"])
+
+
+# ── Quiet Output Tests ───────────────────────────────────────────────
+
+
+class TestListQuiet(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_quiet_one_per_line(self):
+        """-q emits one task name per line, no header."""
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="ready")
+
+        out, _, rc = run_cli(["list", "-q"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        lines = [l for l in out.strip().splitlines() if l.strip()]
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0], "0001-alpha")
+        self.assertEqual(lines[1], "0002-beta")
+
+    def test_quiet_no_header(self):
+        """-q has no table header or separator."""
+        make_task(self.root, "0001-alpha", status="ready")
+
+        out, _, rc = run_cli(["list", "-q"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("ID", out)
+        self.assertNotIn("Name", out)
+        self.assertNotIn("---", out)
+
+    def test_quiet_with_status_filter(self):
+        """-q works with --status filter."""
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="done")
+
+        out, _, rc = run_cli(["list", "-q", "--status", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        lines = out.strip().splitlines()
+        self.assertEqual(lines, ["0001-alpha"])
+
+    def test_quiet_empty(self):
+        """-q with no results emits nothing."""
+        out, _, rc = run_cli(["list", "-q"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.strip(), "")
+
+
+# ── Dry-Run JSON Tests ──────────────────────────────────────────────
+
+
+class TestRunDryRunJson(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "researcher")
+
+    def test_by_task_dry_run_json(self):
+        """--dry-run --json emits structured JSON."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+
+        import json
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--dry-run", "--json"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("command", data)
+        self.assertIn("task", data)
+        self.assertIn("agent", data)
+        self.assertIsInstance(data["command"], list)
+        self.assertEqual(data["task"], "0001-alpha")
+        self.assertEqual(data["agent"], "researcher")
+
+    def test_by_agent_dry_run_json(self):
+        """--dry-run --json in by-agent mode emits structured JSON."""
+        import json
+        out, _, rc = run_cli(
+            ["run", "researcher", "--dry-run", "--json"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("command", data)
+        self.assertIn("agent", data)
+        self.assertEqual(data["agent"], "researcher")
+
+
+# ── Help Text Tests ──────────────────────────────────────────────────
+
+
+class TestHelpExamples(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_list_help_has_examples(self):
+        out, _, rc = run_cli(["list", "--help"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("examples:", out)
+
+    def test_list_help_shows_valid_statuses(self):
+        out, _, rc = run_cli(["list", "--help"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        for status in ("backlog", "ready", "in-progress", "review", "done", "failed"):
+            self.assertIn(status, out)
+
+    def test_show_help_has_examples(self):
+        out, _, rc = run_cli(["show", "--help"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("examples:", out)
+
+    def test_run_help_has_examples(self):
+        out, _, rc = run_cli(["run", "--help"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("examples:", out)
+
+    def test_run_help_describes_both_modes(self):
+        out, _, rc = run_cli(["run", "--help"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("By-agent", out)
+        self.assertIn("By-task", out)
+
+
+# ── Exit Code Tests ──────────────────────────────────────────────────
+
+
+class TestExitCodes(unittest.TestCase):
+    """Verify no exit code collisions — each code maps to one condition."""
+
+    def test_no_exit_code_collisions(self):
+        """All named exit code constants have unique values."""
+        # Parse EXIT_ constants directly from source
+        cli_source = Path(CLI).read_text(encoding="utf-8")
+        exit_codes = {}
+        for line in cli_source.splitlines():
+            line = line.strip()
+            if line.startswith("EXIT_") and "=" in line:
+                name, _, val = line.partition("=")
+                name = name.strip()
+                val = val.strip()
+                if val.isdigit():
+                    val = int(val)
+                    if val in exit_codes:
+                        self.fail(
+                            f"EXIT code collision: {name}={val} collides with {exit_codes[val]}={val}")
+                    exit_codes[val] = name
+        # Sanity: we found a reasonable number of constants
+        self.assertGreaterEqual(len(exit_codes), 8)
+
+
+# ── Recovery Hint Tests ──────────────────────────────────────────────
+
+
+class TestRecoveryHints(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_task_not_found_has_hint(self):
+        _, stderr, rc = run_cli(["show", "9999"], cwd=self.tmpdir)
+        self.assertEqual(rc, 3)
+        self.assertIn("hint", stderr)
+
+    def test_not_in_project_has_hint(self):
+        tmpdir = tempfile.mkdtemp()
+        _, stderr, rc = run_cli(["list"], cwd=tmpdir)
+        self.assertEqual(rc, 2)
+        self.assertIn("hint", stderr)
+
+    def test_task_not_ready_has_hint(self):
+        make_agent_spec(self.root, "researcher")
+        make_task(self.root, "0001-alpha", status="in-progress", assignee="researcher")
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 5)
+        self.assertIn("hint", stderr)
+        self.assertIn("--force", stderr)
 
 
 if __name__ == "__main__":

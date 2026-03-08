@@ -35,6 +35,9 @@ plan future work.
 - Create tasks via `/openstation.create` and manage the backlog
 - Promote tasks to ready via `/openstation.ready` when
   requirements are clear and an agent is assigned
+- When promoting a parent task, batch-promote its P1 subtasks
+  to ready in the same action. Lower-priority subtasks stay
+  backlog until earlier groups complete.
 - Monitor in-progress work and flag stalled tasks
 - Write task specs via `/openstation.create` — define requirements,
   verification criteria, and assign the right agent

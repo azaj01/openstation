@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0071-release-changelog-skill-automate-changelog
-status: ready
+status: done
 assignee: 
 owner: user
 created: 2026-03-07

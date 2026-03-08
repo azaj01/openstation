@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0073-implement-release-changelog-skill-write
-status: review
+status: done
 assignee: author
 owner: user
 parent: "[[0071-release-changelog-skill-automate-changelog]]"

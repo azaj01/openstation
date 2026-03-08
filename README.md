@@ -1,10 +1,17 @@
 # Open Station
 
-Task management system for coding AI agents. Pure convention — markdown specs + skills, zero runtime dependencies.
+  A markdown-first, minimalistic and somewhere opinionated task management for coding AI agents.
 
-## What It Is
+  Markdowns are first-class citizens — tasks, specs, workflows, and agents are all
+  simple `.md` files. Think of it as an optimized work environment for your AI agents, glued
+  by a thin CLI with agentic harnesses.
 
-Open Station gives coding AI agents a structured way to receive, execute, and complete tasks. Everything is plain markdown with YAML frontmatter — no runtime, no database, no dependencies. Drop it into any project and agents can discover tasks, follow a defined work process, and store artifacts, all through file conventions.
+
+## Why Open Station?
+
+Coding agents can write code, but they have no structured way to receive tasks, report progress, or get their work verified. Most solutions add servers, databases, or dashboards. Open Station takes a different approach: a file-based convention with a defined lifecycle — no runtime, no dependencies, just markdown files with YAML frontmatter. A human (or designated reviewer) verifies every result before it ships, so agents propose and humans approve.
+
+Since all outputs are .md artifacts, vim and Obsidian fit perfectly to view results, update tasks, and give agents instructions. Read the agent's findings and give feedback —manually or with the help of AI commands and agents.
 
 ## Install
 
@@ -32,7 +39,7 @@ To scaffold additional projects after the CLI is installed, run `openstation ini
 
 ## Quick Start
 
-**1. Initialize Open Station**
+### One-time setup
 
 ```bash
 openstation init
@@ -40,44 +47,83 @@ openstation init
 
 Creates the `.openstation/` vault (directories, docs, commands, skills), installs agent templates, and sets up `.claude/` symlinks so Claude Code discovers agents and commands. Safe to re-run — existing files are preserved.
 
-**2. Create a task**
+### Daily workflow
+
+**1. Create a task**
 
 ```
 /openstation.create Add input validation to the signup form
 ```
 
-**3. Set it ready**
+A short interview refines requirements, picks an agent, and sets the task to `ready`.
 
-```
-/openstation.ready 0001-add-input-validation agent:researcher
-```
-
-**4. Dispatch an agent**
+**2. Run the task**
 
 ```bash
-claude --agent researcher
+openstation run --task 0001-add-input-validation
 ```
 
-The agent finds its ready tasks, follows the manual, executes the work, and sets `status: review` when done.
+The agent picks up the task, follows the manual, executes the work, and sets `status: review` when done.
 
-**5. Mark done**
+**3. Review the result**
+
+```bash
+openstation show 0001 --vim # `openstation show 1` will work too
+```
+
+**4. Verify and complete**
 
 ```
 /openstation.done 0001-add-input-validation
 ```
 
-Moves the task symlink to `tasks/done/`.
+## What a Task Looks Like
+
+Every task is a single markdown file with YAML frontmatter:
+
+```yaml
+---
+kind: task
+name: 0001-add-input-validation
+status: ready
+assignee: developer
+owner: user
+created: 2026-03-01
+---
+
+# Add Input Validation
+
+## Requirements
+
+Validate email and password fields on the signup form.
+Reject empty submissions and show inline errors.
+
+## Verification
+
+- [ ] Empty email shows error
+- [ ] Invalid email format rejected
+- [ ] Password minimum length enforced
+```
+
+Create this file, dispatch an agent, and it picks up the work. When it's done, the owner verifies and marks it complete. That's the entire loop.
+
+## Features
+
+- **Zero runtime** — no server, no database, no background process. Pure markdown files in your repo. Every competitor in this space requires a runtime; Open Station doesn't.
+- **Defined agentic lifecycle** — Agents know pick up ready tasks, execute work, produce artifacts, hand off for review and verification.
+- **Convention-first** — everything is markdown + YAML frontmatter, version-controlled alongside your code
+- **Minimal, thus extensible** — `openstation init` scaffolds into any project under `.openstation/`. Minimal footprint allows to add your own agentic harnesses and combine with any tooling. 
+- **Adaptive** —  agents, skills, and commands are all markdown files you own.
+  Reshape them to fit your project. Open Station is a starting point, not a framework
+
+> Open Station manages its own development — every feature, bug fix, and research task goes through the same lifecycle that ships to users. See [`artifacts/tasks/`](artifacts/tasks/) for real examples.
 
 ## Vault Structure
 
 ```
 docs/              — Project documentation (lifecycle, task spec, README)
-tasks/             — Lifecycle buckets (contain symlinks, not real folders)
-  backlog/         —   Not yet ready for agents
-  current/         —   Active work (ready → in-progress → review)
-  done/            —   Completed tasks
 artifacts/         — Canonical artifact storage (source of truth)
-  tasks/           —   Task folders (canonical location, never move)
+  tasks/           —   Task files (canonical location, never move)
   research/        —   Research outputs
   specs/           —   Specifications & designs
 agents/            — Agent specs (identity + skill references)
@@ -85,8 +131,7 @@ skills/            — Agent skills (not user-invocable)
 commands/          — User-invocable slash commands
 ```
 
-When installed into another project, these are placed under
-`.openstation/`.
+When installed into another project, these are placed under `.openstation/`.
 
 ## Architecture
 
@@ -127,23 +172,23 @@ When installed into another project, these are placed under
 └─────────────────────────────────────────┘
 ```
 
-| Doc | Purpose |
-|-----|---------|
-| `task.spec.md` | The shape — schema, naming, format |
-| `lifecycle.md` | The state machine — transitions, ownership, artifacts |
+| Doc             | Purpose                                               |
+| --------------- | ----------------------------------------------------- |
+| `task.spec.md`  | The shape — schema, naming, format                    |
+| `lifecycle.md`  | The state machine — transitions, ownership, artifacts |
 | `execute skill` | The agent playbook — discovery, execution, completion |
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `/openstation.create` | Create a new task spec from a description |
-| `/openstation.list` | List all tasks with status, agent, and dates |
-| `/openstation.show` | Show full details of a single task |
-| `/openstation.ready` | Promote a task from backlog to ready |
-| `/openstation.update` | Update task frontmatter fields |
-| `/openstation.done` | Mark a task done and move it to done/ |
-| `/openstation.reject` | Reject a task in review and mark it failed |
+| Command                 | Description                                        |
+| ----------------------- | -------------------------------------------------- |
+| `/openstation.create`   | Create a new task spec from a description          |
+| `/openstation.list`     | List all tasks with status, agent, and dates       |
+| `/openstation.show`     | Show full details of a single task                 |
+| `/openstation.ready`    | Promote a task from backlog to ready               |
+| `/openstation.update`   | Update task frontmatter fields                     |
+| `/openstation.done`     | Mark a task done and move it to done/              |
+| `/openstation.reject`   | Reject a task in review and mark it failed         |
 | `/openstation.dispatch` | Preview agent details and show launch instructions |
 
 ## License

@@ -1,13 +1,14 @@
 ---
 kind: task
 name: 0078-improve-run-command-readability-and
-status: backlog
+status: review
 assignee: developer
 owner: user
 created: 2026-03-08
 subtasks:
   - "[[0079-research-cli-run-command-ux]]"
   - "[[0082-research-implementation-plan-for-run]]"
+  - "[[0083-implement-run-command-ux-improvements]]"
 ---
 
 # Improve run command readability and UX
@@ -49,6 +50,8 @@ that make it frustrating for operators.
   practices for CLI progress output and resumability
 - [[0082-research-implementation-plan-for-run]] — research
   implementation plan against current codebase
+- [[0083-implement-run-command-ux-improvements]] — implement
+  output helpers, subtask loop refactor, preambles, log redirect
 
 ## Verification
 

@@ -111,7 +111,7 @@ if [[ "${_do_curl_install:-}" == "true" ]]; then
 
   # Files to download — essential for CLI + init
   _files=(
-    "bin/openstation"
+    "dist/openstation"
     "docs/lifecycle.md"
     "docs/task.spec.md"
     "commands/openstation.create.md"
@@ -153,7 +153,7 @@ fi
 
 mkdir -p "$BIN_DIR"
 
-_cli_src="${INSTALL_DIR}/bin/openstation"
+_cli_src="${INSTALL_DIR}/dist/openstation"
 _cli_dst="${BIN_DIR}/openstation"
 
 if [[ ! -f "$_cli_src" ]]; then

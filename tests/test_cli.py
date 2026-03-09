@@ -8,17 +8,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
-CLI = str(Path(__file__).resolve().parent.parent / "bin" / "openstation")
+SRC_DIR = str(Path(__file__).resolve().parent.parent / "src")
 
 
 def run_cli(args, cwd=None, env=None):
     """Run the CLI and return (stdout, stderr, returncode)."""
+    run_env = dict(env or os.environ)
+    # Ensure src/ is on PYTHONPATH so `python -m openstation` resolves
+    existing = run_env.get("PYTHONPATH", "")
+    run_env["PYTHONPATH"] = SRC_DIR + (os.pathsep + existing if existing else "")
     result = subprocess.run(
-        [sys.executable, CLI] + args,
+        [sys.executable, "-m", "openstation"] + args,
         capture_output=True,
         text=True,
         cwd=cwd,
-        env=env,
+        env=run_env,
     )
     return result.stdout, result.stderr, result.returncode
 
@@ -733,7 +737,7 @@ class TestRunDryRun(unittest.TestCase):
         self.assertIn("Read", out)
         self.assertIn("--max-budget-usd 5", out)
         self.assertIn("--max-turns 50", out)
-        self.assertIn("--output-format json", out)
+        self.assertIn("--output-format text", out)
 
     def test_by_agent_tier1_dry_run(self):
         out, _, rc = run_cli(["run", "researcher", "--tier", "1", "--dry-run"], cwd=self.tmpdir)
@@ -977,12 +981,15 @@ class TestRunClaude(unittest.TestCase):
         self.env["PATH"] = f"{self.mock_bin}:{self.env.get('PATH', '')}"
 
     def _run_with_mock(self, args):
+        env = dict(self.env)
+        existing = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = SRC_DIR + (os.pathsep + existing if existing else "")
         result = subprocess.run(
-            [sys.executable, CLI] + args,
+            [sys.executable, "-m", "openstation"] + args,
             capture_output=True,
             text=True,
             cwd=self.tmpdir,
-            env=self.env,
+            env=env,
         )
         return result.stdout, result.stderr, result.returncode
 
@@ -1000,8 +1007,9 @@ class TestRunClaude(unittest.TestCase):
         # Use an empty PATH so claude is not found
         env = os.environ.copy()
         env["PATH"] = ""
+        env["PYTHONPATH"] = SRC_DIR
         result = subprocess.run(
-            [sys.executable, CLI, "run", "researcher"],
+            [sys.executable, "-m", "openstation", "run", "researcher"],
             capture_output=True,
             text=True,
             cwd=self.tmpdir,
@@ -1817,8 +1825,9 @@ class TestExitCodes(unittest.TestCase):
 
     def test_no_exit_code_collisions(self):
         """All named exit code constants have unique values."""
-        # Parse EXIT_ constants directly from source
-        cli_source = Path(CLI).read_text(encoding="utf-8")
+        # Parse EXIT_ constants from core module source
+        core_path = Path(__file__).resolve().parent.parent / "src" / "openstation" / "core.py"
+        cli_source = core_path.read_text(encoding="utf-8")
         exit_codes = {}
         for line in cli_source.splitlines():
             line = line.strip()
@@ -1866,6 +1875,313 @@ class TestRecoveryHints(unittest.TestCase):
         self.assertEqual(rc, 5)
         self.assertIn("hint", stderr)
         self.assertIn("--force", stderr)
+
+
+# ── Run UX Output Tests ──────────────────────────────────────────────
+
+
+def _exec_cli_snippet(code_body):
+    """Run a Python snippet that uses CLI functions, returning (stdout, stderr).
+
+    Imports the openstation package directly (src/ on PYTHONPATH).
+    """
+    snippet = (
+        f"import sys, os\n"
+        f"from openstation import core\n"
+        f"# Re-export all core symbols into snippet namespace\n"
+        f"globals().update({{k: getattr(core, k) for k in dir(core) if not k.startswith('__')}})\n"
+        f"{code_body}\n"
+    )
+    env = {**os.environ, "NO_COLOR": "1", "PYTHONPATH": SRC_DIR}
+    result = subprocess.run(
+        [sys.executable, "-c", snippet],
+        capture_output=True, text=True,
+        env=env,
+    )
+    return result.stdout.strip(), result.stderr.strip()
+
+
+class TestFormatDuration(unittest.TestCase):
+    """Test format_duration edge cases."""
+
+    def _format(self, seconds):
+        out, err = _exec_cli_snippet(f"print(format_duration({seconds}))")
+        if not out and err:
+            raise RuntimeError(f"format_duration({seconds}) failed: {err}")
+        return out
+
+    def test_under_60_seconds(self):
+        self.assertEqual(self._format(45), "45s")
+
+    def test_zero_seconds(self):
+        self.assertEqual(self._format(0), "0s")
+
+    def test_exactly_60_seconds(self):
+        self.assertEqual(self._format(60), "1m 00s")
+
+    def test_over_60_seconds(self):
+        self.assertEqual(self._format(125), "2m 05s")
+
+    def test_large_duration(self):
+        self.assertEqual(self._format(3661), "61m 01s")
+
+    def test_fractional_under_60(self):
+        self.assertEqual(self._format(45.7), "46s")
+
+
+class TestUseColorNoColorEnv(unittest.TestCase):
+    """Test NO_COLOR env var disables ANSI."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "researcher")
+
+    def test_no_color_env_disables_ansi(self):
+        """With NO_COLOR=1, stderr should not contain ANSI escape codes."""
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
+
+        env = os.environ.copy()
+        env["NO_COLOR"] = "1"
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run"],
+            cwd=self.tmpdir,
+            env=env,
+        )
+        self.assertEqual(rc, 0)
+        self.assertNotIn("\033[", stderr)
+
+
+class TestQuietSuppressesProgress(unittest.TestCase):
+    """Test --quiet flag suppresses progress but not failures."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "researcher")
+
+    def test_quiet_suppresses_step_output(self):
+        """--quiet should suppress header/step/detail output."""
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
+
+        _, stderr_normal, _ = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        _, stderr_quiet, rc = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run", "--quiet"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        # Normal output has step/header content, quiet doesn't
+        self.assertIn("──", stderr_normal)
+        self.assertEqual(stderr_quiet, "")
+
+    def test_quiet_still_shows_failures_on_error(self):
+        """failure() should print even in quiet mode."""
+        _, stderr = _exec_cli_snippet("set_quiet(True); failure('test error')")
+        self.assertIn("test error", stderr)
+
+
+class TestSummaryBlockOutput(unittest.TestCase):
+    """Test summary_block shows resume command."""
+
+    def test_summary_block_shows_resume_cmd(self):
+        """summary_block should include resume command when tasks remain."""
+        _, stderr = _exec_cli_snippet(
+            "summary_block(completed=1, failed=0, pending=2, "
+            "resume_cmd='openstation run --task 0078', next_task='0080-impl')"
+        )
+        self.assertIn("1 completed", stderr)
+        self.assertIn("2 remaining", stderr)
+        self.assertIn("openstation run --task 0078", stderr)
+        self.assertIn("0080-impl", stderr)
+        self.assertIn("To continue:", stderr)
+
+    def test_summary_block_no_resume_when_all_done(self):
+        """summary_block should not show resume when nothing pending."""
+        _, stderr = _exec_cli_snippet(
+            "summary_block(completed=3, failed=0, pending=0, "
+            "resume_cmd='openstation run --task 0078', next_task=None)"
+        )
+        self.assertIn("3 completed", stderr)
+        self.assertNotIn("To continue:", stderr)
+
+
+class TestRunSubtaskUXOutput(unittest.TestCase):
+    """Test that the subtask loop produces formatted UX output."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "researcher")
+
+    def test_subtask_loop_has_header_and_summary(self):
+        """Subtask loop should show header and Summary sections."""
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
+
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("──", stderr)  # header separator
+        self.assertIn("Summary", stderr)
+
+    def test_subtask_loop_has_step_numbers(self):
+        """Subtask loop should show [1/N] step indicators."""
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
+
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("[1/1]", stderr)
+
+    def test_no_subtasks_preamble(self):
+        """Single-task (no subtasks) should still show header."""
+        make_task(self.root, "0001-single", status="ready", assignee="researcher")
+
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001-single", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("──", stderr)  # header present
+
+
+class TestAutoPromoteParent(unittest.TestCase):
+    """Test that promoting a subtask auto-promotes its parent."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def _read_status(self, name):
+        spec = self.root / "artifacts" / "tasks" / f"{name}.md"
+        text = spec.read_text()
+        for line in text.splitlines():
+            if line.startswith("status:"):
+                return line.split(":")[1].strip()
+        return None
+
+    def test_child_ready_promotes_backlog_parent(self):
+        make_task(self.root, "0001-parent", status="backlog",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="backlog",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["status", "0002-child", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("auto-promoted", out)
+        self.assertEqual(self._read_status("0001-parent"), "ready")
+
+    def test_child_in_progress_promotes_ready_parent(self):
+        make_task(self.root, "0001-parent", status="ready",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="ready",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["status", "0002-child", "in-progress"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("auto-promoted", out)
+        self.assertEqual(self._read_status("0001-parent"), "in-progress")
+
+    def test_no_promote_when_parent_already_ahead(self):
+        make_task(self.root, "0001-parent", status="in-progress",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="backlog",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["status", "0002-child", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("auto-promoted", out)
+        self.assertEqual(self._read_status("0001-parent"), "in-progress")
+
+    def test_create_ready_child_promotes_backlog_parent(self):
+        make_task(self.root, "0001-parent", status="backlog")
+
+        _, stderr, rc = run_cli(
+            ["create", "new child", "--status", "ready", "--parent", "0001-parent"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("auto-promoted", stderr)
+        self.assertEqual(self._read_status("0001-parent"), "ready")
+
+
+class TestSubtaskStatusInheritance(unittest.TestCase):
+    """Test that subtasks inherit parent status when no --status given."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def _read_status(self, name):
+        spec = self.root / "artifacts" / "tasks" / f"{name}.md"
+        text = spec.read_text()
+        for line in text.splitlines():
+            if line.startswith("status:"):
+                return line.split(":")[1].strip()
+        return None
+
+    def test_inherits_ready_from_parent(self):
+        make_task(self.root, "0001-parent", status="ready")
+        out, _, rc = run_cli(
+            ["create", "child task", "--parent", "0001-parent"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        child_name = out.strip()
+        self.assertEqual(self._read_status(child_name), "ready")
+
+    def test_inherits_backlog_from_parent(self):
+        make_task(self.root, "0001-parent", status="backlog")
+        out, _, rc = run_cli(
+            ["create", "child task", "--parent", "0001-parent"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        child_name = out.strip()
+        self.assertEqual(self._read_status(child_name), "backlog")
+
+    def test_explicit_status_overrides_inheritance(self):
+        make_task(self.root, "0001-parent", status="ready")
+        out, _, rc = run_cli(
+            ["create", "child task", "--parent", "0001-parent", "--status", "backlog"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        child_name = out.strip()
+        self.assertEqual(self._read_status(child_name), "backlog")
+
+    def test_in_progress_parent_defaults_to_backlog(self):
+        make_task(self.root, "0001-parent", status="in-progress")
+        out, _, rc = run_cli(
+            ["create", "child task", "--parent", "0001-parent"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        child_name = out.strip()
+        self.assertEqual(self._read_status(child_name), "backlog")
+
+    def test_no_parent_defaults_to_backlog(self):
+        out, _, rc = run_cli(
+            ["create", "standalone task"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        child_name = out.strip()
+        self.assertEqual(self._read_status(child_name), "backlog")
 
 
 if __name__ == "__main__":

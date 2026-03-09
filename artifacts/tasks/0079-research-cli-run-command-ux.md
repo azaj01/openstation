@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0079-research-cli-run-command-ux
-status: review
+status: done
 assignee: researcher
 owner: user
 parent: "[[0078-improve-run-command-readability-and]]"

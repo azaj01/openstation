@@ -1,10 +1,12 @@
 ---
 kind: task
 name: 0082-research-implementation-plan-for-run
-status: ready
+status: done
 assignee: researcher
 owner: user
 parent: "[[0078-improve-run-command-readability-and]]"
+artifacts:
+  - "[[artifacts/research/run-command-ux-implementation-plan]]"
 created: 2026-03-08
 ---
 
@@ -55,6 +57,48 @@ and the UX research from task 0079.
 ## Artifact
 
 Output: `artifacts/research/run-command-ux-implementation-plan.md`
+
+## Findings
+
+Full plan at `artifacts/research/run-command-ux-implementation-plan.md`.
+
+**Key decisions**:
+
+1. **Output helpers stay inline** in `bin/openstation` (no new
+   module) — keeps the single-file CLI design.
+
+2. **`execvp` stays** for single-task and by-agent paths. The
+   preamble (header, agent detail, launch hint) is the only
+   improvement possible before process replacement. Switching to
+   `subprocess.run` adds signal-forwarding complexity for minimal
+   gain — recommended as Phase 2 only if post-exec output is
+   needed later.
+
+3. **Claude CLI JSON output** → redirect to log file
+   (`artifacts/logs/<task>.json`) rather than parsing it. Parsing
+   couples us to an undocumented schema.
+
+4. **`--quiet`** not yet on the run subparser — needs adding.
+   Gates all progress output via a module-level `_quiet` flag.
+   `failure()` and `err()` always print.
+
+5. **`--json` for live runs** only works on the subtask-loop
+   path (the only path with post-exec control). Document this
+   limitation.
+
+6. **All 0079 recommendations are feasible**. Three need minor
+   adjustment: `--json` scope limited to subtask path, tier shown
+   in preamble only (not per-task), and claude output redirected
+   rather than parsed.
+
+7. **6 implementation steps** ordered for independent mergeability.
+   Steps 1–3 (output helpers, subtask loop refactor, preambles)
+   are the core UX win. Steps 4–6 (quiet, json, log capture) are
+   additive.
+
+8. **3 existing test classes** need updates (changed stderr text).
+   **7 new tests** recommended for output functions, quiet mode,
+   json summary, and NO_COLOR.
 
 ## Verification
 

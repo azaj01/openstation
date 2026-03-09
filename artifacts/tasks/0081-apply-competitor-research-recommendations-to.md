@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0081-apply-competitor-research-recommendations-to
-status: review
+status: done
 assignee: author
 owner: user
 parent: "[[0076-improve-readme-presentation-and-explanation]]"

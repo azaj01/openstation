@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0077-research-competitor-approaches-to-readme
-status: review
+status: done
 assignee: researcher
 owner: user
 parent: "[[0076-improve-readme-presentation-and-explanation]]"

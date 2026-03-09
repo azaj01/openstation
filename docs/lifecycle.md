@@ -62,6 +62,29 @@ storage model.
 All sub-tasks must reach `done` before the parent can proceed
 to `review`.
 
+### Status Inheritance
+
+When a sub-task is created with a parent and no explicit status,
+it inherits the parent's status (if `backlog` or `ready`). If
+the parent is in a later state (`in-progress`, `review`, `done`),
+the sub-task defaults to `backlog`. An explicit `--status` on
+create always overrides inheritance.
+
+### Parent Auto-Promotion
+
+When a sub-task transitions to a status that outranks its parent,
+the parent is automatically promoted through valid transitions
+to match the minimum required level:
+
+| Sub-task reaches  | Parent must be at least |
+|-------------------|------------------------|
+| `ready`           | `ready`                |
+| `in-progress`     | `in-progress`          |
+| `review` / `done` | `in-progress`          |
+
+This is enforced by the CLI on both `openstation status` and
+`openstation create --parent`.
+
 ### Lifecycle
 
 Sub-tasks follow the same status transitions as any other task.

@@ -1,0 +1,11 @@
+[project]
+name = "openstation"
+version = "0.6.1"
+description = "Task management system for coding AI agents"
+requires-python = ">=3.9"
+
+[project.scripts]
+openstation = "openstation.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0084-refactor-cli-into-src-package
-status: in-progress
+status: done
 assignee: developer
 owner: user
 created: 2026-03-09
@@ -47,9 +47,9 @@ contributors.
 
 ## Verification
 
-- [ ] `src/openstation/` package exists with logical modules
-- [ ] `bin/openstation` is a thin wrapper (~5 lines)
-- [ ] All 163+ existing tests pass
-- [ ] `openstation` CLI works identically from user perspective
-- [ ] Install/distribution model works (per research findings)
-- [ ] No circular imports
+- [x] `src/openstation/` package exists with logical modules
+- [x] `bin/openstation` is a thin wrapper (~5 lines)
+- [x] All 163+ existing tests pass (190 passed)
+- [x] `openstation` CLI works identically from user perspective
+- [x] Install/distribution model works (per research findings)
+- [x] No circular imports

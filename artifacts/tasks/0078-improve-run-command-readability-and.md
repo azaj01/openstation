@@ -9,6 +9,7 @@ subtasks:
   - "[[0079-research-cli-run-command-ux]]"
   - "[[0082-research-implementation-plan-for-run]]"
   - "[[0083-implement-run-command-ux-improvements]]"
+  - "[[0095-research-printing-claude-session-to]]"
 ---
 
 # Improve run command readability and UX

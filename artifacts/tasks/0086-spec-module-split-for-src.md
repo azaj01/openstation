@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0086-spec-module-split-for-src
-status: review
+status: done
 assignee: architect
 owner: user
 parent: "[[0084-refactor-cli-into-src-package]]"
@@ -82,10 +82,10 @@ Full spec: `artifacts/specs/src-package-module-split.md`
 
 ## Verification
 
-- [ ] Every function in `bin/openstation` is assigned to a module
-- [ ] Module count is 3-7
-- [ ] Import graph has no circular dependencies
-- [ ] Entry point wrapper defined
-- [ ] Test migration strategy included
-- [ ] Install/distribution approach incorporated from 0085
-- [ ] Artifact written to `artifacts/specs/`
+- [x] Every function in `bin/openstation` is assigned to a module
+- [x] Module count is 3-7
+- [x] Import graph has no circular dependencies
+- [x] Entry point wrapper defined
+- [x] Test migration strategy included
+- [x] Install/distribution approach incorporated from 0085
+- [x] Artifact written to `artifacts/specs/`

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0089-add-type-field-to-task
-status: ready
+status: done
 assignee: 
 owner: user
 created: 2026-03-09
@@ -40,8 +40,8 @@ Add an explicit `type` field to task frontmatter that classifies the nature of t
 
 ## Verification
 
-- [ ] `type` field documented in `docs/task.spec.md` with valid values and default
-- [ ] `openstation create` accepts `--type` flag and writes it to frontmatter
-- [ ] When `--type` is omitted, defaults to `feature`
-- [ ] `openstation list` can filter by `--type`
-- [ ] Existing tasks without `type` field still work (backward compatible)
+- [x] `type` field documented in `docs/task.spec.md` with valid values and default
+- [x] `openstation create` accepts `--type` flag and writes it to frontmatter
+- [x] When `--type` is omitted, defaults to `feature`
+- [x] `openstation list` can filter by `--type`
+- [x] Existing tasks without `type` field still work (backward compatible)

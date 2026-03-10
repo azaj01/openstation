@@ -11,7 +11,7 @@ from pathlib import Path
 from openstation import core
 
 MAX_CREATE_RETRIES = 5
-SUBTASK_PREFIX = "  └─"
+SUBTASK_PREFIX = "  └─"  # kept for backward compat; see _indent_prefix() for depth-aware version
 
 
 # --- Discovery ----------------------------------------------------------------
@@ -38,6 +38,7 @@ def discover_tasks(root, prefix):
         tasks.append({
             "id": task_name.split("-", 1)[0],
             "name": task_name,
+            "type": fm.get("type", "feature"),
             "status": fm.get("status", ""),
             "assignee": fm.get("assignee", ""),
             "owner": fm.get("owner", ""),
@@ -134,7 +135,9 @@ def assert_task_ready(spec_path, task_name):
 def group_tasks_for_display(tasks):
     """Order tasks so subtasks appear grouped under their parent.
 
-    Returns a list of (task_dict, is_subtask) tuples.
+    Returns a list of (task_dict, depth) tuples where depth is an
+    integer: 0 for top-level, 1 for direct children, 2 for
+    grandchildren, etc.
     """
     by_name = {t["name"]: t for t in tasks}
     children = {}
@@ -147,21 +150,33 @@ def group_tasks_for_display(tasks):
                  if not t.get("parent", "") or t["parent"] not in by_name]
     top_level.sort(key=lambda t: t["id"])
 
-    def collect_descendants(name):
+    def collect_descendants(name, depth):
         kids = children.get(name, [])
         kids.sort(key=lambda c: c["id"])
         result = []
         for child in kids:
-            result.append(child)
-            result.extend(collect_descendants(child["name"]))
+            result.append((child, depth))
+            result.extend(collect_descendants(child["name"], depth + 1))
         return result
 
     result = []
     for t in top_level:
-        result.append((t, False))
-        for desc in collect_descendants(t["name"]):
-            result.append((desc, True))
+        result.append((t, 0))
+        result.extend(collect_descendants(t["name"], 1))
     return result
+
+
+def _indent_prefix(depth):
+    """Build a tree-drawing prefix for the given nesting depth.
+
+    depth 0 → ""  (top-level)
+    depth 1 → "  └─ "
+    depth 2 → "    └─ "
+    depth N → "  " * N + "└─ "
+    """
+    if depth <= 0:
+        return ""
+    return "  " * depth + "└─ "
 
 
 def format_table(rows):
@@ -173,11 +188,11 @@ def format_table(rows):
     mins = [4, 10, 7, 8, 5]
 
     widths = [max(mins[i], len(headers[i])) for i in range(len(headers))]
-    for t, is_sub in rows:
+    for t, depth in rows:
         for i, k in enumerate(keys):
             val = str(t.get(k, ""))
-            if is_sub and k == "name":
-                val = SUBTASK_PREFIX + " " + val
+            if depth > 0 and k == "name":
+                val = _indent_prefix(depth) + val
             widths[i] = max(widths[i], len(val))
 
     def fmt_row(values):
@@ -188,12 +203,12 @@ def format_table(rows):
 
     lines = [fmt_row(headers)]
     lines.append(fmt_row(["-" * widths[i] for i in range(len(headers))]))
-    for t, is_subtask in rows:
+    for t, depth in rows:
         values = []
         for i, k in enumerate(keys):
             val = t.get(k, "")
-            if is_subtask and k == "name":
-                val = SUBTASK_PREFIX + " " + val
+            if depth > 0 and k == "name":
+                val = _indent_prefix(depth) + val
             values.append(val)
         lines.append(fmt_row(values))
     return "\n".join(lines)
@@ -438,22 +453,26 @@ def cmd_list(args, root, prefix):
     if args.assignee:
         tasks = [t for t in tasks if t["assignee"] == args.assignee]
 
+    if getattr(args, "type", None):
+        tasks = [t for t in tasks if t.get("type", "feature") == args.type]
+
     tasks = pull_in_subtasks(tasks, all_tasks)
     rows = group_tasks_for_display(tasks)
 
     if getattr(args, "json", False):
         task_list = []
-        for t, _is_sub in rows:
+        for t, _depth in rows:
             task_list.append({
                 "id": t["id"],
                 "name": t["name"],
+                "type": t.get("type", "feature"),
                 "status": t["status"],
                 "assignee": t["assignee"],
                 "owner": t["owner"],
             })
         print(json.dumps(task_list, indent=2))
     elif getattr(args, "quiet", False):
-        for t, _is_sub in rows:
+        for t, _depth in rows:
             print(t["name"])
     else:
         output = format_table(rows)
@@ -504,6 +523,7 @@ def cmd_create(args, root, prefix):
 
     agent = args.assignee or ""
     owner = args.owner or "user"
+    task_type = getattr(args, "type", "feature") or "feature"
     explicit_status = args.status
     parent = args.parent or ""
 
@@ -542,6 +562,7 @@ def cmd_create(args, root, prefix):
         "---",
         "kind: task",
         f"name: PLACEHOLDER",
+        f"type: {task_type}",
         f"status: {status}",
         f"assignee: {agent}",
         f"owner: {owner}",

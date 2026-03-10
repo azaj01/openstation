@@ -2,6 +2,7 @@
 
 import os
 import re
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -64,22 +65,65 @@ def err(msg):
 
 # --- Vault discovery ----------------------------------------------------------
 
+def _check_dir(d):
+    """Check a single directory for Open Station markers.
+
+    Returns (root, prefix) or (None, None).
+    """
+    if (d / "agents").is_dir() and (d / "install.sh").is_file():
+        return d, ""
+    if (d / ".openstation").is_dir():
+        return d, ".openstation"
+    return None, None
+
+
+def _git_main_worktree_root(start):
+    """Resolve the main worktree root via git, or return None."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=str(start),
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
+        common_dir = Path(result.stdout.strip())
+        if not common_dir.is_absolute():
+            common_dir = (start / common_dir).resolve()
+        # common_dir is the .git dir of the main worktree
+        return common_dir.parent
+    except (FileNotFoundError, OSError):
+        return None
+
+
 def find_root(start=None):
     """Walk up from start dir to find an Open Station project root.
 
     Returns (root_path, prefix) where prefix is ".openstation" for
     installed projects or "" for the source repo.
+
+    Falls back to checking the main git worktree root when the local
+    walk-up finds nothing and CWD is inside a git worktree.
     """
     d = Path(start or os.getcwd()).resolve()
     while True:
-        if (d / "agents").is_dir() and (d / "install.sh").is_file():
-            return d, ""
-        if (d / ".openstation").is_dir():
-            return d, ".openstation"
+        root, prefix = _check_dir(d)
+        if root is not None:
+            return root, prefix
         parent = d.parent
         if parent == d:
             break
         d = parent
+
+    # Fallback: try main worktree root
+    start_path = Path(start or os.getcwd()).resolve()
+    main_root = _git_main_worktree_root(start_path)
+    if main_root is not None:
+        root, prefix = _check_dir(main_root)
+        if root is not None:
+            return root, prefix
+
     return None, None
 
 

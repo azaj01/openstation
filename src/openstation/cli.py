@@ -41,6 +41,8 @@ examples:
                         help="Filter by assignee (exact match)")
     list_p.add_argument("--json", action="store_true",
                         help="Emit output as a JSON array of task objects")
+    list_p.add_argument("--type", default=None,
+                        help="Filter by type: feature|research|spec|implementation|documentation")
     list_p.add_argument("-q", "--quiet", action="store_true",
                         help="Emit one task name per line, no header (pipe-friendly)")
 
@@ -75,6 +77,8 @@ examples:
     create_p.add_argument("--owner", default="user", help="Who verifies (default: user)")
     create_p.add_argument("--status", default=None,
                           help="Initial status: backlog or ready (default: inherit from parent, else backlog)")
+    create_p.add_argument("--type", default="feature",
+                          help="Task type: feature|research|spec|implementation|documentation (default: feature)")
     create_p.add_argument("--parent", default="",
                           help="Parent task name (wikilink added automatically)")
 

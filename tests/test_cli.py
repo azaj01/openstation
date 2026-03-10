@@ -297,8 +297,8 @@ class TestListGroupedOutput(unittest.TestCase):
         child_line = next(l for l in out.splitlines() if "0002-child" in l)
         self.assertNotIn("\u2514\u2500", child_line)
 
-    def test_multi_level_nesting_flattened(self):
-        """Grandchild tasks appear as subtasks alongside direct children."""
+    def test_multi_level_nesting_indented(self):
+        """Grandchild tasks appear with deeper indentation than children."""
         make_task(self.root, "0001-root", status="ready", assignee="")
         make_task(self.root, "0002-child", status="ready", assignee="",
                   parent="0001-root")
@@ -319,6 +319,12 @@ class TestListGroupedOutput(unittest.TestCase):
         self.assertIn("\u2514\u2500", lines[grandchild_idx])
         # Root does not
         self.assertNotIn("\u2514\u2500", lines[root_idx])
+        # Grandchild has deeper indentation than child
+        child_line = lines[child_idx]
+        grandchild_line = lines[grandchild_idx]
+        child_indent = child_line.index("\u2514")
+        grandchild_indent = grandchild_line.index("\u2514")
+        self.assertGreater(grandchild_indent, child_indent)
 
 
 # ── List Pull-In and Positional Filter Tests ───────────────────────
@@ -2182,6 +2188,100 @@ class TestSubtaskStatusInheritance(unittest.TestCase):
         self.assertEqual(rc, 0)
         child_name = out.strip()
         self.assertEqual(self._read_status(child_name), "backlog")
+
+
+# ── Type Field Tests ─────────────────────────────────────────────────
+
+
+class TestTypeField(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_create_with_type_writes_frontmatter(self):
+        out, _, rc = run_cli(
+            ["create", "investigate something", "--type", "research"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("type: research", content)
+
+    def test_create_without_type_defaults_to_feature(self):
+        out, _, rc = run_cli(["create", "new feature"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("type: feature", content)
+
+    def test_list_type_filter(self):
+        make_task(self.root, "0001-feat-one", status="ready")
+        # Add type to a specific task
+        task_file = self.root / "artifacts" / "tasks" / "0001-feat-one.md"
+        content = task_file.read_text()
+        content = content.replace("kind: task", "kind: task\ntype: research")
+        task_file.write_text(content)
+
+        make_task(self.root, "0002-feat-two", status="ready")
+
+        out, _, rc = run_cli(["list", "--type", "research", "--status", "all"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001", out)
+        self.assertNotIn("0002", out)
+
+    def test_list_type_filter_feature_includes_untyped(self):
+        """Tasks without a type field are treated as feature."""
+        make_task(self.root, "0001-untyped", status="ready")
+        make_task(self.root, "0002-typed", status="ready")
+        # Add type: research to 0002
+        task_file = self.root / "artifacts" / "tasks" / "0002-typed.md"
+        content = task_file.read_text()
+        content = content.replace("kind: task", "kind: task\ntype: research")
+        task_file.write_text(content)
+
+        out, _, rc = run_cli(["list", "--type", "feature", "--status", "all"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001", out)  # untyped → feature
+        self.assertNotIn("0002", out)  # research excluded
+
+    def test_existing_tasks_without_type_work_in_list(self):
+        """Backward compat: tasks without type field still appear in list."""
+        make_task(self.root, "0001-old-task", status="ready")
+        out, _, rc = run_cli(["list", "--status", "all"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001", out)
+
+    def test_existing_tasks_without_type_work_in_show(self):
+        """Backward compat: show works on tasks without type field."""
+        make_task(self.root, "0001-old-task", status="ready")
+        out, _, rc = run_cli(["show", "0001"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-old-task", out)
+
+    def test_existing_tasks_without_type_work_in_status(self):
+        """Backward compat: status transitions work on tasks without type field."""
+        make_task(self.root, "0001-old-task", status="ready")
+        out, _, rc = run_cli(["status", "0001", "in-progress"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("in-progress", out)
+
+    def test_list_json_includes_type(self):
+        """JSON output includes the type field."""
+        make_task(self.root, "0001-typed", status="ready")
+        task_file = self.root / "artifacts" / "tasks" / "0001-typed.md"
+        content = task_file.read_text()
+        content = content.replace("kind: task", "kind: task\ntype: spec")
+        task_file.write_text(content)
+
+        import json
+        out, _, rc = run_cli(["list", "--json", "--status", "all"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertEqual(data[0]["type"], "spec")
 
 
 if __name__ == "__main__":

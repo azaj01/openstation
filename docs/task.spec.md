@@ -69,6 +69,7 @@ listing the sub-tasks with priority groups. See the
 ---
 kind: task              # Required. Always "task".
 name: NNNN-kebab-slug   # Required. Matches filename (without .md).
+type: feature           # Optional. Task type. Default: "feature".
 status: backlog         # Required. See Status Values below.
 assignee:               # Optional. Agent name assigned to execute.
 owner: user             # Required. Who verifies. Default: "user".
@@ -92,6 +93,7 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 |-------|------|----------|---------|-------------|
 | `kind` | string | yes | — | Always `task` |
 | `name` | string | yes | — | `NNNN-kebab-slug`, matches filename (without `.md`) |
+| `type` | enum | no | `feature` | Nature of the work. See Type Values below. |
 | `status` | enum | yes | `backlog` | Current lifecycle stage |
 | `assignee` | string | no | empty | Agent assigned to execute the task |
 | `owner` | string | yes | `user` | Who verifies: agent name or `user` |
@@ -113,6 +115,19 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 
 See `docs/lifecycle.md` for valid transitions, ownership rules,
 sub-task lifecycle, and artifact routing.
+
+### Type Values
+
+| Value | Meaning |
+|-------|---------|
+| `feature` | End-to-end feature work (default when omitted) |
+| `research` | Investigation, analysis, or information gathering |
+| `spec` | Architecture design, technical specification, or RFC |
+| `implementation` | Code implementation from an existing spec |
+| `documentation` | Writing or updating docs, skills, or commands |
+
+Tasks without a `type` field are treated as `feature` for
+backward compatibility.
 
 ### Artifacts Field
 
@@ -199,7 +214,7 @@ structure that isn't needed yet.
 
 | Stage          | Frontmatter                                  | Body                                                                  |
 | -------------- | -------------------------------------------- | --------------------------------------------------------------------- |
-| **Idea**       | `kind`, `name`, `status: backlog`, `created` | `# Title`, `## Requirements` (rough), `## Verification` (placeholder) |
+| **Idea**       | `kind`, `name`, `status: backlog`, `created`, optionally `type` | `# Title`, `## Requirements` (rough), `## Verification` (placeholder) |
 | **Scoped**     | + `assignee`, `owner`                        | Requirements become concrete and testable                             |
 | **Decomposed** | + `parent` wikilink (on sub-tasks)            | + `## Subtasks` with priority groups                                  |
 | **In-flight**  | `status: in-progress`                        | + `## Context` if background is needed                                |
@@ -227,6 +242,7 @@ structure that isn't needed yet.
 ---
 kind: task
 name: 0010-add-login-page
+type: implementation
 status: backlog
 assignee:
 owner: user
@@ -254,6 +270,7 @@ on success.
 ---
 kind: task
 name: 0003-research-obsidian-plugin-api
+type: research
 status: done
 assignee: researcher
 owner: user
@@ -298,6 +315,7 @@ the parent, `parent` on each child.
 ---
 kind: task
 name: 0006-adopt-spec-kit-patterns
+type: feature
 status: backlog
 assignee: author
 owner: user
@@ -338,6 +356,7 @@ philosophy.
 ---
 kind: task
 name: 0007-add-constitution
+type: documentation
 status: backlog
 assignee: author
 owner: user

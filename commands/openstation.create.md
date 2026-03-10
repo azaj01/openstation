@@ -14,49 +14,42 @@ Generate a new task spec from a description.
 ## Procedure
 
 1. Take the description from `$ARGUMENTS`.
-2. **Interview** — ask the user (via AskUserQuestion) to refine
-   the spec before creating anything. Do not create files until
-   the interview is complete.
 
-   a. **What type of work?** — ask the user to classify:
-      research, authoring (specs/docs), implementation, or other.
-      This informs the agent suggestion in step (d).
+2. **Round 1 — Draft spec.** From the description, auto-infer
+   everything and present a complete draft in one message. Do not
+   create files yet.
 
-   b. **Requirements** — expand the description into a concrete
-      requirements draft. Present the draft to the user and ask if
-      anything is missing or needs changing. Iterate (re-ask) until
-      the user approves the requirements.
+   Run `openstation agents` to get the agent list, then present:
 
-   c. **Verification criteria** — propose verification items
-      derived from the approved requirements. Ask the user to
-      confirm or adjust.
+   - **Type** — infer from keywords in the description. Use
+     `type` values: `feature`, `research`, `spec`,
+     `implementation`, or `documentation`.
+   - **Requirements** — expand the description into concrete,
+     testable requirements.
+   - **Verification** — derive checklist items from the
+     requirements.
+   - **Agent & owner** — suggest the best agent from the list
+     based on the inferred type. Default owner: `user`.
+   - **Status** — recommend `ready` or `backlog` based on
+     whether requirements are concrete enough to execute.
+   - **Decomposition** (only if warranted) — if requirements
+     clearly span multiple independent domains, suggest sub-tasks
+     inline. Otherwise omit entirely.
 
-   d. **Agent & owner** — run `openstation agents` to list available
-      agents, then suggest one based on work type: `researcher` for
-      research, `architect` for specs, `author` for prompts/docs,
-      `developer` for implementation. Present the agent list so the
-      user can confirm
-      or pick a different agent. Ask who verifies (default: `user`).
+   End the message with: **"Approve, or tell me what to change."**
 
-   e. **Decomposition** — if the requirements suggest multiple
-      independent deliverables or span different domains, propose
-      breaking the task into sub-tasks. List the suggested
-      sub-tasks and ask the user to confirm. If accepted, each
-      sub-task will be created as a separate file with `parent`
-      frontmatter. See `docs/storage-query-layer.md` § 5 for
-      the sub-task storage model.
-      If the task is simple and self-contained, skip this step.
+3. **Round 2 — Iterate only if needed.** If the user approves,
+   proceed to step 4 immediately. If they request changes, apply
+   them, present the updated draft, and ask again. Repeat until
+   approved.
 
-   f. **Ready to start?** — ask whether the task should go
-      straight to `ready` (status: ready) or stay in `backlog`.
-
-3. **Create the task file** using the CLI:
+4. **Create the task file** using the CLI:
 
    ```bash
    openstation create "<description>" \
-     --assignee <from step 2d> \
-     --owner <from step 2d, default: user> \
-     --status <backlog or ready, from step 2f> \
+     --assignee <from draft> \
+     --owner <from draft, default: user> \
+     --status <backlog or ready, from draft> \
      [--parent <parent-task-name>]
    ```
 
@@ -72,8 +65,8 @@ Generate a new task spec from a description.
    - Generate a kebab-case slug (max 5 words).
    - Create `artifacts/tasks/<ID>-<slug>.md` directly.
 
-4. **Edit the generated file** — replace the template body with
-   the approved interview content:
+5. **Edit the generated file** — replace the template body with
+   the approved draft content:
 
    ```markdown
    ---
@@ -89,15 +82,15 @@ Generate a new task spec from a description.
 
    ## Requirements
 
-   <Approved requirements from step 2b>
+   <Approved requirements from draft>
 
    ## Verification
 
-   - [ ] <Approved verification items from step 2c>
+   - [ ] <Approved verification items from draft>
    ```
 
-5. **Sub-task handling** — if sub-tasks were accepted in step 2e,
-   create each sub-task using:
+6. **Sub-task handling** — if sub-tasks were included in the
+   approved draft, create each sub-task using:
 
    ```bash
    openstation create "<sub-task description>" \
@@ -115,4 +108,4 @@ Generate a new task spec from a description.
    sub-task file manually with `parent: "[[<parent>]]"`
    frontmatter and update the parent's `subtasks` list.
 
-6. Confirm the file(s) were created and show the path(s).
+7. Confirm the file(s) were created and show the path(s).

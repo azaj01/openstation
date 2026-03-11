@@ -5,6 +5,9 @@ type: spec
 status: backlog
 assignee: architect
 owner: user
+parent: "[[0107-add-git-worktree-support]]"
+artifacts:
+  - "[[artifacts/specs/branch-based-task-scoping]]"
 created: 2026-03-10
 ---
 

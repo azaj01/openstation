@@ -27,6 +27,7 @@ EXIT_SOURCE_GUARD = 9
 VALID_TRANSITIONS = {
     ("backlog", "ready"),
     ("ready", "in-progress"),
+    ("ready", "backlog"),
     ("in-progress", "review"),
     ("review", "done"),
     ("review", "failed"),

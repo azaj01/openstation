@@ -51,6 +51,12 @@ plan future work.
 - Maintain the project roadmap (`artifacts/tasks/roadmap.md`)
 - Break down large goals into sequenced, actionable tasks
 - Identify documentation gaps and create tasks to fill them
+- For complex or uncertain features — where the workflow,
+  consequences, or UX are unclear — start with a research task
+  before creating spec or implementation subtasks. The research
+  should surface design decisions and open questions, not jump
+  to solutions. Only decompose into spec/implement/docs after
+  the research clarifies what to build.
 
 ## Constraints
 

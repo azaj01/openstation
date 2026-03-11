@@ -17,6 +17,7 @@ For task format, field schema, and naming conventions see
 ```
 backlog → ready          (use /openstation.ready)
 ready → in-progress      (assigned agent picks up the task)
+ready → backlog          (deprioritize — requirements changed, blocked, etc.)
 in-progress → review     (agent finishes work)
 review → done            (owner verifies — use /openstation.done)
 review → failed          (owner rejects — use /openstation.reject)

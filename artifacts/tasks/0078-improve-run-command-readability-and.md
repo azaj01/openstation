@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0078-improve-run-command-readability-and
-status: review
+status: done
 assignee: developer
 owner: user
 created: 2026-03-08
@@ -10,6 +10,7 @@ subtasks:
   - "[[0082-research-implementation-plan-for-run]]"
   - "[[0083-implement-run-command-ux-improvements]]"
   - "[[0095-research-printing-claude-session-to]]"
+  - "[[0096-add-session-id-to-run]]"
 ---
 
 # Improve run command readability and UX

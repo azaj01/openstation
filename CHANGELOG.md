@@ -1,5 +1,51 @@
 # Changelog
 
+## v0.7.0
+
+Refactors CLI into an installable Python package, adds session ID
+capture to `openstation run`, and extends `list`/`show` with
+editor integration.
+
+### CLI
+
+- **`src/openstation/` package** — Extracted CLI from single-file
+  `bin/openstation` into a proper Python package with modules:
+  `core.py`, `tasks.py`, `run.py`, `init.py`, `cli.py`. Supports
+  `python -m openstation` and `pyproject.toml` entry point.
+- **Session ID capture** — `openstation run` now uses
+  `--output-format stream-json` to capture the Claude session ID.
+  Prints the session ID after execution and shows a
+  `claude --resume <id>` command for every run. Logs saved as
+  `.jsonl` files in `artifacts/logs/`.
+- **Result text output** — `openstation run` prints the agent's
+  final result text to stderr after execution, restoring operator
+  visibility lost in the format switch.
+- **`list --vim`** — Opens filtered task files in `$EDITOR` (vim
+  by default). Mutually exclusive with `--json` and `--quiet`.
+- **`show --vim`** — Opens a single task file in `$EDITOR`.
+- **Short flags** — Added `-j` for `--json`, `-v` for `--vim`,
+  `-q` for `--quiet` across `list`, `show`, and `run` subcommands.
+- **`type` field** — Tasks now carry a `type` frontmatter field
+  (`feature`, `research`, `spec`, `implementation`, `documentation`).
+  `list --type` filters by type; defaults to `feature` for
+  untyped tasks.
+
+### Run UX
+
+- **Structured output** — Run output uses visual hierarchy:
+  timestamped headers, step counters, detail lines, and
+  color-coded success/failure indicators.
+- **Progress reporting** — Intermediate steps (agent resolution,
+  tool parsing, launch command) are now visible during execution.
+- **Resume instructions** — Every run prints
+  `claude --resume <session-id>` at the end. Summary block shows
+  remaining tasks and exact re-run command on partial completion.
+
+### Docs
+
+- **README rewrite** — Features-first layout, competitor
+  comparison, flow diagram, agents table.
+
 ## v0.6.0
 
 Switches to an nvm-style installation model — the installer clones

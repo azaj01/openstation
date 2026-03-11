@@ -131,26 +131,71 @@ def build_command(agent_name, tier, budget, turns, prompt, tools, output_format=
         "--max-turns", str(turns),
         "--output-format", output_format,
     ])
+    if output_format == "stream-json":
+        cmd.append("--verbose")
     return cmd
+
+
+# --- Session ID extraction ----------------------------------------------------
+
+def extract_session_id(line):
+    """Extract session_id from a stream-json line. Returns str or None."""
+    try:
+        obj = json.loads(line)
+        if isinstance(obj, dict) and "session_id" in obj:
+            return obj["session_id"]
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return None
+
+
+def _extract_result_text(line):
+    """Extract the result text from a stream-json result line. Returns str or None."""
+    try:
+        obj = json.loads(line)
+        if isinstance(obj, dict) and obj.get("type") == "result":
+            return obj.get("result", "")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        pass
+    return None
+
+
+def _stream_and_capture(cmd, cwd, log_file):
+    """Run cmd with stream-json, write stdout to log_file, return (returncode, session_id, result_text)."""
+    session_id = None
+    result_text = None
+    with open(log_file, "w") as f:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, cwd=str(cwd))
+        for raw_line in proc.stdout:
+            line = raw_line.decode("utf-8", errors="replace")
+            f.write(line)
+            if session_id is None:
+                session_id = extract_session_id(line)
+            rt = _extract_result_text(line)
+            if rt is not None:
+                result_text = rt
+        proc.wait()
+    rc = proc.returncode if proc.returncode == 0 else core.EXIT_AGENT_ERROR
+    return rc, session_id, result_text
 
 
 # --- Execution ----------------------------------------------------------------
 
 def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry_run,
                     json_output=False):
-    """Execute one task: resolve agent, build command, launch. Returns the exit code."""
+    """Execute one task: resolve agent, build command, launch. Returns (exit_code, session_id)."""
     task_spec = Path(task_spec)
 
     try:
         text = task_spec.read_text(encoding="utf-8")
     except OSError:
         core.err(f"Task spec missing: {task_spec}")
-        return core.EXIT_USAGE
+        return core.EXIT_USAGE, None
     fm = core.parse_frontmatter(text)
     agent = fm.get("assignee", "")
     if not agent:
         core.err(f"No agent assigned to task: {task_name}")
-        return core.EXIT_USAGE
+        return core.EXIT_USAGE, None
 
     core.detail("agent", agent)
 
@@ -158,20 +203,20 @@ def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry
     if agent_spec is None:
         core.err(f"Agent spec not found: {agent}")
         core.err("  hint: check agents/ directory for available agent specs")
-        return core.EXIT_NOT_FOUND
+        return core.EXIT_NOT_FOUND, None
 
     tools = parse_allowed_tools(agent_spec)
     if not tools:
         core.err(f"No allowed-tools found in agent spec: {agent_spec}")
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
-        return core.EXIT_USAGE
+        return core.EXIT_USAGE, None
 
     prompt = (
         f"Execute task {task_name}. Read its spec at "
         f"artifacts/tasks/{task_name}.md and work through "
         f"the requirements."
     )
-    cmd = build_command(agent, tier, budget, turns, prompt, tools)
+    cmd = build_command(agent, tier, budget, turns, prompt, tools, output_format="stream-json")
 
     if dry_run:
         if json_output:
@@ -182,22 +227,26 @@ def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry
             }, indent=2))
         else:
             print(core.shlex_join(cmd))
-        return core.EXIT_OK
+        return core.EXIT_OK, None
 
     core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
     log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / f"{task_name}.json"
-    with open(log_file, "w") as f:
-        result = subprocess.run(cmd, cwd=str(root), stdout=f)
+    log_file = log_dir / f"{task_name}.jsonl"
+
+    rc, session_id, result_text = _stream_and_capture(cmd, root, log_file)
     core.detail("log", str(log_file.relative_to(root)))
-    return result.returncode if result.returncode == 0 else core.EXIT_AGENT_ERROR
+    if session_id:
+        core.detail("session", session_id)
+    if result_text:
+        print(result_text, file=sys.stderr)
+    return rc, session_id
 
 
 def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, budget, turns,
                   dry_run, json_output=False):
-    """Execute a single task, using execvp when possible (no queue to iterate)."""
+    """Execute a single task with stream-json capture."""
     tasks_dir = Path(tasks_dir)
     spec = tasks_dir / f"{task_name}.md"
 
@@ -229,7 +278,7 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
         f"artifacts/tasks/{task_name}.md and work through "
         f"the requirements."
     )
-    cmd = build_command(agent, tier, budget, turns, prompt, tools, output_format="text")
+    cmd = build_command(agent, tier, budget, turns, prompt, tools, output_format="stream-json")
 
     if dry_run:
         if json_output:
@@ -249,9 +298,24 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
     print(file=sys.stderr)
     core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
+    log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"{task_name}.jsonl"
+
     os.chdir(str(root))
-    os.execvp(cmd[0], cmd)
-    return core.EXIT_OK  # unreachable
+    rc, session_id, result_text = _stream_and_capture(cmd, root, log_file)
+
+    if result_text:
+        print(result_text, file=sys.stderr)
+    print(file=sys.stderr)
+    core.detail("log", str(log_file.relative_to(root)))
+    if session_id:
+        core.detail("session", session_id)
+        print(file=sys.stderr)
+        core.hint(f"Resume this session with:")
+        core.hint(f"  claude --resume {session_id}")
+
+    return rc
 
 
 # --- Command handlers ---------------------------------------------------------
@@ -325,6 +389,7 @@ def cmd_run(args, root, prefix):
             failed_count = 0
             remaining = len(subtasks)
             rc = core.EXIT_OK
+            last_session_id = None
 
             for sub_spec, sub_name in subtasks:
                 if completed >= max_tasks:
@@ -332,9 +397,11 @@ def cmd_run(args, root, prefix):
                 run_total = min(len(subtasks), max_tasks)
                 core.step(completed + 1, run_total, sub_name)
                 start = time.time()
-                rc = run_single_task(root, prefix, sub_spec, sub_name, tier, budget, turns,
-                                     dry_run, json_output=json_output)
+                rc, sid = run_single_task(root, prefix, sub_spec, sub_name, tier, budget, turns,
+                                          dry_run, json_output=json_output)
                 elapsed = time.time() - start
+                if sid:
+                    last_session_id = sid
                 if rc == core.EXIT_OK:
                     core.success(f"Done (exit 0, {core.format_duration(elapsed)})")
                     completed += 1
@@ -356,6 +423,7 @@ def cmd_run(args, root, prefix):
                 pending=remaining,
                 resume_cmd=f"openstation run --task {task_name}",
                 next_task=next_sub,
+                session_id=last_session_id,
             )
             return core.EXIT_OK if completed > 0 else core.EXIT_AGENT_ERROR
         else:

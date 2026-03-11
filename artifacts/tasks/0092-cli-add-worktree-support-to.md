@@ -2,7 +2,7 @@
 kind: task
 name: 0092-cli-add-worktree-support-to
 type: feature
-status: review
+status: failed
 assignee: developer
 owner: user
 created: 2026-03-10

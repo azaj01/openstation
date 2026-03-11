@@ -2,7 +2,7 @@
 kind: task
 name: 0093-rewrite-openstation-create-command-to
 type: implementation
-status: review
+status: done
 assignee: author
 owner: user
 created: 2026-03-10

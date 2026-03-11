@@ -459,7 +459,16 @@ def cmd_list(args, root, prefix):
     tasks = pull_in_subtasks(tasks, all_tasks)
     rows = group_tasks_for_display(tasks)
 
-    if getattr(args, "json", False):
+    if getattr(args, "vim", False):
+        if not rows:
+            print("no matching tasks")
+            return core.EXIT_OK
+        tasks_dir = core.tasks_dir_path(root, prefix)
+        files = [str(tasks_dir / f"{t['name']}.md") for t, _depth in rows]
+        editor = os.environ.get("EDITOR", "vim")
+        os.execvp(editor, [editor] + files)
+        return core.EXIT_OK
+    elif getattr(args, "json", False):
         task_list = []
         for t, _depth in rows:
             task_list.append({

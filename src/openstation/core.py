@@ -346,8 +346,9 @@ def format_duration(seconds):
     return f"{m}m {s:02d}s"
 
 
-def summary_block(completed, failed, pending, resume_cmd=None, next_task=None):
-    """Print a run summary block with counts and resume hint."""
+def summary_block(completed, failed, pending, resume_cmd=None, next_task=None,
+                  session_id=None):
+    """Print a run summary block with counts, session ID, and resume hint."""
     if not _quiet:
         print(file=sys.stderr)
     header("Summary")
@@ -357,6 +358,11 @@ def summary_block(completed, failed, pending, resume_cmd=None, next_task=None):
         failure(f"{failed} failed")
     if pending:
         remaining_line(f"{pending} remaining")
+    if session_id and not _quiet:
+        detail("session", session_id)
+        print(file=sys.stderr)
+        hint(f"Resume this session with:")
+        hint(f"  claude --resume {session_id}")
     if next_task and not _quiet:
         print(f"\n  Next: {next_task}", file=sys.stderr)
     if resume_cmd and pending > 0 and not _quiet:

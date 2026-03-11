@@ -31,6 +31,8 @@ examples:
   openstation list --status ready --assignee researcher
   openstation list -q --status ready        # one task name per line (pipe-friendly)
   openstation list --json                   # JSON array of task objects
+  openstation list --vim                    # open active tasks in vim
+  openstation list --status ready --vim     # open only ready tasks in vim
   openstation list 0042                     # show task 0042 and its subtask tree""")
     list_p.add_argument("filter", nargs="?", default=None,
                         help="Task ID/slug or assignee name (auto-detected)")
@@ -39,12 +41,15 @@ examples:
                              "(default: active = ready + in-progress + review)")
     list_p.add_argument("--assignee", default="",
                         help="Filter by assignee (exact match)")
-    list_p.add_argument("--json", action="store_true",
+    list_output = list_p.add_mutually_exclusive_group()
+    list_output.add_argument("-j", "--json", action="store_true",
                         help="Emit output as a JSON array of task objects")
+    list_output.add_argument("-q", "--quiet", action="store_true",
+                        help="Emit one task name per line, no header (pipe-friendly)")
+    list_output.add_argument("-v", "--vim", action="store_true",
+                        help="Open matching task files in vim as a buffer list")
     list_p.add_argument("--type", default=None,
                         help="Filter by type: feature|research|spec|implementation|documentation")
-    list_p.add_argument("-q", "--quiet", action="store_true",
-                        help="Emit one task name per line, no header (pipe-friendly)")
 
     # agents
     sub.add_parser("agents", help="List available agents", formatter_class=fmt, epilog="""\
@@ -61,9 +66,9 @@ examples:
   openstation show 0042 --json              # frontmatter + body as JSON
   openstation show 0042 --vim               # open in vim with markdown support""")
     show_p.add_argument("task", help="Task ID or slug (e.g. 0023, 23, or cli-feature-spec)")
-    show_p.add_argument("--json", action="store_true",
+    show_p.add_argument("-j", "--json", action="store_true",
                         help="Emit parsed frontmatter and body as a JSON object")
-    show_p.add_argument("--vim", action="store_true",
+    show_p.add_argument("-v", "--vim", action="store_true",
                         help="Open the task file in vim (markdown plugins work)")
 
     # create
@@ -128,7 +133,7 @@ examples:
                        help="Print command without executing")
     run_p.add_argument("-q", "--quiet", action="store_true",
                        help="Suppress progress output (errors still shown)")
-    run_p.add_argument("--json", action="store_true",
+    run_p.add_argument("-j", "--json", action="store_true",
                        help="With --dry-run, emit structured JSON instead of shell command")
 
     # init

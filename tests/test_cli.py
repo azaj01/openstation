@@ -2284,5 +2284,78 @@ class TestTypeField(unittest.TestCase):
         self.assertEqual(data[0]["type"], "spec")
 
 
+class TestListVim(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_list_vim_mutually_exclusive_with_json(self):
+        """--vim and --json cannot be combined."""
+        make_task(self.root, "0001-alpha", status="ready")
+        _, err, rc = run_cli(["list", "--vim", "--json"], cwd=self.tmpdir)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("not allowed", err)
+
+    def test_list_vim_mutually_exclusive_with_quiet(self):
+        """--vim and --quiet cannot be combined."""
+        make_task(self.root, "0001-alpha", status="ready")
+        _, err, rc = run_cli(["list", "--vim", "--quiet"], cwd=self.tmpdir)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("not allowed", err)
+
+    def test_list_vim_no_matching_tasks(self):
+        """--vim with no matching tasks prints message, exits 0."""
+        out, _, rc = run_cli(["list", "--vim", "--status", "done"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("no matching tasks", out)
+
+    def test_list_vim_calls_execvp(self):
+        """--vim launches editor with task file paths.
+
+        We can't test os.execvp directly from subprocess, so we set
+        EDITOR to echo and verify it receives the expected file paths.
+        """
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="ready")
+        env = dict(os.environ)
+        env["EDITOR"] = "echo"
+        out, _, rc = run_cli(["list", "--vim"], cwd=self.tmpdir, env=env)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha.md", out)
+        self.assertIn("0002-beta.md", out)
+
+    def test_list_vim_respects_status_filter(self):
+        """--vim with --status only opens filtered tasks."""
+        make_task(self.root, "0001-alpha", status="ready")
+        make_task(self.root, "0002-beta", status="done")
+        env = dict(os.environ)
+        env["EDITOR"] = "echo"
+        out, _, rc = run_cli(["list", "--vim", "--status", "ready"], cwd=self.tmpdir, env=env)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha.md", out)
+        self.assertNotIn("0002-beta.md", out)
+
+    def test_list_vim_respects_assignee_filter(self):
+        """--vim with --assignee only opens tasks for that assignee."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        make_task(self.root, "0002-beta", status="ready", assignee="author")
+        env = dict(os.environ)
+        env["EDITOR"] = "echo"
+        out, _, rc = run_cli(["list", "--vim", "--assignee", "researcher"], cwd=self.tmpdir, env=env)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha.md", out)
+        self.assertNotIn("0002-beta.md", out)
+
+    def test_list_vim_short_flag(self):
+        """-v short flag works for --vim."""
+        make_task(self.root, "0001-alpha", status="ready")
+        env = dict(os.environ)
+        env["EDITOR"] = "echo"
+        out, _, rc = run_cli(["list", "-v"], cwd=self.tmpdir, env=env)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-alpha.md", out)
+
+
 if __name__ == "__main__":
     unittest.main()

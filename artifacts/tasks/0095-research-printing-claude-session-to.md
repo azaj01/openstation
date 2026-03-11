@@ -2,7 +2,7 @@
 kind: task
 name: 0095-research-printing-claude-session-to
 type: research
-status: review
+status: done
 assignee: researcher
 owner: user
 parent: "[[0078-improve-run-command-readability-and]]"

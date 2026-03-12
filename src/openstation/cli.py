@@ -51,10 +51,34 @@ examples:
     list_p.add_argument("--type", default=None,
                         help="Filter by type: feature|research|spec|implementation|documentation")
 
-    # agents
-    sub.add_parser("agents", help="List available agents", formatter_class=fmt, epilog="""\
+    # agents (with sub-actions: list, show)
+    agents_p = sub.add_parser("agents", aliases=["ag"], help="Agent operations", formatter_class=fmt, epilog="""\
 examples:
-  openstation agents                        # list all agent specs""")
+  openstation agents                        # list all agents (default)
+  openstation agents list                   # same as bare 'agents'
+  openstation agents list --json            # JSON array of agent objects
+  openstation agents list --quiet           # one name per line (pipe-friendly)
+  openstation agents show researcher        # print full agent spec
+  openstation agents show researcher --json # frontmatter + body as JSON
+  openstation agents show researcher --vim  # open in editor""")
+    agents_sub = agents_p.add_subparsers(dest="agents_action")
+
+    # agents list (also the default when no sub-action given)
+    agents_list_p = agents_sub.add_parser("list", help="List agents")
+    agents_list_output = agents_list_p.add_mutually_exclusive_group()
+    agents_list_output.add_argument("-j", "--json", action="store_true",
+                        help="Emit JSON array of agent objects")
+    agents_list_output.add_argument("-q", "--quiet", action="store_true",
+                        help="One agent name per line (pipe-friendly)")
+
+    # agents show
+    agents_show_p = agents_sub.add_parser("show", help="Show agent spec")
+    agents_show_p.add_argument("name", help="Agent name")
+    agents_show_output = agents_show_p.add_mutually_exclusive_group()
+    agents_show_output.add_argument("-j", "--json", action="store_true",
+                        help="Emit parsed frontmatter + body as JSON object")
+    agents_show_output.add_argument("-v", "--vim", action="store_true",
+                        help="Open the agent spec file in editor")
 
     # show
     show_p = sub.add_parser("show", help="Show a task spec", formatter_class=fmt, epilog="""\
@@ -108,33 +132,35 @@ Two modes of operation:
   By-task:   openstation run --task <id>      Execute a specific task
 
 examples:
-  openstation run researcher                # launch researcher agent
-  openstation run researcher --dry-run      # show command without executing
-  openstation run --task 0042 --dry-run     # preview task execution command
-  openstation run --task 0042 --force       # skip status check
-  openstation run --task 0042 --tier 1      # interactive mode
+  openstation run researcher --attached       # interactive agent session
+  openstation run --task 0042 --attached      # interactive task session
+  openstation run --task 0042                 # autonomous (detached)
+  openstation run --task 0042 --attached --dry-run  # preview attached command
+  openstation run researcher --dry-run        # show command without executing
   openstation run --task 42 --dry-run --json  # structured JSON dry-run output""")
     run_p.add_argument("agent", nargs="?", default=None,
                        help="Agent name or task ID (auto-detected: numeric prefix → task)")
     run_p.add_argument("--task", default=None,
                        help="Task ID or slug (explicit, same as positional)")
-    run_p.add_argument("--tier", type=int, default=run.DEFAULT_TIER,
-                       choices=[1, 2],
-                       help="Execution tier: 1=interactive, 2=autonomous (default: 2)")
+    run_p.add_argument("-a", "--attached", action="store_true",
+                       help="Interactive mode (replace process, no log capture)")
     run_p.add_argument("--budget", type=float, default=run.DEFAULT_BUDGET,
-                       help="Max USD per invocation (tier 2, default: 5)")
+                       help="Max USD per invocation (detached only, default: 5)")
     run_p.add_argument("--turns", type=int, default=run.DEFAULT_TURNS,
-                       help="Max turns per invocation (tier 2, default: 50)")
+                       help="Max turns per invocation (detached only, default: 50)")
     run_p.add_argument("--max-tasks", type=int, default=run.DEFAULT_MAX_TASKS,
-                       help="Max subtasks to execute (by-task, default: 1)")
+                       help="Max subtasks to execute (detached only, default: 1)")
     run_p.add_argument("--force", action="store_true",
                        help="Skip task status checks")
     run_p.add_argument("--dry-run", action="store_true",
                        help="Print command without executing")
     run_p.add_argument("-q", "--quiet", action="store_true",
-                       help="Suppress progress output (errors still shown)")
+                       help="Suppress progress output (detached only)")
     run_p.add_argument("-j", "--json", action="store_true",
-                       help="With --dry-run, emit structured JSON instead of shell command")
+                       help="Structured JSON dry-run output (detached only)")
+    run_p.add_argument("--dangerously-skip-permissions", "-dsp", action="store_true",
+                       default=False,
+                       help="Pass --dangerously-skip-permissions to claude")
 
     # init
     init_p = sub.add_parser("init", help="Initialize Open Station in current directory",
@@ -143,12 +169,15 @@ examples:
   openstation init                          # full init with all agents
   openstation init --agents researcher,author
   openstation init --no-agents
+  openstation init --user                   # install to ~/.claude/ instead
   openstation init --dry-run                # preview without writing""")
     agent_grp = init_p.add_mutually_exclusive_group()
     agent_grp.add_argument("--agents", default=None, metavar="NAMES",
                            help="Comma-separated agent names to install (default: all)")
     agent_grp.add_argument("--no-agents", action="store_true",
                            help="Skip installing example agent specs")
+    init_p.add_argument("--user", action="store_true",
+                        help="Install .claude/ files to ~/.claude/ (user-level)")
     init_p.add_argument("--dry-run", action="store_true",
                         help="Show what would be done without writing")
     init_p.add_argument("--force", action="store_true",
@@ -172,8 +201,12 @@ examples:
 
     if args.command == "list":
         return tasks.cmd_list(args, root, prefix) or 0
-    elif args.command == "agents":
-        return run.cmd_agents(args, root, prefix) or 0
+    elif args.command in ("agents", "ag"):
+        action = getattr(args, "agents_action", None)
+        if action is None or action == "list":
+            return run.cmd_agents_list(args, root, prefix) or 0
+        elif action == "show":
+            return run.cmd_agents_show(args, root, prefix)
     elif args.command == "show":
         return tasks.cmd_show(args, root, prefix)
     elif args.command == "create":

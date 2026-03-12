@@ -37,7 +37,6 @@ INIT_GITKEEP_DIRS = [
 
 INIT_COMMANDS = [
     "commands/openstation.create.md",
-    "commands/openstation.dispatch.md",
     "commands/openstation.done.md",
     "commands/openstation.list.md",
     "commands/openstation.ready.md",
@@ -258,19 +257,101 @@ def _create_claude_symlinks(dry_run):
         _init_info(".claude/skills → ../.openstation/skills")
 
 
+def _create_user_symlinks(source_dir, dry_run, force):
+    """Install .claude/ discovery files to ~/.claude/ (user-level).
+
+    Creates symlinks under ~/.claude/commands/ and ~/.claude/agents/
+    pointing to the vault's canonical files in *source_dir*.
+    """
+    user_claude = Path.home() / ".claude"
+    source = Path(source_dir)
+
+    print()
+    print("\033[1mOpen Station — user-level install\033[0m")
+    print()
+
+    # ── commands ────────────────────────────────────────────────
+    print("Installing commands to ~/.claude/commands/ ...")
+    cmd_dir = user_claude / "commands"
+    if not dry_run:
+        cmd_dir.mkdir(parents=True, exist_ok=True)
+
+    for f in INIT_COMMANDS:
+        fname = Path(f).name
+        link = cmd_dir / fname
+        target = source / f
+        if link.is_symlink() or link.is_file():
+            if not force and link.is_symlink():
+                _init_skip(f"~/.claude/commands/{fname} (exists, skipped)", dry_run)
+                continue
+            if not dry_run:
+                link.unlink()
+        if not dry_run:
+            os.symlink(str(target.resolve()), str(link))
+        _init_info(f"~/.claude/commands/{fname} → {target}", dry_run)
+
+    # ── agents ──────────────────────────────────────────────────
+    print("Installing agents to ~/.claude/agents/ ...")
+    agents_dir = user_claude / "agents"
+    if not dry_run:
+        agents_dir.mkdir(parents=True, exist_ok=True)
+
+    # Discover agent specs from the source vault
+    src_agents = source / "agents"
+    if src_agents.is_dir():
+        for spec in sorted(src_agents.glob("*.md")):
+            # Resolve through symlinks to get the real spec file
+            real = spec.resolve()
+            link = agents_dir / spec.name
+            if link.is_symlink() or link.is_file():
+                if not force and link.is_symlink():
+                    _init_skip(f"~/.claude/agents/{spec.name} (exists, skipped)", dry_run)
+                    continue
+                if not dry_run:
+                    link.unlink()
+            if not dry_run:
+                os.symlink(str(real), str(link))
+            _init_info(f"~/.claude/agents/{spec.name} → {real}", dry_run)
+
+    # ── skills ──────────────────────────────────────────────────
+    print("Installing skills to ~/.claude/skills/ ...")
+    skills_dir = user_claude / "skills"
+    if not dry_run:
+        skills_dir.mkdir(parents=True, exist_ok=True)
+
+    for f in INIT_SKILLS:
+        parts = Path(f).parts
+        if len(parts) >= 2 and parts[0] == "skills":
+            skill_name = parts[1]
+            link = skills_dir / skill_name
+            target = source / "skills" / skill_name
+            if link.is_symlink() or link.is_dir():
+                if not force and link.is_symlink():
+                    _init_skip(f"~/.claude/skills/{skill_name} (exists, skipped)", dry_run)
+                    continue
+                if not dry_run:
+                    if link.is_symlink():
+                        link.unlink()
+                    elif link.is_dir():
+                        shutil.rmtree(str(link))
+            if not dry_run:
+                os.symlink(str(target.resolve()), str(link))
+            _init_info(f"~/.claude/skills/{skill_name} → {target}", dry_run)
+
+    print()
+    print("\033[1;32mUser-level .claude/ files installed.\033[0m")
+    print()
+
+    return core.EXIT_OK
+
+
 def cmd_init(args):
     """Handle the init subcommand."""
     no_agents = args.no_agents
     agents_filter = args.agents
     dry_run = args.dry_run
     force = args.force
-
-    cwd = Path.cwd()
-    if (cwd / "agents").is_dir() and (cwd / "install.sh").is_file():
-        _init_err("Cannot init inside the Open Station source repo.")
-        return core.EXIT_SOURCE_GUARD
-
-    is_reinit = (cwd / ".openstation").is_dir()
+    user_mode = args.user
 
     source_dir = OPENSTATION_HOME
     if not source_dir.is_dir():
@@ -289,6 +370,17 @@ def cmd_init(args):
         return core.EXIT_USAGE
 
     source_dir_str = str(source_dir.resolve())
+
+    # --user: install .claude/ files to user-level config and return early
+    if user_mode:
+        return _create_user_symlinks(source_dir_str, dry_run, force)
+
+    cwd = Path.cwd()
+    if (cwd / "agents").is_dir() and (cwd / "install.sh").is_file():
+        _init_err("Cannot init inside the Open Station source repo.")
+        return core.EXIT_SOURCE_GUARD
+
+    is_reinit = (cwd / ".openstation").is_dir()
 
     try:
         subprocess.run(

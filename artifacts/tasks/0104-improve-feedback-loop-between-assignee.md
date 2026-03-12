@@ -2,9 +2,11 @@
 kind: task
 name: 0104-improve-feedback-loop-between-assignee
 type: spec
-status: ready
+status: review
 assignee: architect
 owner: user
+artifacts:
+  - "[[artifacts/specs/assignee-reviewer-feedback-loop]]"
 created: 2026-03-10
 ---
 
@@ -29,6 +31,38 @@ Define conventions and/or task spec changes that improve communication between t
 3. How should the assignee flag downstream work (docs needed, follow-up tasks)?
 4. What changes to `docs/task.spec.md` and `docs/lifecycle.md` are needed?
 5. Should verification checklists include a "findings written" item by convention?
+
+## Findings
+
+Designed 5 changes to close the feedback gap between assignees
+and reviewers:
+
+1. **`## Findings` becomes required for all task types** — not
+   just research/spec. Implementation tasks must summarize what
+   was built, design decisions, and gotchas. Type-specific
+   guidance tells agents what to include.
+
+2. **New `## Downstream` optional section** — assignees flag
+   follow-up work (docs needed, behavior changes, gaps noticed)
+   so reviewers discover them before the agent session ends.
+
+3. **Pre-review checklist in `lifecycle.md`** — a concrete gate
+   before `in-progress → review`: findings written, downstream
+   flagged, artifacts stored.
+
+4. **Verification convention** — new tasks SHOULD include a
+   "Findings section documents what was done" verification item.
+
+5. **Execute skill update** — remove the "skip for implementation
+   tasks" escape hatch, add type-specific guidance, add a new
+   "Flag Downstream Work" step.
+
+The root cause was that the execute skill explicitly told
+implementation agents to skip findings. Removing that single
+escape hatch, combined with type-specific guidance, addresses
+all three user stories.
+
+Full spec: `artifacts/specs/assignee-reviewer-feedback-loop.md`
 
 ## Verification
 

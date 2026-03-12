@@ -19,7 +19,7 @@ Generate a new task spec from a description.
    everything and present a complete draft in one message. Do not
    create files yet.
 
-   Run `openstation agents` to get the agent list, then present:
+   Run `openstation agents list` to get the agent list, then present:
 
    - **Type** — infer from keywords in the description. Use
      `type` values: `feature`, `research`, `spec`,

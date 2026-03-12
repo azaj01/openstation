@@ -734,7 +734,7 @@ class TestRunDryRun(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
         make_agent_spec(self.root, "researcher")
 
-    def test_by_agent_tier2_dry_run(self):
+    def test_by_agent_detached_dry_run(self):
         out, _, rc = run_cli(["run", "researcher", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("claude", out)
@@ -745,15 +745,17 @@ class TestRunDryRun(unittest.TestCase):
         self.assertIn("--max-turns 50", out)
         self.assertIn("--output-format text", out)
 
-    def test_by_agent_tier1_dry_run(self):
-        out, _, rc = run_cli(["run", "researcher", "--tier", "1", "--dry-run"], cwd=self.tmpdir)
+    def test_by_agent_attached_dry_run(self):
+        out, _, rc = run_cli(["run", "researcher", "--attached", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("claude", out)
         self.assertIn("--agent researcher", out)
-        self.assertIn("--permission-mode acceptEdits", out)
-        # Tier 1 should NOT include budget/turns/allowedTools
-        self.assertNotIn("--allowedTools", out)
+        self.assertIn("--allowedTools", out)
+        # Attached mode should NOT include budget/turns/output-format/-p
         self.assertNotIn("--max-budget-usd", out)
+        self.assertNotIn("--max-turns", out)
+        self.assertNotIn("--output-format", out)
+        self.assertNotIn(" -p ", out)
 
     def test_by_agent_custom_budget_turns(self):
         out, _, rc = run_cli(
@@ -807,9 +809,66 @@ class TestRunArgValidation(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("Agent name or --task is required", stderr)
 
-    def test_invalid_tier(self):
+    def test_attached_with_json_errors(self):
+        make_agent_spec(self.root, "researcher")
         _, stderr, rc = run_cli(
-            ["run", "researcher", "--tier", "3", "--dry-run"],
+            ["run", "researcher", "--attached", "--json", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("JSON output not supported in attached mode", stderr)
+
+    def test_attached_with_quiet_errors(self):
+        make_agent_spec(self.root, "researcher")
+        _, stderr, rc = run_cli(
+            ["run", "researcher", "--attached", "--quiet", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("Quiet mode not supported in attached mode", stderr)
+
+    def test_attached_with_subtasks_errors(self):
+        make_agent_spec(self.root, "researcher")
+        make_task(self.root, "0001-parent", status="ready", assignee="researcher",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="ready", assignee="researcher")
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001-parent", "--attached", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("Attached mode requires a single task", stderr)
+        self.assertIn("1 ready subtask", stderr)
+
+    def test_attached_by_task_dry_run(self):
+        make_agent_spec(self.root, "researcher")
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--attached", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("claude", out)
+        self.assertIn("--agent researcher", out)
+        self.assertIn("--allowedTools", out)
+        # Attached: prompt is positional, no -p
+        self.assertIn("0001-alpha", out)
+        self.assertNotIn("--max-budget-usd", out)
+        self.assertNotIn("--output-format", out)
+
+    def test_attached_budget_warns(self):
+        make_agent_spec(self.root, "researcher")
+        _, stderr, rc = run_cli(
+            ["run", "researcher", "--attached", "--budget", "10", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--budget is ignored in attached mode", stderr)
+
+    def test_tier_flag_rejected(self):
+        """--tier flag should no longer be accepted."""
+        _, stderr, rc = run_cli(
+            ["run", "researcher", "--tier", "1", "--dry-run"],
             cwd=self.tmpdir,
         )
         self.assertNotEqual(rc, 0)
@@ -1386,7 +1445,7 @@ def make_local_source(tmpdir):
     (src / "docs" / "task.spec.md").write_text("# Task Spec\n")
     (src / "commands").mkdir()
     for cmd in [
-        "openstation.create.md", "openstation.dispatch.md",
+        "openstation.create.md",
         "openstation.done.md", "openstation.list.md",
         "openstation.ready.md", "openstation.reject.md",
         "openstation.show.md", "openstation.update.md",
@@ -1606,6 +1665,115 @@ class TestInitCommand(unittest.TestCase):
         """--agents and --no-agents are mutually exclusive."""
         _, stderr, rc = self._run_init(["--agents", "researcher", "--no-agents"])
         self.assertNotEqual(rc, 0)
+
+
+# ── Init --user Tests ────────────────────────────────────────────────
+
+
+class TestInitUserMode(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.target = Path(self.tmpdir) / "project"
+        self.target.mkdir()
+        self.local_src = make_local_source(self.tmpdir)
+        self.env = os.environ.copy()
+        self.env["OPENSTATION_DIR"] = self.local_src
+        # Use a fake HOME so we don't touch the real ~/.claude/
+        self.fake_home = Path(self.tmpdir) / "home"
+        self.fake_home.mkdir()
+        self.env["HOME"] = str(self.fake_home)
+
+    def _run_init(self, extra_args=None):
+        args = ["init", "--user"] + (extra_args or [])
+        return run_cli(args, cwd=str(self.target), env=self.env)
+
+    def test_user_creates_command_symlinks(self):
+        """--user creates command symlinks under ~/.claude/commands/."""
+        out, _, rc = self._run_init()
+        self.assertEqual(rc, 0, f"stdout: {out}")
+        cmd_dir = self.fake_home / ".claude" / "commands"
+        self.assertTrue(cmd_dir.is_dir())
+        link = cmd_dir / "openstation.create.md"
+        self.assertTrue(link.is_symlink())
+        # Symlink target should resolve to the source commands dir
+        self.assertTrue(link.resolve().is_file())
+
+    def test_user_creates_agent_symlinks(self):
+        """--user creates agent symlinks under ~/.claude/agents/."""
+        # The source needs agents/ discovery dir with symlinks
+        src = Path(self.local_src)
+        agents_dir = src / "agents"
+        agents_dir.mkdir(exist_ok=True)
+        artifacts_dir = src / "artifacts" / "agents"
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        for name in ["researcher", "author"]:
+            spec = artifacts_dir / f"{name}.md"
+            spec.write_text(f"---\nkind: agent\nname: {name}\n---\n")
+            link = agents_dir / f"{name}.md"
+            os.symlink(f"../artifacts/agents/{name}.md", str(link))
+
+        out, _, rc = self._run_init()
+        self.assertEqual(rc, 0, f"stdout: {out}")
+        ua_dir = self.fake_home / ".claude" / "agents"
+        self.assertTrue(ua_dir.is_dir())
+        link = ua_dir / "researcher.md"
+        self.assertTrue(link.is_symlink())
+        self.assertTrue(link.resolve().is_file())
+
+    def test_user_creates_skill_symlinks(self):
+        """--user creates skill symlinks under ~/.claude/skills/."""
+        out, _, rc = self._run_init()
+        self.assertEqual(rc, 0, f"stdout: {out}")
+        skills_dir = self.fake_home / ".claude" / "skills"
+        self.assertTrue(skills_dir.is_dir())
+        link = skills_dir / "openstation-execute"
+        self.assertTrue(link.is_symlink())
+
+    def test_user_skips_project_level(self):
+        """--user does NOT create .openstation/ in the project."""
+        self._run_init()
+        self.assertFalse((self.target / ".openstation").is_dir())
+
+    def test_user_dry_run(self):
+        """--user --dry-run previews without writing."""
+        out, _, rc = self._run_init(["--dry-run"])
+        self.assertEqual(rc, 0)
+        self.assertIn("[would]", out)
+        self.assertFalse((self.fake_home / ".claude" / "commands").is_dir())
+
+    def test_user_force_overwrites(self):
+        """--user --force overwrites existing symlinks."""
+        self._run_init()
+        link = self.fake_home / ".claude" / "commands" / "openstation.create.md"
+        # Replace with a regular file
+        link.unlink()
+        link.write_text("custom")
+
+        out, _, rc = self._run_init(["--force"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(link.is_symlink())
+
+    def test_user_skips_existing_without_force(self):
+        """--user without --force skips existing symlinks."""
+        self._run_init()
+        out, _, rc = self._run_init()
+        self.assertEqual(rc, 0)
+        self.assertIn("skipped", out)
+
+    def test_default_init_unchanged(self):
+        """Default init (no --user) still works as before."""
+        args = ["init"]
+        out, _, rc = run_cli(args, cwd=str(self.target), env=self.env)
+        self.assertEqual(rc, 0, f"stdout: {out}")
+        self.assertTrue((self.target / ".openstation").is_dir())
+        self.assertFalse((self.fake_home / ".claude" / "commands").is_dir())
+
+    def test_user_output_mentions_user_level(self):
+        """--user output indicates user-level install."""
+        out, _, rc = self._run_init()
+        self.assertEqual(rc, 0)
+        self.assertIn("user-level", out.lower())
 
 
 # ── JSON Output Tests ────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 ---
 kind: task
 name: 0076-improve-readme-presentation-and-explanation
-status: ready
+status: in-progress
 assignee: author
 owner: user
 created: 2026-03-08

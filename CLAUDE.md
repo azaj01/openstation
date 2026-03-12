@@ -57,7 +57,7 @@ this source repo they live at the root.
 │  openstation.done.md    ──► lifecycle.md │
 │  openstation.update.md  ──► lifecycle.md │
 │  openstation.list.md                     │
-│  openstation.dispatch.md──► agents/      │
+│  openstation.verify.md                   │
 └─────────────────────────────────────────┘
 ```
 
@@ -91,16 +91,21 @@ The `openstation` CLI provides scriptable access to the vault:
 
 ```
 openstation list [--status <s>] [--assignee <name>]
-openstation agents
 openstation show <task>
 openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>] [--parent <p>]
 openstation status <task> <new-status>
+openstation run <agent> [--attached] [--dry-run]
+openstation run --task <id> [--attached] [--dry-run]
+openstation agents [list] [--json | --quiet]
+openstation agents show <name> [--json | --vim]
 ```
 
-## Dispatching an Agent
+## Running an Agent
 
 ```bash
-claude --agent researcher
+openstation run researcher --attached      # interactive session
+openstation run --task 0042 --attached     # interactive task session
+openstation run --task 0042                # autonomous (detached)
 ```
 
 The agent auto-loads the `openstation-executor` skill (via the
@@ -156,9 +161,10 @@ Do not update CHANGELOG.md unless creating a new release.
 
 Create a task:  `/openstation.create <description>`
 List tasks:     `/openstation.list`
-List agents:    `openstation agents`
+List agents:    `openstation agents list`
+Show agent:     `openstation agents show <name>`
+Run agent:      `openstation run <agent> --attached`
 Update a task:  `/openstation.update <name> field:value`
-Run an agent:   `claude --agent <name>`
 Complete task:  `/openstation.done <name>`
 
 All relationships (parent/child, task/artifact) are encoded in

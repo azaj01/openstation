@@ -64,6 +64,10 @@ def err(msg):
     print(f"error: {msg}", file=sys.stderr)
 
 
+def warn(msg):
+    print(f"warning: {msg}", file=sys.stderr)
+
+
 # --- Vault discovery ----------------------------------------------------------
 
 def _check_dir(d):

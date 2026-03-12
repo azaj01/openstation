@@ -32,7 +32,8 @@ failed → in-progress     (agent reworks)
 - `backlog → ready` is only allowed via `/openstation.ready`,
   which validates requirements and updates the status.
 - `review → done` is only allowed via `/openstation.done`, which
-  completes the task in one step.
+  completes the task in one step. Use `/openstation.verify` first
+  to check each verification item against the implementation.
 - `review → failed` is only allowed via `/openstation.reject`,
   which records the rejection reason and marks the task failed.
 - Agents must NOT self-verify their own work. After completing

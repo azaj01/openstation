@@ -12,7 +12,6 @@ from pathlib import Path
 from openstation import core
 from openstation import tasks
 
-DEFAULT_TIER = 2
 DEFAULT_BUDGET = 5
 DEFAULT_TURNS = 50
 DEFAULT_MAX_TASKS = 1
@@ -111,20 +110,29 @@ def parse_allowed_tools(spec_path):
     return tools
 
 
-def build_command(agent_name, tier, budget, turns, prompt, tools, output_format="json"):
-    """Assemble the claude CLI argv for the given tier."""
-    if tier == 1:
-        return [
-            "claude",
-            "--agent", agent_name,
-            "--permission-mode", "acceptEdits",
-        ]
+def build_command(agent_name, budget, turns, prompt, tools,
+                  output_format="json", attached=False,
+                  dangerously_skip_permissions=False):
+    """Assemble the claude CLI argv."""
+    if attached:
+        cmd = ["claude", "--agent", agent_name]
+        if dangerously_skip_permissions:
+            cmd.append("--dangerously-skip-permissions")
+        cmd.append("--allowedTools")
+        cmd.extend(tools)
+        if prompt:
+            cmd.extend(["--", prompt])  # -- separates options from positional prompt
+        return cmd
+
+    # Detached (autonomous) mode
     cmd = [
         "claude",
         "-p", prompt,
         "--agent", agent_name,
-        "--allowedTools",
     ]
+    if dangerously_skip_permissions:
+        cmd.append("--dangerously-skip-permissions")
+    cmd.append("--allowedTools")
     cmd.extend(tools)
     cmd.extend([
         "--max-budget-usd", str(budget),
@@ -181,8 +189,8 @@ def _stream_and_capture(cmd, cwd, log_file):
 
 # --- Execution ----------------------------------------------------------------
 
-def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry_run,
-                    json_output=False):
+def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
+                    json_output=False, dangerously_skip_permissions=False):
     """Execute one task: resolve agent, build command, launch. Returns (exit_code, session_id)."""
     task_spec = Path(task_spec)
 
@@ -216,7 +224,8 @@ def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry
         f"artifacts/tasks/{task_name}.md and work through "
         f"the requirements."
     )
-    cmd = build_command(agent, tier, budget, turns, prompt, tools, output_format="stream-json")
+    cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
+                        dangerously_skip_permissions=dangerously_skip_permissions)
 
     if dry_run:
         if json_output:
@@ -244,8 +253,9 @@ def run_single_task(root, prefix, task_spec, task_name, tier, budget, turns, dry
     return rc, session_id
 
 
-def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, budget, turns,
-                  dry_run, json_output=False):
+def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget, turns,
+                  dry_run, json_output=False, attached=False,
+                  dangerously_skip_permissions=False):
     """Execute a single task with stream-json capture."""
     tasks_dir = Path(tasks_dir)
     spec = tasks_dir / f"{task_name}.md"
@@ -278,7 +288,29 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
         f"artifacts/tasks/{task_name}.md and work through "
         f"the requirements."
     )
-    cmd = build_command(agent, tier, budget, turns, prompt, tools, output_format="stream-json")
+
+    if attached:
+        cmd = build_command(agent, budget, turns, prompt, tools, attached=True,
+                            dangerously_skip_permissions=dangerously_skip_permissions)
+        if dry_run:
+            if json_output:
+                print(json.dumps({
+                    "command": cmd,
+                    "task": task_name,
+                    "agent": agent,
+                }, indent=2))
+            else:
+                print(core.shlex_join(cmd))
+            return core.EXIT_OK
+        core.header(f"openstation run --task {task_name} --attached")
+        core.detail("Task", task_name)
+        core.detail("Agent", agent)
+        core.detail("Mode", "attached")
+        os.execvp(cmd[0], cmd)
+        return core.EXIT_OK  # unreachable
+
+    cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
+                        dangerously_skip_permissions=dangerously_skip_permissions)
 
     if dry_run:
         if json_output:
@@ -294,7 +326,7 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
     core.header(f"openstation run --task {task_name}")
     core.detail("Task", task_name)
     core.detail("Agent", agent)
-    core.detail("Tier", str(tier))
+    core.detail("Mode", "detached")
     print(file=sys.stderr)
     core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
@@ -320,13 +352,61 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, tier, 
 
 # --- Command handlers ---------------------------------------------------------
 
-def cmd_agents(args, root, prefix):
-    """Handle the agents subcommand."""
+def cmd_agents_list(args, root, prefix):
+    """Handle 'agents list' (and bare 'agents')."""
     agents = discover_agents(root, prefix)
     agents.sort(key=lambda a: a["name"])
-    output = format_agents_table(agents)
-    if output:
-        print(output)
+
+    if getattr(args, "json", False):
+        print(json.dumps(agents, indent=2))
+    elif getattr(args, "quiet", False):
+        for a in agents:
+            print(a["name"])
+    else:
+        output = format_agents_table(agents)
+        if output:
+            print(output)
+
+
+def _find_agent_artifact(root, prefix, name):
+    """Locate an agent spec in artifacts/agents/. Returns Path or None."""
+    if prefix:
+        p = Path(root) / prefix / "artifacts" / "agents" / f"{name}.md"
+    else:
+        p = Path(root) / "artifacts" / "agents" / f"{name}.md"
+    return p if p.is_file() else None
+
+
+def _agent_not_found(name, root, prefix):
+    """Print not-found error with available agents hint. Returns exit code."""
+    core.err(f"Agent not found: {name}")
+    agents = discover_agents(root, prefix)
+    if agents:
+        core.err(f"  available: {', '.join(a['name'] for a in sorted(agents, key=lambda a: a['name']))}")
+    return core.EXIT_NOT_FOUND
+
+
+def cmd_agents_show(args, root, prefix):
+    """Handle 'agents show <name>'."""
+    name = args.name
+    spec_path = _find_agent_artifact(root, prefix, name)
+    if spec_path is None:
+        return _agent_not_found(name, root, prefix)
+
+    text = spec_path.read_text(encoding="utf-8")
+
+    if getattr(args, "vim", False):
+        editor = os.environ.get("EDITOR", "vim")
+        os.execvp(editor, [editor, str(spec_path)])
+        return core.EXIT_OK  # unreachable
+
+    if getattr(args, "json", False):
+        fm = core.parse_frontmatter_for_json(text)
+        fm["body"] = core.extract_body(text)
+        print(json.dumps(fm, indent=2))
+    else:
+        print(text)
+    return core.EXIT_OK
 
 
 def cmd_run(args, root, prefix):
@@ -353,13 +433,29 @@ def cmd_run(args, root, prefix):
         core.err("  hint: install Claude Code CLI: https://docs.anthropic.com/en/docs/claude-code")
         return core.EXIT_NO_CLAUDE
 
-    tier = args.tier
+    attached = getattr(args, "attached", False)
     budget = args.budget
     turns = args.turns
     dry_run = args.dry_run
     force = args.force
     max_tasks = args.max_tasks
     json_output = getattr(args, "json", False)
+    skip_perms = getattr(args, "dangerously_skip_permissions", False)
+
+    # --- Attached mode incompatibility checks ---
+    if attached:
+        if json_output:
+            core.err("JSON output not supported in attached mode")
+            return core.EXIT_USAGE
+        if getattr(args, "quiet", False):
+            core.err("Quiet mode not supported in attached mode")
+            return core.EXIT_USAGE
+        if args.budget != DEFAULT_BUDGET:
+            core.warn("--budget is ignored in attached mode")
+        if args.turns != DEFAULT_TURNS:
+            core.warn("--turns is ignored in attached mode")
+        if args.max_tasks != DEFAULT_MAX_TASKS:
+            core.warn("--max-tasks is ignored in attached mode")
 
     if task_ref:
         # --- BY-TASK MODE ---
@@ -383,6 +479,14 @@ def cmd_run(args, root, prefix):
 
         subtasks = tasks.find_ready_subtasks(tdir, task_name, force=force)
 
+        if attached and subtasks:
+            core.err(
+                f"Attached mode requires a single task. "
+                f"This task has {len(subtasks)} ready subtask(s). "
+                f"Use --task <subtask-id> to target one."
+            )
+            return core.EXIT_USAGE
+
         if subtasks:
             core.info(f"Found {len(subtasks)} ready subtask(s)")
             completed = 0
@@ -397,8 +501,9 @@ def cmd_run(args, root, prefix):
                 run_total = min(len(subtasks), max_tasks)
                 core.step(completed + 1, run_total, sub_name)
                 start = time.time()
-                rc, sid = run_single_task(root, prefix, sub_spec, sub_name, tier, budget, turns,
-                                          dry_run, json_output=json_output)
+                rc, sid = run_single_task(root, prefix, sub_spec, sub_name, budget, turns,
+                                          dry_run, json_output=json_output,
+                                          dangerously_skip_permissions=skip_perms)
                 elapsed = time.time() - start
                 if sid:
                     last_session_id = sid
@@ -428,8 +533,9 @@ def cmd_run(args, root, prefix):
             return core.EXIT_OK if completed > 0 else core.EXIT_AGENT_ERROR
         else:
             core.info("No subtasks found, executing task directly")
-            return _exec_or_run(root, prefix, tdir, task_name, agent_name, tier, budget, turns,
-                                dry_run, json_output=json_output)
+            return _exec_or_run(root, prefix, tdir, task_name, agent_name, budget, turns,
+                                dry_run, json_output=json_output, attached=attached,
+                                dangerously_skip_permissions=skip_perms)
     else:
         # --- BY-AGENT MODE ---
         agent_spec = find_agent_spec(root, prefix, agent_name)
@@ -444,8 +550,28 @@ def cmd_run(args, root, prefix):
             core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
             return core.EXIT_USAGE
 
+        if attached:
+            cmd = build_command(agent_name, budget, turns, None, tools, attached=True,
+                                dangerously_skip_permissions=skip_perms)
+            if dry_run:
+                if json_output:
+                    print(json.dumps({
+                        "command": cmd,
+                        "agent": agent_name,
+                    }, indent=2))
+                else:
+                    print(core.shlex_join(cmd))
+                return core.EXIT_OK
+            core.header(f"openstation run {agent_name} --attached")
+            core.detail("Agent", agent_name)
+            core.detail("Mode", "attached")
+            os.chdir(str(root))
+            os.execvp(cmd[0], cmd)
+            return core.EXIT_OK  # unreachable
+
         prompt = "Execute your ready tasks."
-        cmd = build_command(agent_name, tier, budget, turns, prompt, tools, output_format="text")
+        cmd = build_command(agent_name, budget, turns, prompt, tools, output_format="text",
+                            dangerously_skip_permissions=skip_perms)
 
         if dry_run:
             if json_output:

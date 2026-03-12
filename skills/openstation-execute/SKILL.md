@@ -34,10 +34,13 @@ Prefer it for discovery, inspection, and status transitions:
 
 ```
 openstation list [--status <s>] [--assignee <name>]
-openstation agents
 openstation show <task>
 openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>] [--parent <p>]
 openstation status <task> <new-status>
+openstation run <agent> [--attached] [--dry-run]
+openstation run --task <id> [--attached] [--dry-run]
+openstation agents [list] [--json | --quiet]
+openstation agents show <name> [--json | --vim]
 ```
 
 **Always call `openstation` directly** — never `python3 bin/openstation`

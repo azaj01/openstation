@@ -75,6 +75,8 @@ The `status` subcommand validates lifecycle transitions (see
 - Run `openstation show <task-name>` to load the full task spec
   (or read `artifacts/tasks/<task-name>.md` directly). Note
   requirements and verification checklist.
+- If the task has a `parent` field, read the parent task for
+  background context.
 - Transition the task to in-progress:
 
   ```bash

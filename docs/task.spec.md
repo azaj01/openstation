@@ -63,6 +63,19 @@ The parent task file should include a `## Subtasks` section
 listing the sub-tasks with priority groups. See the
 "Task with sub-tasks" example below.
 
+#### Scope authority
+
+The child task's body is the authoritative scope — not the
+parent's description of it. Parent subtask descriptions are
+brief pointers; they must not define or expand the child's
+scope. If a child narrows scope from the parent (e.g., covers
+only one milestone of a multi-phase epic), the child's explicit
+boundaries take precedence.
+
+When a child task excludes something from the parent's scope,
+state the exclusion explicitly in the child's body — don't rely
+on omission.
+
 ## Frontmatter Schema
 
 ```yaml
@@ -375,3 +388,99 @@ principles.
 
 - [ ] Constitution file exists and is referenced in manual
 ```
+
+### Milestone-based parent
+
+When a parent task is delivered in phases, group scope and
+subtasks by milestone. Each child task covers one milestone
+and explicitly excludes the rest.
+
+#### Parent (`0050-worktree-integration.md`)
+
+```markdown
+---
+kind: task
+name: 0050-worktree-integration
+type: feature
+status: in-progress
+owner: user
+subtasks:
+  - "[[0051-research-worktree]]"
+  - "[[0052-spec-worktree-passthrough]]"
+created: 2026-03-01
+---
+
+# Worktree Integration
+
+Enable agents to work in git worktrees with isolated branches.
+
+## Scope
+
+Milestone-based. Each milestone is usability-tested before
+the next begins. Implementation subtasks are created
+per-milestone after the previous one lands.
+
+### M1 — Pass-through (current)
+- Vault resolution from linked worktrees
+- `--worktree` flag on `openstation run`
+
+### M2 — Branch scoping (future)
+- `branch` frontmatter field
+- Branch-scoped task filtering
+
+### M3 — Agent awareness (future)
+- Agent skills document worktree workflows
+- Parallel agent execution on separate branches
+
+## Subtasks
+
+### M1
+1. **0051 — Research** — Consolidate worktree research.
+2. **0052 — Spec** — Pass-through design and vault resolution.
+   M1 scope only.
+
+### Future
+*(Created when the previous milestone lands)*
+
+## Verification
+
+- [ ] M1: Agents dispatch in worktrees and find the shared vault
+- [ ] M2: Branch-scoped tasks filter correctly
+- [ ] M3: Agent skills document worktree workflows
+```
+
+#### Child (`0052-spec-worktree-passthrough.md`)
+
+```markdown
+---
+kind: task
+name: 0052-spec-worktree-passthrough
+type: spec
+status: ready
+assignee: architect
+owner: user
+parent: "[[0050-worktree-integration]]"
+created: 2026-03-01
+---
+
+# Spec: Worktree Pass-Through
+
+Scoped to M1 (pass-through) only. No branch field or
+branch-scoped task filtering.
+
+## Requirements
+
+1. Define `find_root()` worktree resolution design
+2. Define `--worktree` pass-through on `openstation run`
+3. Define how agents discover the shared vault from a worktree
+
+## Verification
+
+- [ ] Spec covers vault resolution
+- [ ] Spec covers `--worktree` pass-through
+- [ ] No branch-scoping content included
+```
+
+The child states its boundary and its exclusion. An agent
+reading only the child knows exactly what is in and out of
+scope.

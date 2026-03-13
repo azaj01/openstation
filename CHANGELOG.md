@@ -1,5 +1,70 @@
 # Changelog
 
+## v0.8.0
+
+Replaces the tier model with attached/detached modes, expands
+`agents` into a subcommand group, adds user-level init, a verify
+command, and `--dangerously-skip-permissions` passthrough.
+
+### CLI
+
+- **Attached mode** (`--attached` / `-a`) — Replaces `--tier 1`.
+  Uses `os.execvp` to replace the process with an interactive
+  `claude --agent` session. No log capture, no budget/turns
+  limits. Works for both by-agent and by-task runs.
+- **Detached mode** (default) — Replaces `--tier 2`. Runs with
+  `stream-json` output, captures session ID and logs, enforces
+  budget/turns limits. Clear incompatibility checks prevent
+  mixing attached-only and detached-only flags.
+- **`agents` subcommand group** — `agents` is now a subcommand
+  with `list` and `show` actions. `agents list` replaces the
+  bare `agents` command (still works as default). `agents show
+  <name>` prints the full agent spec with `--json` and `--vim`
+  output modes. `ag` alias available for brevity.
+- **`init --user`** — Installs `.claude/` discovery files
+  (commands, agents, skills) to `~/.claude/` via absolute
+  symlinks to the local install cache. Enables Open Station
+  commands in any project without per-project init.
+- **`/openstation.verify`** — New slash command for structured
+  task verification. Reads the `## Verification` section,
+  gathers evidence for each criterion, and presents a pass/fail
+  report before transitioning to done.
+- **`--dangerously-skip-permissions`** (`-dsp`) — New flag on
+  `run` that passes through to `claude` for fully autonomous
+  execution without permission prompts.
+- **CLI reference doc** (`docs/cli.md`) — Comprehensive CLI
+  reference covering all commands, flags, examples, and exit
+  codes.
+- **Removed `/openstation.dispatch`** — Replaced by
+  `openstation run --attached`.
+
+### Agents
+
+- **DevRel agent** — New agent spec for developer relations
+  content: tweets, blog posts, README sections, and community
+  engagement copy. Template added to `templates/agents/`.
+
+### Research & Specs
+
+- **Attached mode research** — Analysis of Claude Code's
+  `--agent` flag behavior, permission models, and UX
+  implications for interactive vs autonomous execution.
+- **Worktree integration research** — Investigation of git
+  worktree support for parallel agent execution across
+  isolated working directories.
+- **Agents subcommand expansion spec** — Design for the
+  `agents list` / `agents show` subcommand structure.
+- **Assignee-reviewer feedback loop spec** — Design for
+  backward status transitions enabling agents to request
+  clarification from task owners.
+- **Branch-based task scoping spec** — Design for associating
+  tasks with git branches for parallel development workflows.
+
+### Fix
+
+- Restored tasks, specs, and content lost in prior rebase.
+- Restored devrel agent lost in prior rebase.
+
 ## v0.7.0
 
 Refactors CLI into an installable Python package, adds session ID

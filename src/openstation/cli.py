@@ -8,6 +8,7 @@ from openstation import core
 from openstation import tasks
 from openstation import run
 from openstation import init
+from openstation import artifacts
 
 
 def main():
@@ -79,6 +80,38 @@ examples:
                         help="Emit parsed frontmatter + body as JSON object")
     agents_show_output.add_argument("-v", "--vim", action="store_true",
                         help="Open the agent spec file in editor")
+
+    # artifacts (with sub-actions: list, show)
+    artifacts_p = sub.add_parser("artifacts", aliases=["art"], help="Browse non-task artifacts", formatter_class=fmt, epilog="""\
+examples:
+  openstation artifacts                       # list all non-task artifacts (default)
+  openstation artifacts list                  # same as bare 'artifacts'
+  openstation artifacts list --kind research  # only research artifacts
+  openstation artifacts list --json           # JSON array of artifact objects
+  openstation artifacts list --quiet          # one name per line (pipe-friendly)
+  openstation artifacts show cli-feature-spec # print full artifact
+  openstation artifacts show cli-feature-spec --json  # frontmatter + body as JSON
+  openstation artifacts show cli-feature-spec --vim   # open in editor""")
+    artifacts_sub = artifacts_p.add_subparsers(dest="artifacts_action")
+
+    # artifacts list (also the default when no sub-action given)
+    artifacts_list_p = artifacts_sub.add_parser("list", help="List artifacts")
+    artifacts_list_p.add_argument("--kind", default=None,
+                        help="Filter by kind: agents, research, specs")
+    artifacts_list_output = artifacts_list_p.add_mutually_exclusive_group()
+    artifacts_list_output.add_argument("-j", "--json", action="store_true",
+                        help="Emit JSON array of artifact objects")
+    artifacts_list_output.add_argument("-q", "--quiet", action="store_true",
+                        help="One artifact name per line (pipe-friendly)")
+
+    # artifacts show
+    artifacts_show_p = artifacts_sub.add_parser("show", help="Show an artifact")
+    artifacts_show_p.add_argument("name", help="Artifact name (resolved across research/, specs/, agents/)")
+    artifacts_show_output = artifacts_show_p.add_mutually_exclusive_group()
+    artifacts_show_output.add_argument("-j", "--json", action="store_true",
+                        help="Emit parsed frontmatter + body as JSON object")
+    artifacts_show_output.add_argument("-v", "--vim", action="store_true",
+                        help="Open the artifact file in editor")
 
     # show
     show_p = sub.add_parser("show", help="Show a task spec", formatter_class=fmt, epilog="""\
@@ -210,6 +243,12 @@ examples:
             return run.cmd_agents_list(args, root, prefix) or 0
         elif action == "show":
             return run.cmd_agents_show(args, root, prefix)
+    elif args.command in ("artifacts", "art"):
+        action = getattr(args, "artifacts_action", None)
+        if action is None or action == "list":
+            return artifacts.cmd_artifacts_list(args, root, prefix) or 0
+        elif action == "show":
+            return artifacts.cmd_artifacts_show(args, root, prefix)
     elif args.command == "show":
         return tasks.cmd_show(args, root, prefix)
     elif args.command == "create":

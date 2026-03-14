@@ -14,6 +14,7 @@ name: cli-reference
 | `create`  | Create a new task                            |
 | `status`  | Change a task's lifecycle status             |
 | `run`     | Launch an agent on tasks                     |
+| `artifacts` | Browse non-task artifacts (research, specs, agents) |
 | `agents`  | Manage and inspect agent specs               |
 | `init`    | Initialize Open Station in current directory |
 
@@ -264,6 +265,62 @@ openstation run --task 42 --dry-run --json  # structured JSON dry-run output
 ### Logs
 
 By-task detached execution writes stream-json output to `artifacts/logs/<task-name>.jsonl`. Session IDs are extracted and displayed for resumption via `claude --resume <session-id>`. Attached mode does not capture logs.
+
+---
+
+## `artifacts`
+
+Browse non-task artifacts from `artifacts/` subdirectories.
+
+### Synopsis
+
+```
+openstation artifacts [list] [--kind KIND] [-q | -j]
+openstation artifacts show <name> [-j | -v]
+```
+
+Bare `openstation artifacts` (no sub-action) defaults to `list`.
+
+Alias: `art` (e.g. `openstation art list`).
+
+### Sub-Actions
+
+#### `artifacts list` (default)
+
+List artifacts with name, kind, and one-line summary. Without `--kind`, lists all non-task artifacts (agents, research, specs).
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--kind KIND` | — | Filter by subdirectory: `agents`, `research`, `specs` |
+| `--json` | `-j` | JSON array of artifact objects |
+| `--quiet` | `-q` | One artifact name per line (pipe-friendly) |
+
+`--json` and `--quiet` are mutually exclusive. Using `--kind tasks` is rejected with a hint to use `openstation list`.
+
+#### `artifacts show <name>`
+
+Display a single artifact by name, resolved across `artifacts/research/`, `artifacts/specs/`, and `artifacts/agents/`. Resolution matches filename stems. Ambiguous matches produce an error listing candidates.
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Frontmatter fields + `body` key as JSON object |
+| `--vim` | Open artifact file in `$EDITOR` (default: vim) |
+
+Exit code 3 if artifact not found. Exit code 4 if ambiguous.
+
+### Examples
+
+```bash
+openstation artifacts                         # list all non-task artifacts
+openstation artifacts list                    # same as bare 'artifacts'
+openstation artifacts list --kind research    # only research artifacts
+openstation artifacts list --json             # JSON array
+openstation artifacts list -q                 # one name per line
+openstation artifacts show cli-feature-spec   # print full artifact
+openstation artifacts show cli-feature-spec --json  # as JSON
+openstation artifacts show cli-feature-spec --vim   # open in editor
+openstation art list -q                       # alias works too
+```
 
 ---
 

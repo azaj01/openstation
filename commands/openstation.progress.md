@@ -38,6 +38,7 @@ The task name can be either the full ID-prefixed name (e.g.,
    ### YYYY-MM-DD — <author>
    > time: HH:MM–HH:MM
    > log: [[artifacts/logs/<task-name>]]
+   > worktree: <worktree-name>
 
    <message>
    ```
@@ -47,8 +48,11 @@ The task name can be either the full ID-prefixed name (e.g.,
      are known; use single `HH:MM` (current time) otherwise
    - `log:` — Obsidian wikilink to the session log in
      `artifacts/logs/`
-   - Omit the blockquote line entirely when neither time nor log
-     is available.
+   - `worktree:` — the worktree directory name if work was done
+     in a git worktree (detect via `git worktree list` or check
+     if the current directory differs from the main working tree)
+   - Omit any metadata line when its value is not available.
+     Omit the blockquote entirely when no metadata is available.
 6. Locate the `## Progress` section in the task file:
    - If it exists, append the new entry after the last existing
      entry (preserve a blank line between entries).

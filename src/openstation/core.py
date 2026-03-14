@@ -187,6 +187,21 @@ def strip_wikilink(value):
     return value
 
 
+def parse_inline_list(value):
+    """Parse an inline YAML list like '[a, b, c]' into a Python list.
+
+    Returns a list of stripped strings, or None if the value is not
+    an inline list.
+    """
+    value = value.strip()
+    if value.startswith("[") and value.endswith("]"):
+        inner = value[1:-1]
+        if not inner.strip():
+            return []
+        return [item.strip().strip("\"'") for item in inner.split(",")]
+    return None
+
+
 def parse_frontmatter_list(text, key):
     """Parse a YAML list field from frontmatter.
 

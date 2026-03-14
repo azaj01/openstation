@@ -155,6 +155,64 @@ checklist to `docs/lifecycle.md` gives agents a concrete gate.
      recorded in the task's `artifacts` frontmatter
   ```
 
+### Decision 6: Append-only Progress section
+
+**Status:** Decided
+
+**Rationale:** Tasks may be executed across multiple agent sessions
+(rework after `failed`, handoffs between agents, long-running work
+split over time). Without a log, reviewers see only the final state
+— not the journey. A `## Progress` section gives reviewers (and
+future agents resuming work) a timestamped trail of what happened.
+
+The section is append-only: previous entries are never modified or
+removed. This preserves the historical record even when an agent
+reworks or reverses earlier decisions.
+
+**Format:**
+
+```markdown
+## Progress
+
+### 2026-03-13 — researcher
+
+Investigated three candidate libraries. Ruled out lib-A due to
+licensing. Shortlisted lib-B and lib-C for benchmarking.
+
+### 2026-03-14 — developer
+
+Benchmarked lib-B and lib-C. lib-B was 3× faster on the target
+workload. Implemented integration with lib-B.
+```
+
+Each entry is a `### YYYY-MM-DD — <agent-name>` heading followed
+by a short paragraph summarizing what was done in that session.
+
+**Rules:**
+
+- `## Progress` is **optional** — agents add it when they have
+  meaningful work to record
+- Entries are **append-only** — never edit or remove previous entries
+- Agents should add an entry before transitioning to `review` or
+  `failed`
+- The section accumulates across multiple runs (tasks may be
+  executed more than once)
+
+**What changes:**
+
+- `docs/task.spec.md`: Add `## Progress` to Optional Sections.
+  Description: "Timestamped log of work done across agent sessions.
+  Append-only."
+- Execute skill: Add a "Record Progress" step instructing agents
+  to append an entry before transitioning to `review` or `failed`.
+- `docs/lifecycle.md`: Add "progress entry written" to the
+  pre-review checklist.
+
+**Companion tooling:** A `/openstation.progress` command will be
+created to make appending entries easy for users and agents outside
+the execute skill flow. This is a convenience — agents can also
+append entries manually.
+
 ---
 
 ## Changes Required
@@ -213,7 +271,15 @@ To:
 | **Completed** | `status: done` | + `## Findings` (all types), `## Recommendations` (if applicable), `## Downstream` (if applicable) |
 ```
 
-#### 5. Update body section ordering
+#### 5. Add `## Progress` to Optional Sections table
+
+Add a new row:
+
+```
+| `## Progress`        | Timestamped log of work done across agent sessions. Append-only. |
+```
+
+#### 6. Update body section ordering
 
 The canonical section order becomes:
 
@@ -221,10 +287,11 @@ The canonical section order becomes:
 2. `## Context` (optional)
 3. `## Requirements` (required)
 4. `## Subtasks` (optional)
-5. `## Findings` (required — written during execution)
-6. `## Downstream` (optional — written during execution)
-7. `## Recommendations` (optional — written during execution)
-8. `## Verification` (required)
+5. `## Progress` (optional — append-only, written during execution)
+6. `## Findings` (required — written during execution)
+7. `## Downstream` (optional — written during execution)
+8. `## Recommendations` (optional — written during execution)
+9. `## Verification` (required)
 
 ### File: `docs/lifecycle.md`
 
@@ -242,7 +309,8 @@ Before transitioning to `review`, the assignee must ensure:
 2. `## Findings` section summarizes the work produced
 3. `## Downstream` section lists follow-up work (if any were
    identified — omit the section if none)
-4. Artifacts are stored in `artifacts/<category>/` and recorded
+4. `## Progress` entry appended for this session
+5. Artifacts are stored in `artifacts/<category>/` and recorded
    in the task's `artifacts` frontmatter list
 ```
 
@@ -300,24 +368,53 @@ After the updated step 5, insert a new step:
 >
 > Omit this section if there is no downstream work to flag.
 
-#### 3. Renumber subsequent steps
+#### 3. Add step between updated Findings and Downstream (Record Progress)
+
+After the "Flag Downstream Work" step, insert:
+
+> ### N. Record Progress
+>
+> Append a `## Progress` entry to the task file recording what
+> you did in this session. Use the heading format
+> `### YYYY-MM-DD — <your-agent-name>` followed by a short
+> paragraph.
+>
+> - If `## Progress` doesn't exist yet, create it (place it
+>   before `## Findings`)
+> - Never edit or remove previous entries — append only
+> - Add your entry before transitioning to `review` or `failed`
+
+#### 4. Renumber subsequent steps
 
 Current steps 6 (Create Sub-Tasks) and 7 (Update Documentation)
-become steps 7 and 8.
+become steps 8 and 9 (accounting for the new Downstream and
+Progress steps).
 
 ---
 
 ## What This Does NOT Change
 
 - **Existing completed tasks** are not retroactively updated.
-- **Tooling** — no CLI changes, no new commands. This is purely
-  a convention change enforced through documentation and the
-  execute skill.
 - **`## Recommendations`** stays optional and is not renamed or
   merged with Findings.
 - **Verification automation** — the "findings written" check
   remains a manual convention item, not enforced by `openstation
   status`.
+
+## Companion Tooling
+
+A `/openstation.progress` command will be created to make
+appending `## Progress` entries easy for users and agents outside
+the execute skill flow. The command should:
+
+- Accept a message argument (the progress summary)
+- Auto-generate the `### YYYY-MM-DD — <agent-name>` heading
+- Append to the existing `## Progress` section, or create it
+  if absent
+- Target the agent's current in-progress task by default
+
+This is tracked as separate work — the convention defined above
+stands independently of the command.
 
 ---
 

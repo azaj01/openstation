@@ -2,7 +2,7 @@
 kind: task
 name: 0126-worktree-pass-through
 type: implementation
-status: ready
+status: done
 assignee: developer
 owner: user
 parent: "[[0122-worktree-integration]]"

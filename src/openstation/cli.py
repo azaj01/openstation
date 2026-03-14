@@ -158,6 +158,9 @@ examples:
                        help="Suppress progress output (detached only)")
     run_p.add_argument("-j", "--json", action="store_true",
                        help="Structured JSON dry-run output (detached only)")
+    run_p.add_argument("-w", "--worktree",
+                       nargs="?", const=True, default=None, metavar="NAME",
+                       help="Run in a Claude worktree (optional name, default: auto-derived)")
     run_p.add_argument("--dangerously-skip-permissions", "-dsp", action="store_true",
                        default=False,
                        help="Pass --dangerously-skip-permissions to claude")

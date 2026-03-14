@@ -230,6 +230,7 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 | `--budget USD`      | `5`     | Max USD per invocation (detached only) |
 | `--turns N`         | `50`    | Max turns per invocation (detached only) |
 | `--max-tasks N`     | `1`     | Max subtasks to execute (detached only) |
+| `-w`, `--worktree [NAME]` | — | Run in a Claude worktree (optional name, default: auto-derived from task or agent) |
 | `--force`           | —       | Skip task status checks (allow non-ready tasks) |
 | `--dry-run`         | —       | Print the command without executing |
 | `-q`, `--quiet`     | —       | Suppress progress output (detached only) |
@@ -253,6 +254,8 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 openstation run researcher --attached       # interactive agent session
 openstation run --task 0042 --attached      # interactive task session
 openstation run --task 0042                 # autonomous (detached)
+openstation run --task 0042 --worktree --attached  # in a worktree (auto-named)
+openstation run --task 0042 --worktree my-feature --attached  # explicit worktree name
 openstation run --task 0042 --attached --dry-run  # preview attached command
 openstation run researcher --dry-run        # show command without executing
 openstation run --task 42 --dry-run --json  # structured JSON dry-run output

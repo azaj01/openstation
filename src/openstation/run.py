@@ -41,25 +41,74 @@ def discover_agents(root, prefix):
         desc = fm.get("description", "")
         if desc in (">-", ">", "|", "|-"):
             desc = core.parse_multiline_value(text, "description")
+        # Parse aliases (inline YAML list like [pm, manager])
+        aliases = []
+        alias_raw = fm.get("aliases", "")
+        if alias_raw:
+            parsed = core.parse_inline_list(alias_raw)
+            if parsed is not None:
+                aliases = parsed
+            elif alias_raw:
+                aliases = [alias_raw]
+        # Also check multi-line list form
+        if not aliases:
+            aliases = core.parse_frontmatter_list(text, "aliases")
+
         agents.append({
             "name": fm.get("name", entry.stem),
             "description": desc,
+            "aliases": aliases,
         })
     return agents
+
+
+def resolve_agent_alias(root, prefix, name):
+    """Resolve an agent name or alias to the canonical agent name.
+
+    Returns (canonical_name, error_message). If no alias match is found,
+    returns the original name unchanged (so callers can proceed to
+    normal not-found handling).
+    """
+    agents = discover_agents(root, prefix)
+
+    # Check if it's already a canonical name
+    for a in agents:
+        if a["name"] == name:
+            return name, None
+
+    # Check aliases; also detect duplicates
+    matches = []
+    for a in agents:
+        if name in a.get("aliases", []):
+            matches.append(a["name"])
+
+    if len(matches) == 1:
+        return matches[0], None
+    if len(matches) > 1:
+        return None, f"Alias '{name}' is ambiguous — matches: {', '.join(matches)}"
+
+    # No match — return original name for downstream not-found handling
+    return name, None
 
 
 def format_agents_table(agents):
     """Format agents as an aligned table."""
     if not agents:
         return ""
-    headers = ["Name", "Description"]
-    keys = ["name", "description"]
-    mins = [10, 20]
+    headers = ["Name", "Aliases", "Description"]
+    keys = ["name", "aliases", "description"]
+    mins = [10, 7, 20]
+
+    def _cell(agent, key):
+        val = agent.get(key, "")
+        if key == "aliases" and isinstance(val, list):
+            return ", ".join(val) if val else ""
+        return str(val)
 
     widths = [max(mins[i], len(headers[i])) for i in range(len(headers))]
     for a in agents:
         for i, k in enumerate(keys):
-            widths[i] = max(widths[i], len(str(a.get(k, ""))))
+            widths[i] = max(widths[i], len(_cell(a, k)))
 
     def fmt_row(values):
         parts = []
@@ -70,7 +119,7 @@ def format_agents_table(agents):
     lines = [fmt_row(headers)]
     lines.append(fmt_row(["-" * widths[i] for i in range(len(headers))]))
     for a in agents:
-        lines.append(fmt_row([a.get(k, "") for k in keys]))
+        lines.append(fmt_row([_cell(a, k) for k in keys]))
     return "\n".join(lines)
 
 
@@ -112,10 +161,14 @@ def parse_allowed_tools(spec_path):
 
 def build_command(agent_name, budget, turns, prompt, tools,
                   output_format="json", attached=False,
-                  dangerously_skip_permissions=False):
+                  dangerously_skip_permissions=False,
+                  worktree=None):
     """Assemble the claude CLI argv."""
     if attached:
-        cmd = ["claude", "--agent", agent_name]
+        cmd = ["claude"]
+        if worktree:
+            cmd.extend(["--worktree", worktree])
+        cmd.extend(["--agent", agent_name])
         if dangerously_skip_permissions:
             cmd.append("--dangerously-skip-permissions")
         cmd.append("--allowedTools")
@@ -125,11 +178,13 @@ def build_command(agent_name, budget, turns, prompt, tools,
         return cmd
 
     # Detached (autonomous) mode
-    cmd = [
-        "claude",
+    cmd = ["claude"]
+    if worktree:
+        cmd.extend(["--worktree", worktree])
+    cmd.extend([
         "-p", prompt,
         "--agent", agent_name,
-    ]
+    ])
     if dangerously_skip_permissions:
         cmd.append("--dangerously-skip-permissions")
     cmd.append("--allowedTools")
@@ -190,7 +245,8 @@ def _stream_and_capture(cmd, cwd, log_file):
 # --- Execution ----------------------------------------------------------------
 
 def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
-                    json_output=False, dangerously_skip_permissions=False):
+                    json_output=False, dangerously_skip_permissions=False,
+                    worktree=None):
     """Execute one task: resolve agent, build command, launch. Returns (exit_code, session_id)."""
     task_spec = Path(task_spec)
 
@@ -225,7 +281,8 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
         f"the requirements."
     )
     cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
-                        dangerously_skip_permissions=dangerously_skip_permissions)
+                        dangerously_skip_permissions=dangerously_skip_permissions,
+                        worktree=worktree)
 
     if dry_run:
         if json_output:
@@ -255,7 +312,8 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
 
 def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget, turns,
                   dry_run, json_output=False, attached=False,
-                  dangerously_skip_permissions=False):
+                  dangerously_skip_permissions=False,
+                  worktree=None):
     """Execute a single task with stream-json capture."""
     tasks_dir = Path(tasks_dir)
     spec = tasks_dir / f"{task_name}.md"
@@ -291,7 +349,8 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget
 
     if attached:
         cmd = build_command(agent, budget, turns, prompt, tools, attached=True,
-                            dangerously_skip_permissions=dangerously_skip_permissions)
+                            dangerously_skip_permissions=dangerously_skip_permissions,
+                            worktree=worktree)
         if dry_run:
             if json_output:
                 print(json.dumps({
@@ -310,7 +369,8 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget
         return core.EXIT_OK  # unreachable
 
     cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
-                        dangerously_skip_permissions=dangerously_skip_permissions)
+                        dangerously_skip_permissions=dangerously_skip_permissions,
+                        worktree=worktree)
 
     if dry_run:
         if json_output:
@@ -382,13 +442,23 @@ def _agent_not_found(name, root, prefix):
     core.err(f"Agent not found: {name}")
     agents = discover_agents(root, prefix)
     if agents:
-        core.err(f"  available: {', '.join(a['name'] for a in sorted(agents, key=lambda a: a['name']))}")
+        parts = []
+        for a in sorted(agents, key=lambda a: a["name"]):
+            aliases = a.get("aliases", [])
+            if aliases:
+                parts.append(f"{a['name']} ({', '.join(aliases)})")
+            else:
+                parts.append(a["name"])
+        core.err(f"  available: {', '.join(parts)}")
     return core.EXIT_NOT_FOUND
 
 
 def cmd_agents_show(args, root, prefix):
     """Handle 'agents show <name>'."""
-    name = args.name
+    name, alias_err = resolve_agent_alias(root, prefix, args.name)
+    if alias_err:
+        core.err(alias_err)
+        return core.EXIT_USAGE
     spec_path = _find_agent_artifact(root, prefix, name)
     if spec_path is None:
         return _agent_not_found(name, root, prefix)
@@ -441,6 +511,7 @@ def cmd_run(args, root, prefix):
     max_tasks = args.max_tasks
     json_output = getattr(args, "json", False)
     skip_perms = getattr(args, "dangerously_skip_permissions", False)
+    worktree = getattr(args, "worktree", None)
 
     # --- Attached mode incompatibility checks ---
     if attached:
@@ -474,6 +545,10 @@ def cmd_run(args, root, prefix):
                 core.err(f"  hint: current status is '{status}'; use --force to override")
                 return core.EXIT_TASK_NOT_READY
 
+        # Derive worktree name when --worktree given without a value
+        if worktree is True:
+            worktree = task_name
+
         core.header(f"openstation run --task {task_name}")
         core.info(f"Task collection: {task_name}")
 
@@ -503,7 +578,8 @@ def cmd_run(args, root, prefix):
                 start = time.time()
                 rc, sid = run_single_task(root, prefix, sub_spec, sub_name, budget, turns,
                                           dry_run, json_output=json_output,
-                                          dangerously_skip_permissions=skip_perms)
+                                          dangerously_skip_permissions=skip_perms,
+                                          worktree=worktree)
                 elapsed = time.time() - start
                 if sid:
                     last_session_id = sid
@@ -535,9 +611,20 @@ def cmd_run(args, root, prefix):
             core.info("No subtasks found, executing task directly")
             return _exec_or_run(root, prefix, tdir, task_name, agent_name, budget, turns,
                                 dry_run, json_output=json_output, attached=attached,
-                                dangerously_skip_permissions=skip_perms)
+                                dangerously_skip_permissions=skip_perms,
+                                worktree=worktree)
     else:
         # --- BY-AGENT MODE ---
+        # Resolve alias to canonical agent name
+        agent_name, alias_err = resolve_agent_alias(root, prefix, agent_name)
+        if alias_err:
+            core.err(alias_err)
+            return core.EXIT_USAGE
+
+        # Derive worktree name when --worktree given without a value
+        if worktree is True:
+            worktree = agent_name
+
         agent_spec = find_agent_spec(root, prefix, agent_name)
         if agent_spec is None:
             core.err(f"Agent spec not found: {agent_name}")
@@ -552,7 +639,8 @@ def cmd_run(args, root, prefix):
 
         if attached:
             cmd = build_command(agent_name, budget, turns, None, tools, attached=True,
-                                dangerously_skip_permissions=skip_perms)
+                                dangerously_skip_permissions=skip_perms,
+                                worktree=worktree)
             if dry_run:
                 if json_output:
                     print(json.dumps({
@@ -571,7 +659,8 @@ def cmd_run(args, root, prefix):
 
         prompt = "Execute your ready tasks."
         cmd = build_command(agent_name, budget, turns, prompt, tools, output_format="text",
-                            dangerously_skip_permissions=skip_perms)
+                            dangerously_skip_permissions=skip_perms,
+                            worktree=worktree)
 
         if dry_run:
             if json_output:

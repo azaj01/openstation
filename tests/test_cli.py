@@ -1,5 +1,6 @@
 """Integration tests for the OpenStation CLI (bin/openstation)."""
 
+import json
 import os
 import re
 import subprocess
@@ -1087,7 +1088,8 @@ class TestRunClaude(unittest.TestCase):
 # ── Agents Command Tests ─────────────────────────────────────────────
 
 
-def make_agent_artifact(base, name, description=None, kind="agent", multiline=False):
+def make_agent_artifact(base, name, description=None, kind="agent", multiline=False,
+                        aliases=None):
     """Create an agent spec in artifacts/agents/."""
     agents_dir = base / "artifacts" / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
@@ -1097,8 +1099,11 @@ def make_agent_artifact(base, name, description=None, kind="agent", multiline=Fa
         desc_block = f"description: {description}\n"
     else:
         desc_block = "description: Test agent\n"
+    alias_block = ""
+    if aliases:
+        alias_block = f"aliases: [{', '.join(aliases)}]\n"
     (agents_dir / f"{name}.md").write_text(
-        f"---\nkind: {kind}\nname: {name}\n{desc_block}"
+        f"---\nkind: {kind}\nname: {name}\n{desc_block}{alias_block}"
         f"model: claude-sonnet-4-6\nallowed-tools:\n  - Read\n---\n\n# {name}\n"
     )
 
@@ -1172,6 +1177,79 @@ class TestAgentsCommand(unittest.TestCase):
         make_agent_artifact(os_dir, "researcher", "Research agent")
 
         out, _, rc = run_cli(["agents"], cwd=tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("researcher", out)
+
+
+# ── Agent Alias Tests ────────────────────────────────────────────────
+
+
+class TestAgentAliases(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_agents_list_shows_aliases(self):
+        make_agent_artifact(self.root, "project-manager", "PM agent", aliases=["pm"])
+        make_agent_artifact(self.root, "developer", "Dev agent", aliases=["dev"])
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("Aliases", out)
+        self.assertIn("pm", out)
+        self.assertIn("dev", out)
+
+    def test_agents_list_json_includes_aliases(self):
+        make_agent_artifact(self.root, "developer", "Dev agent", aliases=["dev"])
+
+        out, _, rc = run_cli(["agents", "list", "--json"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["aliases"], ["dev"])
+
+    def test_agents_show_resolves_alias(self):
+        make_agent_artifact(self.root, "developer", "Dev agent", aliases=["dev"])
+
+        out, _, rc = run_cli(["agents", "show", "dev"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("name: developer", out)
+
+    def test_agents_show_canonical_still_works(self):
+        make_agent_artifact(self.root, "developer", "Dev agent", aliases=["dev"])
+
+        out, _, rc = run_cli(["agents", "show", "developer"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("name: developer", out)
+
+    def test_run_resolves_alias_dry_run(self):
+        make_agent_spec(self.root, "project-manager")
+        make_agent_artifact(self.root, "project-manager", "PM agent", aliases=["pm"])
+
+        out, _, rc = run_cli(["run", "pm", "--dry-run"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("project-manager", out)
+
+    def test_duplicate_alias_errors(self):
+        make_agent_artifact(self.root, "developer", "Dev agent", aliases=["x"])
+        make_agent_artifact(self.root, "researcher", "Res agent", aliases=["x"])
+
+        _, err, rc = run_cli(["agents", "show", "x"], cwd=self.tmpdir)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("ambiguous", err.lower())
+
+    def test_unknown_alias_shows_not_found(self):
+        make_agent_artifact(self.root, "developer", "Dev agent", aliases=["dev"])
+
+        _, err, rc = run_cli(["agents", "show", "nope"], cwd=self.tmpdir)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("not found", err.lower())
+
+    def test_agent_no_aliases_shows_empty(self):
+        make_agent_artifact(self.root, "researcher", "Research agent")
+
+        out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("researcher", out)
 
@@ -1989,6 +2067,111 @@ class TestHelpExamples(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("By-agent", out)
         self.assertIn("By-task", out)
+
+
+# ── Worktree Pass-Through Tests ──────────────────────────────────────
+
+
+class TestWorktreePassThrough(unittest.TestCase):
+    """Test --worktree flag on openstation run."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "researcher")
+
+    def test_worktree_explicit_name_by_task(self):
+        """--worktree my-name passes --worktree my-name to claude CLI."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--worktree", "my-name", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree my-name", out)
+
+    def test_worktree_auto_derive_from_task(self):
+        """--worktree (no value) auto-derives name from task."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--worktree", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree 0001-alpha", out)
+
+    def test_worktree_auto_derive_from_agent(self):
+        """--worktree (no value) auto-derives name from agent."""
+        out, _, rc = run_cli(
+            ["run", "researcher", "--worktree", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree researcher", out)
+
+    def test_no_worktree_omits_flag(self):
+        """Omitting --worktree produces no worktree flag in command."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertNotIn("--worktree", out)
+
+    def test_worktree_attached_by_task(self):
+        """--worktree works in attached mode by-task."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--worktree", "feat-x", "--attached", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree feat-x", out)
+        self.assertIn("--agent researcher", out)
+
+    def test_worktree_attached_by_agent(self):
+        """--worktree works in attached mode by-agent."""
+        out, _, rc = run_cli(
+            ["run", "researcher", "--worktree", "my-wt", "--attached", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree my-wt", out)
+        self.assertIn("--agent researcher", out)
+
+    def test_worktree_before_agent_in_argv(self):
+        """--worktree appears before --agent in the command."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--worktree", "wt", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        wt_pos = out.index("--worktree")
+        agent_pos = out.index("--agent")
+        self.assertLess(wt_pos, agent_pos)
+
+    def test_worktree_short_flag(self):
+        """-w short flag works."""
+        out, _, rc = run_cli(
+            ["run", "researcher", "-w", "short-wt", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree short-wt", out)
+
+    def test_worktree_dry_run_json(self):
+        """--worktree appears in JSON dry-run output."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--worktree", "wt-name", "--dry-run", "--json"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("--worktree", data["command"])
+        self.assertIn("wt-name", data["command"])
 
 
 # ── Exit Code Tests ──────────────────────────────────────────────────

@@ -2,12 +2,14 @@
 kind: task
 name: 0125-compare-open-station-with-paperclip
 type: research
-status: review
+status: done
 assignee: researcher
 owner: user
 artifacts:
   - "[[artifacts/research/open-station-vs-paperclip]]"
 created: 2026-03-13
+subtasks:
+  - "[[0129-research-paperclip-extension-model-and]]"
 ---
 
 # Compare Open Station With Paperclip Offering

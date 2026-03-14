@@ -2,7 +2,7 @@
 kind: task
 name: 0123-research-worktree-integration
 type: research
-status: review
+status: done
 assignee: researcher
 owner: user
 parent: "[[0122-worktree-integration]]"

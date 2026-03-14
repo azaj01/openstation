@@ -2,13 +2,18 @@
 kind: task
 name: 0092-cli-add-worktree-support-to
 type: feature
-status: failed
+status: done
 assignee: developer
 owner: user
 created: 2026-03-10
 ---
 
 # CLI — Add worktree support to find_root()
+
+> **Resolved.** The `find_root()` worktree fallback
+> (`_git_main_worktree_root()` in `core.py`) was implemented
+> independently. Confirmed working by task 0123 research and
+> 0124 spec. Original attempt failed, but the work landed.
 
 Resolve `.openstation/` from the main worktree when running inside a git worktree.
 

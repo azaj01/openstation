@@ -2,15 +2,20 @@
 kind: task
 name: 0121-research-worktree-integration-for-parallel
 type: feature
-status: review
+status: done
 assignee: researcher
 owner: user
+parent: "[[0122-worktree-integration]]"
 artifacts:
-  - "[[artifacts/research/worktree-integration-for-parallel-agents]]"
+  - "[[artifacts/research/worktree-integration]]"
 created: 2026-03-12
 ---
 
 # Research Worktree Integration For Parallel Agent Sessions
+
+> **Superseded by [[0123-research-worktree-integration]].** Findings
+> absorbed into the consolidated research artifact. Original artifact
+> deleted — see `artifacts/research/worktree-integration.md`.
 
 ## Context
 

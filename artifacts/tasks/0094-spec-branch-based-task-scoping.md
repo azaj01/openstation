@@ -2,10 +2,10 @@
 kind: task
 name: 0094-spec-branch-based-task-scoping
 type: spec
-status: backlog
+status: done
 assignee: architect
 owner: user
-parent: "[[0107-add-git-worktree-support]]"
+parent: "[[0122-worktree-integration]]"
 artifacts:
   - "[[artifacts/specs/branch-based-task-scoping]]"
 created: 2026-03-10

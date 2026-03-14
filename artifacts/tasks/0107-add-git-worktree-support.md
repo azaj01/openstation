@@ -2,7 +2,7 @@
 kind: task
 name: 0107-add-git-worktree-support
 type: feature
-status: in-progress
+status: done
 owner: user
 created: 2026-03-10
 subtasks:
@@ -13,6 +13,9 @@ subtasks:
 ---
 
 # Add git worktree support
+
+> **Superseded by [[0122-worktree-integration]].** All subtasks
+> re-parented under 0122. This task is closed.
 
 Enable agents to work in git worktrees — the CLI resolves the shared vault, tasks are scoped to branches, and agents understand the worktree workflow.
 

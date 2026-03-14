@@ -5,7 +5,7 @@ type: implementation
 status: backlog
 assignee: developer
 owner: user
-parent: "[[0107-add-git-worktree-support]]"
+parent: "[[0122-worktree-integration]]"
 created: 2026-03-11
 ---
 
@@ -30,7 +30,7 @@ Implement the branch scoping design from `artifacts/specs/branch-based-task-scop
 ## Context
 
 - Spec: `artifacts/specs/branch-based-task-scoping.md`
-- Depends on: 0092 (worktree `find_root()`), 0094 (spec)
+- Depends on: 0092 (worktree `find_root()` — done), 0094 (spec — done)
 
 ## Verification
 

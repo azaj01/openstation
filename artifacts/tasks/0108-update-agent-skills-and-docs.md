@@ -5,7 +5,7 @@ type: spec
 status: backlog
 assignee: author
 owner: user
-parent: "[[0107-add-git-worktree-support]]"
+parent: "[[0122-worktree-integration]]"
 created: 2026-03-10
 ---
 
@@ -23,7 +23,7 @@ After 0092 (CLI plumbing) and 0094 (branch scoping spec + docs), the project doc
 
 ## Context
 
-- Depends on: 0092 (worktree CLI support), 0094 (branch scoping spec + docs)
+- Depends on: 0092 (worktree CLI support — done), 0094 (branch scoping spec — done)
 - Should be the last subtask to land — it updates agent specs based on what the others built and documented
 
 ## Verification

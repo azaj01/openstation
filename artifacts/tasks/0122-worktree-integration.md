@@ -7,9 +7,14 @@ assignee:
 owner: user
 created: 2026-03-13
 subtasks:
+  - "[[0121-research-worktree-integration-for-parallel]]"
   - "[[0123-research-worktree-integration]]"
   - "[[0124-spec-worktree-integration]]"
   - "[[0126-worktree-pass-through]]"
+  - "[[0092-cli-add-worktree-support-to]]"
+  - "[[0094-spec-branch-based-task-scoping]]"
+  - "[[0109-implement-branch-based-task-scoping]]"
+  - "[[0108-update-agent-skills-and-docs]]"
 ---
 
 # Worktree Integration
@@ -36,21 +41,26 @@ per-milestone after the previous one lands.
 
 ## Subtasks
 
-### M1
+### M1 — Pass-through (done)
 
-1. **0123 — Research** — Consolidate worktree research (claude `--worktree`, worktrunk, workmux). Living document.
+1. **0121 — Research (early)** — Initial worktree research. Findings absorbed into 0123.
+2. **0123 — Research** — Consolidated worktree research (claude `--worktree`, worktrunk, workmux). Living document.
+3. **0092 — find_root()** — Vault resolution from linked worktrees. Landed independently.
+4. **0124 — Spec** — Pass-through design and vault resolution.
+5. **0126 — Implement** — `--worktree` CLI plumbing.
 
-2. **0124 — Spec** — Pass-through design and vault resolution. M1 scope only.
+### M2 — Branch scoping
 
-3. **0126 — Implement** — `--worktree` CLI plumbing. M1 scope only.
+6. **0094 — Spec** — Branch-based task scoping design. Spec complete.
+7. **0109 — Implement** — `branch` field, CLI flags, filtering logic.
 
-### Future
-*(Created when the previous milestone lands)*
+### M3 — Agent awareness
+
+8. **0108 — Agent skills** — Update execute skill and agent specs for worktree workflows.
 
 ## Prior Work
 
-- **0107** — Previous worktree parent task (in-progress). Subtasks 0092 (failed), 0094 (spec done), 0109 (backlog), 0108 (backlog) are superseded by this epic.
-- **0121** — Worktree research (in review). Findings absorbed into 0123.
+- **0107** — Previous worktree parent task (now `done`). Subtasks absorbed into this epic.
 
 ## Verification
 

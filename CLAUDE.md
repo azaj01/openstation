@@ -87,15 +87,17 @@ For manual creation, see `docs/task.spec.md` for the format.
 
 ## CLI
 
-The `openstation` CLI provides scriptable access to the vault:
+The `openstation` CLI provides scriptable access to the vault.
+See `docs/cli.md` for the full reference (flags, exit codes,
+resolution rules).
 
-```
+```bash
 openstation list [--status <s>] [--assignee <name>]
 openstation show <task>
 openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>] [--parent <p>]
 openstation status <task> <new-status>
-openstation run <agent> [--attached] [--dry-run]
-openstation run --task <id> [--attached] [--dry-run]
+openstation run <agent> [--attached] [--worktree] [--dry-run]
+openstation run --task <id> [--attached] [--worktree] [--dry-run]
 openstation agents [list] [--json | --quiet]
 openstation agents show <name> [--json | --vim]
 ```
@@ -106,11 +108,12 @@ openstation agents show <name> [--json | --vim]
 openstation run researcher --attached      # interactive session
 openstation run --task 0042 --attached     # interactive task session
 openstation run --task 0042                # autonomous (detached)
+openstation run --task 0042 --worktree --attached  # in a worktree
 ```
 
-The agent auto-loads the `openstation-executor` skill (via the
+The agent auto-loads the `openstation-execute` skill (via the
 `skills` field in its frontmatter), finds its ready tasks, follows
-the manual, and executes.
+the skill playbook, and executes.
 
 ## Task Lifecycle
 
@@ -135,45 +138,30 @@ without it. See `docs/storage-query-layer.md` Part II for
 query patterns.
 
 <!-- openstation:start -->
+<!-- Managed section — injected into target projects by `openstation init`.
+     Keep this concise; the source-repo sections above are authoritative. -->
+
 # Open Station
 
-Task management system for coding AI agents. Convention-first —
-markdown specs + skills, minimal dependencies. Adding packages
-or modules to existing components is fine; stay minimal.
-Do not update CHANGELOG.md unless creating a new release.
-
-## Vault Structure
-
-```
-.openstation/
-├── docs/              — Project documentation (lifecycle, task spec)
-├── artifacts/         — Canonical artifact storage (source of truth)
-│   ├── tasks/         —   Task files (canonical location, never move)
-│   ├── agents/        —   Agent specs (canonical location)
-│   ├── research/      —   Research outputs
-│   └── specs/         —   Specifications & designs
-├── agents/            — Agent discovery (symlinks → artifacts/agents/)
-├── skills/            — Agent skills (not user-invocable)
-└── commands/          — User-invocable slash commands
-```
+Task management for coding AI agents. All state lives in
+`.openstation/` as markdown files with YAML frontmatter.
 
 ## Quick Start
 
-Create a task:  `/openstation.create <description>`
-List tasks:     `/openstation.list`
-List agents:    `openstation agents list`
-Show agent:     `openstation agents show <name>`
-Run agent:      `openstation run <agent> --attached`
-Update a task:  `/openstation.update <name> field:value`
-Complete task:  `/openstation.done <name>`
+```
+/openstation.create <description>          Create a task
+/openstation.list                          List active tasks
+/openstation.done <name>                   Complete a task
+openstation run <agent> --attached         Run an agent interactively
+openstation run --task <id> --attached     Run a task interactively
+```
 
-All relationships (parent/child, task/artifact) are encoded in
-YAML frontmatter — no symlinks except `agents/` discovery
-symlinks for Claude Code `--agent` resolution. The Obsidian CLI
-is an optional query engine; filesystem + grep works everywhere.
+## Key Docs
 
-See `.openstation/docs/lifecycle.md` for lifecycle rules,
-`.openstation/docs/task.spec.md` for task format, and
-`.openstation/docs/storage-query-layer.md` for the
-storage and query model.
+| Doc | Purpose |
+|-----|---------|
+| `.openstation/docs/lifecycle.md` | Status transitions, ownership, verification |
+| `.openstation/docs/task.spec.md` | Task format, fields, naming |
+| `.openstation/docs/cli.md` | Full CLI reference (flags, exit codes) |
+| `.openstation/docs/storage-query-layer.md` | Storage model, query patterns |
 <!-- openstation:end -->

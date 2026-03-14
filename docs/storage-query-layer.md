@@ -283,27 +283,32 @@ This layered approach offers:
 
 ## Part II — Query Layer
 
-All query patterns support two execution paths: the **Obsidian
-CLI** (primary, requires Obsidian running) and **filesystem**
-(fallback, always available). The `openstation` CLI wraps both
-paths with automatic fallback.
+The **`openstation` CLI** is the primary query interface. It
+handles resolution, filtering, and output formatting. Under the
+hood it uses filesystem queries (`grep` on frontmatter). The
+**Obsidian CLI** is an optional supplement for users who have
+Obsidian running — it provides fast property queries with
+structured output but is never required.
 
 ### 8. Find Tasks by Status
 
-**Primary (Obsidian CLI):**
+**CLI:**
 
 ```bash
-obsidian search vault="open-station" query='[kind: task] [status: ready]' format=json
+openstation list --status ready
 ```
 
-**Fallback (filesystem):**
+**Filesystem (how it works internally):**
 
 ```bash
 grep -rl 'status: ready' artifacts/tasks/*.md
 ```
 
-The `openstation list --status <s>` CLI command wraps this
-dual-path pattern.
+**Obsidian CLI (optional):**
+
+```bash
+obsidian search vault="open-station" query='[kind: task] [status: ready]' format=json
+```
 
 ### 9. Get Artifacts for a Task
 
@@ -317,13 +322,13 @@ artifacts:
 
 ### 10. Get Sub-tasks of a Parent
 
-**Primary (Obsidian CLI):**
+**CLI:**
 
 ```bash
-obsidian search vault="open-station" query='[kind: task] [parent: 0045-replace-storage-obsidian-cli]' format=json
+openstation list 0045           # shows task and its subtask tree
 ```
 
-**Fallback (filesystem):**
+**Filesystem:**
 
 ```bash
 grep -rl 'parent: 0045-replace-storage-obsidian-cli' artifacts/tasks/*.md
@@ -332,49 +337,44 @@ grep -rl 'parent: 0045-replace-storage-obsidian-cli' artifacts/tasks/*.md
 Alternatively, read the parent's `subtasks` frontmatter field
 for the canonical list.
 
-To check sub-task statuses:
+**Obsidian CLI (optional):**
 
 ```bash
-# Read each sub-task's status
-for name in 0046-spec-storage-query-layer 0047-implement-storage-replacement; do
-  grep 'status:' "artifacts/tasks/$name.md"
-done
+obsidian search vault="open-station" query='[kind: task] [parent: 0045-replace-storage-obsidian-cli]' format=json
 ```
 
 ### 11. Find Tasks by Assignee
 
-**Primary (Obsidian CLI):**
+**CLI:**
 
 ```bash
-obsidian search vault="open-station" query='[kind: task] [assignee: researcher]' format=json
+openstation list --assignee researcher
+openstation list --status ready --assignee researcher   # combined
 ```
 
-**Fallback (filesystem):**
+**Filesystem:**
 
 ```bash
 grep -rl 'assignee: researcher' artifacts/tasks/*.md
+grep -rl 'status: ready' artifacts/tasks/*.md | xargs grep -l 'assignee: researcher'
 ```
 
-Combined filters (status + assignee):
-
-**Primary:**
+**Obsidian CLI (optional):**
 
 ```bash
 obsidian search vault="open-station" query='[kind: task] [status: ready] [assignee: researcher]' format=json
 ```
 
-**Fallback:**
-
-```bash
-grep -rl 'status: ready' artifacts/tasks/*.md | xargs grep -l 'assignee: researcher'
-```
-
-The `openstation list --assignee <name>` CLI command wraps this.
-
 ### 12. Agent Discovery
 
-Agents are discovered through symlinks in the `agents/`
-directory. The resolution chain:
+**CLI:**
+
+```bash
+openstation agents list              # all agents
+openstation agents show researcher   # single agent spec
+```
+
+Agents are resolved through symlinks in the `agents/` directory:
 
 ```
 claude --agent researcher
@@ -400,22 +400,20 @@ Discovery symlinks are created by:
 
 ### 13. Query Patterns Summary
 
-Quick-reference table mapping common queries to operations.
-Frontmatter queries use the Obsidian CLI when available,
-falling back to `grep` on the filesystem. ¹
+Quick-reference table mapping common queries to CLI commands,
+with filesystem and Obsidian alternatives.
 
-| Query                        | Operation                                                       |
-|------------------------------|-----------------------------------------------------------------|
-| Tasks with status X          | `obsidian search query='[kind: task] [status: X]' format=json` ¹ |
-| Tasks assigned to agent A    | `obsidian search query='[kind: task] [assignee: A]' format=json` ¹  |
-| Status + assignee combined   | `obsidian search query='[kind: task] [status: X] [assignee: A]' format=json` ¹ |
-| Count tasks by status        | Add `total` flag to any search command above ¹                  |
-| Tasks with a given parent    | `obsidian search query='[kind: task] [parent: <name>]' format=json` ¹ |
-| Sub-tasks of parent P        | Read parent's `subtasks` frontmatter, or query `[parent: P]` ¹ |
-| Artifacts for task T         | Read `artifacts` field in task frontmatter                      |
-| Artifact provenance          | Read `task` and `agent` fields on the artifact                  |
-| Resolve agent name           | Follow `agents/<name>.md` → `artifacts/agents/<name>.md`       |
-| All known agents             | `openstation agents list`                                       |
-| Next available task ID       | `ls artifacts/tasks/ \| sort \| tail -1` then increment        |
+| Query                        | CLI Command                                              | Filesystem ¹                      | Obsidian ² |
+|------------------------------|----------------------------------------------------------|-----------------------------------|------------|
+| Tasks with status X          | `openstation list --status X`                            | `grep -rl 'status: X' artifacts/tasks/*.md` | `[status: X]` |
+| Tasks assigned to agent A    | `openstation list --assignee A`                          | `grep -rl 'assignee: A' …`       | `[assignee: A]` |
+| Status + assignee            | `openstation list --status X --assignee A`               | pipe grep commands                | `[status: X] [assignee: A]` |
+| Sub-tasks of parent P        | `openstation list P`                                     | `grep -rl 'parent: P' …`         | `[parent: P]` |
+| Single task details          | `openstation show <task>`                                | Read `artifacts/tasks/<task>.md`  | — |
+| Artifacts for task T         | Read `artifacts` field in task frontmatter               | —                                 | — |
+| Artifact provenance          | Read `task` and `agent` fields on the artifact           | —                                 | — |
+| All known agents             | `openstation agents list`                                | `ls artifacts/agents/`            | — |
+| Next available task ID       | `openstation create` (auto-assigns)                      | `ls artifacts/tasks/ \| sort \| tail -1` | — |
 
-¹ Fallback: `grep -rl '<field>: <value>' artifacts/tasks/*.md`
+¹ Always available — no dependencies.
+² Requires Obsidian running. Prefix queries with `obsidian search vault="<name>" query='[kind: task] …' format=json`.

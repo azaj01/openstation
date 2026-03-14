@@ -30,26 +30,39 @@ folders or bucket directories.
 ## CLI Tool
 
 The `openstation` CLI provides scriptable access to the task vault.
-Prefer it for discovery, inspection, and status transitions:
-
-```
-openstation list [--status <s>] [--assignee <name>]
-openstation show <task>
-openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>] [--parent <p>]
-openstation status <task> <new-status>
-openstation run <agent> [--attached] [--dry-run]
-openstation run --task <id> [--attached] [--dry-run]
-openstation agents [list] [--json | --quiet]
-openstation agents show <name> [--json | --vim]
-```
+Prefer it for discovery, inspection, and status transitions.
+See `docs/cli.md` for the full reference (all flags, exit codes,
+resolution rules).
 
 **Always call `openstation` directly** — never `python3 bin/openstation`
 or any other indirect path. The binary is on `$PATH` during agent
 sessions. Fall back to direct file reads/edits only if the command
 is not found.
 
-The `status` subcommand validates lifecycle transitions (see
-`docs/lifecycle.md`) and updates frontmatter atomically.
+Key commands:
+
+| Command | Purpose |
+|---------|---------|
+| `openstation list --status ready --assignee <you>` | Find your tasks |
+| `openstation show <task>` | Read a task spec |
+| `openstation status <task> <new-status>` | Transition lifecycle state |
+| `openstation create "<desc>" [--parent <p>]` | Create a task or sub-task |
+
+## Available Slash Commands
+
+These are user-invocable commands you may also use during
+execution when appropriate:
+
+| Command | Purpose |
+|---------|---------|
+| `/openstation.create` | Create a new task (with decomposition support) |
+| `/openstation.list` | List tasks with filters |
+| `/openstation.show` | Show full task details |
+| `/openstation.ready` | Promote backlog → ready |
+| `/openstation.done` | Mark review → done (with artifact promotion) |
+| `/openstation.reject` | Mark review → failed (with reason) |
+| `/openstation.verify` | Verify a task's checklist against evidence |
+| `/openstation.update` | Edit task metadata (not status) |
 
 ## On Startup
 
@@ -89,13 +102,15 @@ The `status` subcommand validates lifecycle transitions (see
 ### 2. Evaluate Complexity (optional)
 
 If the task is too large for a single pass, decompose it into
-sub-tasks before starting work. Signs a task needs decomposition:
+sub-tasks before starting work. Decompose when **any** of these
+are true:
 
-- Multiple independent deliverables
-- Requirements span different domains or skills
-- Estimated effort exceeds what one agent session can handle
+- Requirements list **6+ independent items** (count them)
+- Work spans **2+ agent roles** (e.g., code + docs, spec + research)
+- Task requires creating or modifying **4+ files**
+- Requirements reference **2+ unrelated domains** (e.g., CLI + skills + lifecycle)
 
-If decomposition is needed, skip to step 6 (Create Sub-Tasks),
+If decomposition is needed, skip to step 8 (Create Sub-Tasks),
 set `status: review`, and stop. The owner will promote the
 sub-tasks for execution.
 
@@ -122,19 +137,53 @@ sub-tasks for execution.
 ### 5. Record Findings
 
 After completing the work, add a `## Findings` section to the
-task file summarizing what you discovered or produced. Place it
-between `## Requirements` and `## Verification`.
+task file summarizing what you produced. This is required for
+all task types.
 
-- Summarize key results — don't repeat the full artifact contents.
-- Link to artifacts where relevant (e.g., "See
-  `artifacts/research/topic-name.md`").
-- Add `## Recommendations` after Findings if the task warrants
-  actionable suggestions.
-- Skip this step if the task produced no findings worth recording
-  (e.g., pure implementation tasks with nothing to summarize
-  beyond the code itself).
+Content varies by type:
+- **research**: Key results, sources, confidence levels
+- **spec**: Design summary, trade-offs, key decisions
+- **implementation**: What was built/changed, design decisions,
+  gotchas
+- **documentation**: What was written/updated, scope
+- **feature**: What was built, how it works, notable decisions
 
-### 6. Create Sub-Tasks (if needed)
+Lead with conclusions. Link to artifacts. Keep it concise —
+a reviewer should understand the work without reading every
+file you touched.
+
+### 6. Flag Downstream Work (if applicable)
+
+If your work introduced any of the following, add a
+`## Downstream` section to the task file:
+
+- Behavior changes that need documentation updates
+- New conventions or patterns others should know about
+- Gaps you noticed but didn't address (out of scope)
+- Follow-up tasks that would improve the result
+
+Each item is a bullet describing what needs to happen and why.
+The reviewer will decide whether to create tasks for them.
+
+Omit this section if there is no downstream work to flag.
+
+### 7. Record Progress
+
+Append a `## Progress` entry to the task file recording what
+you did in this session. Use the heading format
+`### YYYY-MM-DD HH:MM–HH:MM — <your-agent-name> (log: <path>)`
+followed by a short paragraph. The time range is task start and
+end time; the log path points to the session log in
+`artifacts/logs/` (if available). Omit the time range and log
+path when not available — the minimal format is
+`### YYYY-MM-DD — <your-agent-name>`.
+
+- If `## Progress` doesn't exist yet, create it (place it
+  before `## Findings`)
+- Never edit or remove previous entries — append only
+- Add your entry before transitioning to `review` or `failed`
+
+### 8. Create Sub-Tasks (if needed)
 
 If a task requires decomposition:
 
@@ -150,7 +199,7 @@ See `docs/storage-query-layer.md` § 5 for the full
 sub-task storage model and `docs/lifecycle.md` § "Sub-Tasks"
 for blocking rules.
 
-### 7. Update Documentation
+### 9. Update Documentation
 
 If your changes affect behavior, conventions, or structures
 documented in `docs/` or `CLAUDE.md`, update those files to

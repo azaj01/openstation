@@ -24,6 +24,18 @@ review → failed          (owner rejects — use /openstation.reject)
 failed → in-progress     (agent reworks)
 ```
 
+### Pre-Review Checklist
+
+Before transitioning to `review`, the assignee must ensure:
+
+1. All requirements in the task spec are addressed
+2. `## Findings` section summarizes the work produced
+3. `## Downstream` section lists follow-up work (if any were
+   identified — omit the section if none)
+4. `## Progress` entry appended for this session
+5. Artifacts are stored in `artifacts/<category>/` and recorded
+   in the task's `artifacts` frontmatter list
+
 ### Guardrails
 
 - Each user-driven transition has a dedicated command.

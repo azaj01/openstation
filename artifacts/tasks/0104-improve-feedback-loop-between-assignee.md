@@ -8,6 +8,9 @@ owner: user
 artifacts:
   - "[[artifacts/specs/assignee-reviewer-feedback-loop]]"
 created: 2026-03-10
+subtasks:
+  - "[[0127-update-feedback-loop-spec-with]]"
+  - "[[0128-implement-feedback-loop-changes-from]]"
 ---
 
 # Improve feedback loop between assignee and reviewer

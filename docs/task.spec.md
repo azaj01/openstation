@@ -38,6 +38,25 @@ Task files are created here once and never move.
 The filename (without `.md`) and the `name` frontmatter field
 must match exactly: `NNNN-kebab-slug`.
 
+### Task Resolution
+
+When resolving a task reference (from CLI arguments, slash
+commands, or frontmatter links), use the following strategy
+in order (first match wins):
+
+1. **Exact match** — `artifacts/tasks/<input>.md`
+2. **Glob fallback** — `artifacts/tasks/*-<input>.md`
+3. **Numeric prefix** — if input is digits only (e.g., `42`),
+   zero-pad and match: `artifacts/tasks/0042-*.md`
+
+If no match is found, report an error and suggest
+`openstation list` to find the correct name. If multiple
+files match, report ambiguity and list candidates.
+
+The `openstation show` and `openstation status` CLI commands
+implement this resolution natively. Slash commands should
+prefer `openstation show <task>` over manual resolution.
+
 ### Sub-tasks
 
 Sub-tasks are full tasks with their own ID and canonical file
@@ -191,6 +210,25 @@ What needs to be done. Can contain:
 
 Requirements should be concrete and testable.
 
+#### `## Findings`
+
+Summary of what the task produced or discovered. Written by the
+assignee during execution, not by the task author upfront.
+
+Every completed task must have a Findings section. Content
+varies by task type:
+
+| Task type        | What to include                                    |
+|------------------|----------------------------------------------------|
+| `research`       | Key results, sources consulted, confidence levels   |
+| `spec`           | Summary of design, key trade-offs made              |
+| `implementation` | What was built/changed, design decisions, gotchas   |
+| `documentation`  | What was written/updated, scope of changes          |
+| `feature`        | What was built, how it works, notable decisions     |
+
+Link to artifacts where relevant. Lead with conclusions, not
+process narrative.
+
 #### `## Verification`
 
 Checklist of items that must be true when the task is complete.
@@ -207,12 +245,13 @@ Items are checked (`[x]`) as they are verified.
 
 ### Optional Sections
 
-| Section              | Purpose                                                         |
-| -------------------- | --------------------------------------------------------------- |
-| `## Context`         | Background information, links to related tasks or research      |
-| `## Subtasks`        | Decomposition into sub-tasks (H3 per group with numbered items) |
-| `## Findings`        | Results discovered during research tasks                        |
-| `## Recommendations` | Actionable suggestions based on findings                        |
+| Section              | Purpose                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------ |
+| `## Context`         | Background information, links to related tasks or research                                             |
+| `## Subtasks`        | Decomposition into sub-tasks (H3 per group with numbered items)                                        |
+| `## Progress`        | Timestamped log of work done across agent sessions. Append-only.                                       |
+| `## Downstream`      | Follow-up work identified during execution (docs needed, behavior changes, refactoring opportunities)  |
+| `## Recommendations` | Actionable suggestions based on findings                                                               |
 
 Optional sections appear between Requirements and Verification
 when present.
@@ -231,7 +270,7 @@ structure that isn't needed yet.
 | **Scoped**     | + `assignee`, `owner`                        | Requirements become concrete and testable                             |
 | **Decomposed** | + `parent` wikilink (on sub-tasks)            | + `## Subtasks` with priority groups                                  |
 | **In-flight**  | `status: in-progress`                        | + `## Context` if background is needed                                |
-| **Completed**  | `status: done`                               | + `## Findings`, `## Recommendations` (research tasks)                |
+| **Completed**  | `status: done`                               | + `## Findings` (all types), `## Recommendations` (if applicable), `## Downstream` (if applicable) |
 
 ### Rules
 
@@ -243,9 +282,22 @@ structure that isn't needed yet.
 3. **Decompose only when needed** — add `## Subtasks` and
    `parent` fields only if the task is too large for a single
    agent pass.
-4. **Add output sections at the end** — `## Findings` and
-   `## Recommendations` are written by agents during execution,
-   not by the task author upfront.
+4. **Add output sections at the end** — `## Progress`,
+   `## Findings`, `## Downstream`, and `## Recommendations`
+   are written by agents during execution, not by the task
+   author upfront.
+
+### Canonical Section Order
+
+1. `# Title` (required)
+2. `## Context` (optional)
+3. `## Requirements` (required)
+4. `## Subtasks` (optional)
+5. `## Progress` (optional — append-only, written during execution)
+6. `## Findings` (required — written during execution)
+7. `## Downstream` (optional — written during execution)
+8. `## Recommendations` (optional — written during execution)
+9. `## Verification` (required)
 
 ## Examples
 

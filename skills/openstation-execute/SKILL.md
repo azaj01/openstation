@@ -63,6 +63,7 @@ execution when appropriate:
 | `/openstation.reject` | Mark review → failed (with reason) |
 | `/openstation.verify` | Verify a task's checklist against evidence |
 | `/openstation.update` | Edit task metadata (not status) |
+| `/openstation.progress` | Append a timestamped progress entry to a task |
 
 ## On Startup
 
@@ -169,18 +170,10 @@ Omit this section if there is no downstream work to flag.
 
 ### 7. Record Progress
 
-Append a `## Progress` entry to the task file recording what
-you did in this session. Use the heading format
-`### YYYY-MM-DD HH:MM–HH:MM — <your-agent-name> (log: <path>)`
-followed by a short paragraph. The time range is task start and
-end time; the log path points to the session log in
-`artifacts/logs/` (if available). Omit the time range and log
-path when not available — the minimal format is
-`### YYYY-MM-DD — <your-agent-name>`.
+Use `/openstation.progress <task-name> <message>` to append a
+timestamped progress entry. The command handles format, placement,
+and append-only rules. See the command for full details.
 
-- If `## Progress` doesn't exist yet, create it (place it
-  before `## Findings`)
-- Never edit or remove previous entries — append only
 - Add your entry before transitioning to `review` or `failed`
 
 ### 8. Create Sub-Tasks (if needed)

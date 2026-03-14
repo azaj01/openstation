@@ -1,6 +1,9 @@
 ---
 name: openstation.progress
 description: Append a progress entry to a task. $ARGUMENTS = <task-name> <message>. Use when user says "log progress", "record progress", or wants to add a timestamped work entry.
+aliases: []
+id: openstation.progress
+tags: []
 ---
 
 # Append Progress Entry
@@ -29,25 +32,23 @@ The task name can be either the full ID-prefixed name (e.g.,
    - Otherwise, default to `user`.
 5. Build the progress entry:
 
-   Full format (when times and log path are available):
-
-   ```markdown
-   ### YYYY-MM-DD HH:MM–HH:MM — <author> (log: <path>)
-
-   <message>
-   ```
-
-   Minimal format (when times or log path are unavailable):
+   Format with metadata blockquote:
 
    ```markdown
    ### YYYY-MM-DD — <author>
+   > time: HH:MM–HH:MM
+   > log: [[artifacts/logs/<task-name>]]
 
    <message>
    ```
 
-   Use today's date in ISO 8601 format. Include the time range
-   (task start–end) and log path (`artifacts/logs/`) when the
-   caller provides them.
+   Use today's date in ISO 8601 format. Metadata line rules:
+   - `time:` — use `HH:MM–HH:MM` range when both start and end
+     are known; use single `HH:MM` (current time) otherwise
+   - `log:` — Obsidian wikilink to the session log in
+     `artifacts/logs/`
+   - Omit the blockquote line entirely when neither time nor log
+     is available.
 6. Locate the `## Progress` section in the task file:
    - If it exists, append the new entry after the last existing
      entry (preserve a blank line between entries).

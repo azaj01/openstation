@@ -33,7 +33,10 @@ Example: `0042-add-login-page` or `add-login-page`
      claims in the task body.
 6. Determine pass/fail for each item based on the evidence
    gathered. An item passes only if concrete evidence confirms it.
-7. Present a **verification report** to the user:
+7. **Update the task file** — for each passing item, change
+   `- [ ]` to `- [x]` in the `## Verification` section. Leave
+   failing items unchecked.
+8. Present a **verification report** to the user:
 
    ```
    ## Verification Report: <task-name>
@@ -44,20 +47,14 @@ Example: `0042-add-login-page` or `add-login-page`
    | 2 | <item>    | ❌ FAIL | <what's missing or wrong> |
    ```
 
-8. If **all items pass**:
+9. If **all items pass**:
    - Tell the user all verification criteria passed.
    - Ask the user to confirm before proceeding.
-   - On confirmation, run:
+   - On confirmation, run `/openstation.done <task-name>` to
+     complete the task (handles status transition and artifact
+     promotion).
 
-     ```bash
-     openstation status <task-name> done
-     ```
-
-     Then follow the same artifact promotion steps as
-     `/openstation.done` (check for agent spec artifacts and
-     create discovery symlinks).
-
-9. If **any items fail**:
-   - Report which items failed and why.
-   - Do **not** transition the task status.
-   - Suggest what needs to be fixed before re-verification.
+10. If **any items fail**:
+    - Report which items failed and why.
+    - Do **not** transition the task status.
+    - Suggest what needs to be fixed before re-verification.

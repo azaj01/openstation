@@ -127,6 +127,8 @@ sub-tasks for execution.
 - Store artifacts in `artifacts/<category>/` (the canonical
   location) and record them in the task's `artifacts` frontmatter
   list using Obsidian wikilinks: `"[[artifacts/research/name]]"`.
+  **Every produced artifact must appear in the `artifacts` list** —
+  this is how verification and promotion find them.
 - Set provenance fields (`agent`, `task`) on each artifact.
   Use wikilinks for the `task` field: `task: "[[0047-name]]"`.
 - **Do NOT create discovery or promotion symlinks** (e.g.
@@ -174,6 +176,8 @@ Use `/openstation.progress <task-name> <message>` to append a
 timestamped progress entry. The command handles format, placement,
 and append-only rules. See the command for full details.
 
+- Include the log path (`artifacts/logs/<task-name>.jsonl`) if
+  your session is being logged
 - Add your entry before transitioning to `review` or `failed`
 
 ### 8. Create Sub-Tasks (if needed)
@@ -208,7 +212,10 @@ Skip this step if no documentation or findings are affected.
 
 After working through all requirements:
 
-1. Transition the task to review:
+1. Self-check: review the `## Verification` items and confirm
+   your work addresses each one. Do **not** check the boxes
+   yourself — that is the owner's job via `/openstation.verify`.
+2. Transition the task to review:
 
    ```bash
    openstation status <task-name> review
@@ -218,7 +225,7 @@ After working through all requirements:
    `status: in-progress` → `status: review` directly in the
    task frontmatter.
 
-2. Stop. The designated owner handles verification from here.
+3. Stop. The designated owner handles verification from here.
 
 See `docs/lifecycle.md` § "Status Transitions" for guardrails.
 

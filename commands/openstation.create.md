@@ -65,19 +65,11 @@ Generate a new task spec from a description.
    - Generate a kebab-case slug (max 5 words).
    - Create `artifacts/tasks/<ID>-<slug>.md` directly.
 
-5. **Edit the generated file** — replace the template body with
-   the approved draft content:
+5. **Fill in the body** — the CLI creates frontmatter and a
+   skeleton body. Edit the generated file to add the approved
+   Requirements and Verification sections from the draft:
 
    ```markdown
-   ---
-   kind: task
-   name: <ID>-<slug>
-   status: <backlog or ready>
-   assignee: <agent>
-   owner: <owner>
-   created: <today's date>
-   ---
-
    # <Title from description>
 
    ## Requirements
@@ -88,6 +80,9 @@ Generate a new task spec from a description.
 
    - [ ] <Approved verification items from draft>
    ```
+
+   Do not rewrite the frontmatter — the CLI already set it
+   correctly in step 4.
 
 6. **Sub-task handling** — if sub-tasks were included in the
    approved draft, create each sub-task using:

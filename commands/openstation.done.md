@@ -24,7 +24,11 @@ Example: `0003-research-obsidian-plugin-api` or
 3. Read the task frontmatter. Verify `status: review`
    — refuse with an error if the task is not in review. Only
    `review` → `done` is a valid transition.
-4. Set the status using the CLI:
+4. Check the `## Verification` section for unchecked items
+   (`- [ ]`). If any exist, refuse with an error:
+   "Verification incomplete — N items unchecked. Run
+   `/openstation.verify <task-name>` first."
+5. Set the status using the CLI:
 
    ```bash
    openstation status <task-name> done
@@ -34,10 +38,10 @@ Example: `0003-research-obsidian-plugin-api` or
    `status: review` → `status: done` directly in the task
    frontmatter.
 
-5. Artifacts are already in `artifacts/` — they do not need to
+6. Artifacts are already in `artifacts/` — they do not need to
    be moved.
-6. Check the task's `artifacts` frontmatter field for paths
+7. Check the task's `artifacts` frontmatter field for paths
    matching `artifacts/agents/*.md`. For each, create a discovery
    symlink: `agents/<name>.md → ../artifacts/agents/<name>.md`
    (skip if already exists).
-7. Confirm the task was completed and show the file path.
+8. Confirm the task was completed and show the file path.

@@ -41,13 +41,7 @@ After displaying it, also report:
 Only if `openstation` is not installed:
 
 1. Parse the task name from `$ARGUMENTS`.
-2. Locate the task file:
-   - Try exact match: `artifacts/tasks/<task-name>.md`
-   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
-   - If input is numeric only (e.g., `0010`), match any file
-     starting with that prefix: `artifacts/tasks/<input>-*.md`
-   - If still not found, report an error and suggest using
-     `/openstation.list` to find the correct name.
+2. Resolve the task file per `docs/task.spec.md` § Task Resolution.
 3. Read the full `.md` file.
 4. Display:
    - The frontmatter fields in a readable format

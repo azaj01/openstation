@@ -19,11 +19,7 @@ Examples:
 
 1. Parse the task name (first argument) and optional reason
    (remaining text) from `$ARGUMENTS`.
-2. Locate the task file:
-   - Try exact match: `artifacts/tasks/<task-name>.md`
-   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
-   - If still not found, report an error and suggest using
-     `openstation list` to find the correct name.
+2. Resolve the task file per `docs/task.spec.md` § Task Resolution.
 3. Read the task frontmatter. Verify `status: review` — refuse
    with an error if the task is not in review. Only
    `review` → `failed` is a valid transition for this command.

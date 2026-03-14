@@ -20,10 +20,7 @@ Example: `0003-research-obsidian-plugin-api` or
    canonical routing table.
 
 1. Parse the task name from `$ARGUMENTS`.
-2. Locate the task file:
-   - Try exact match: `artifacts/tasks/<task-name>.md`
-   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
-   - If still not found, report an error and list available tasks.
+2. Resolve the task file per `docs/task.spec.md` § Task Resolution.
 3. Read the task frontmatter. Verify `status: review`
    — refuse with an error if the task is not in review. Only
    `review` → `done` is a valid transition.

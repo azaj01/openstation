@@ -20,11 +20,7 @@ Examples:
 
 1. Parse the task name (first argument) and optional `agent:<name>`
    from `$ARGUMENTS`.
-2. Locate the task file in `artifacts/tasks/`:
-   - Try exact match: `artifacts/tasks/<task-name>.md`
-   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
-   - If still not found, report an error and suggest using
-     `openstation list --status backlog` to find available tasks.
+2. Resolve the task file per `docs/task.spec.md` § Task Resolution.
 3. Read the task frontmatter. Verify `status: backlog` — refuse
    with an error if the task is not in backlog. Only
    `backlog` → `ready` is a valid transition for this command.
@@ -33,7 +29,7 @@ Examples:
 5. If `agent:<name>` was provided:
    - Check that `agents/<name>.md` exists. Warn if not found,
      but allow the assignment.
-   - Set `agent: <name>` in frontmatter.
+   - Set `assignee: <name>` in frontmatter.
 6. If no agent was provided and `agent` field is empty, ask
    the user which agent to assign. List available agents from
    `agents/`.

@@ -54,10 +54,7 @@ appropriate redirect:
 2. Check for any `status:` field. If present, reject with the
    appropriate message from the table above. Do not apply any
    changes.
-3. Locate the task file:
-   - Try exact match: `artifacts/tasks/<task-name>.md`
-   - If not found, try glob fallback: `artifacts/tasks/*-<task-name>.md`
-   - If still not found, report an error and list available tasks.
+3. Resolve the task file per `docs/task.spec.md` § Task Resolution.
 4. Read the current frontmatter from the task file.
 5. Validate each field:value pair:
    - `assignee` should match an agent in `agents/` (warn if not found,

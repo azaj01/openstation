@@ -66,7 +66,7 @@ Creates the `.openstation/` vault (directories, docs, commands, skills), install
 /openstation.create Add input validation to the signup form
 ```
 
-A short interview refines requirements, picks an agent, and sets the task to `ready`.
+The agent drafts a complete task spec (requirements, verification, assignee) and sets it to `ready`.
 
 **2. Run the task**
 
@@ -121,7 +121,7 @@ Open Station ships with template agents. Each is a markdown file you own — edi
   You                      Open Station                    Agent
    │                            │                            │
    ├── /openstation.create ────►│                            │
-   │   (interview + ready)      │                            │
+   │   (draft + approve)        │                            │
    │                            ├── openstation run ────────►│
    │                            │                            ├── discover task
    │                            │                            ├── execute work

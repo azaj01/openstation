@@ -16,7 +16,7 @@ set -euo pipefail
 
 # --- Config ------------------------------------------------------------------
 
-OPENSTATION_VERSION="v0.8.0"
+OPENSTATION_VERSION="v0.9.0"
 REPO_OWNER="leonprou"
 REPO_NAME="openstation"
 REPO_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}.git"

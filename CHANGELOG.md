@@ -1,5 +1,65 @@
 # Changelog
 
+## v0.9.0
+
+Worktree integration, feedback loops, lifecycle hooks, and a new
+`artifacts` CLI subcommand. Agents can now run in isolated
+worktrees, communicate progress back to task owners, and the
+system gains a spec for hook-based lifecycle automation.
+
+### CLI
+
+- **`artifacts` subcommand** — `artifacts list` and `artifacts show`
+  for browsing research, specs, and agent artifacts from the CLI.
+  Includes comprehensive test suite.
+- **`--worktree` pass-through** — `openstation run --worktree`
+  passes through to `claude --worktree`, enabling agent execution
+  in isolated git worktrees. Includes alias resolution and CLI
+  tests.
+- **Agent aliases** — Agents now declare `aliases` in frontmatter
+  (e.g. `dev` for `developer`). CLI resolves aliases across `run`,
+  `agents show`, and `list --assignee`.
+
+### Commands
+
+- **`/openstation.progress`** — New slash command for recording
+  structured progress entries on tasks, with worktree metadata
+  support.
+- **DRY slash commands** — Centralized task resolution logic
+  across `done`, `list`, `ready`, `reject`, `show`, `update`, and
+  `verify` commands, reducing duplication.
+- **Tightened verification flow** — `done` and `verify` commands
+  updated with stricter verification guardrails.
+
+### Specs & Docs
+
+- **Task lifecycle hooks spec** — Design for hook-based automation
+  on status transitions (`artifacts/specs/task-lifecycle-hooks.md`).
+  Covers configuration schema, execution model, and built-in hooks.
+- **Feedback loop spec updates** — Added Progress convention and
+  Downstream section to the assignee-reviewer feedback loop spec.
+  Implemented changes across lifecycle docs, task spec, and execute
+  skill.
+- **Worktree pass-through spec** — Design for CLI worktree flag
+  forwarding to Claude Code.
+- **Storage query layer rewrite** — Rewrote for CLI-first queries,
+  removing Obsidian dependency from the primary path.
+- **Task spec expanded** — Added scope authority rules, milestone
+  examples, and progress entry format with worktree metadata.
+
+### Research
+
+- **Worktree integration** — Research into git worktree support for
+  parallel agent execution, including branch scoping and cleanup
+  behavior.
+- **Paperclip extension model** — Comparative analysis of Open
+  Station vs Paperclip's extension model and workflows.
+
+### Agents
+
+- **Aliases added** — All six agent specs now include an `aliases`
+  field for shorthand resolution.
+
 ## v0.8.0
 
 Replaces the tier model with attached/detached modes, expands

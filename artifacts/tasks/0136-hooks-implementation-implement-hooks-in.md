@@ -2,7 +2,7 @@
 kind: task
 name: 0136-hooks-implementation-implement-hooks-in
 type: implementation
-status: backlog
+status: ready
 assignee: developer
 owner: user
 parent: "[[0134-task-lifecycle-hooks]]"

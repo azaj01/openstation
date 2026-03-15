@@ -2,7 +2,7 @@
 kind: task
 name: 0135-hooks-spec-design-configuration-schema
 type: spec
-status: review
+status: done
 artifacts:
   - "[[artifacts/specs/task-lifecycle-hooks]]"
 assignee: architect
@@ -24,12 +24,12 @@ created: 2026-03-14
 
 ## Verification
 
-- [ ] Spec artifact exists in `artifacts/specs/`
-- [ ] Configuration schema is fully defined with examples
-- [ ] Matcher format supports common patterns (specific transitions, wildcards, catch-all)
-- [ ] Environment variable contract is documented
-- [ ] Failure and timeout semantics are specified
-- [ ] CLI integration points are identified
+- [x] Spec artifact exists in `artifacts/specs/`
+- [x] Configuration schema is fully defined with examples
+- [x] Matcher format supports common patterns (specific transitions, wildcards, catch-all)
+- [x] Environment variable contract is documented
+- [x] Failure and timeout semantics are specified
+- [x] CLI integration points are identified
 
 ## Findings
 

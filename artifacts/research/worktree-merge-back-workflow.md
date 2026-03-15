@@ -277,18 +277,29 @@ Combine Options A and C:
 This mirrors workmux's split: automated path (merge) + manual
 path (remove).
 
-### Recommendation
+### Decision: Option C — Standalone `openstation merge`
 
-**Option D (hybrid) is the strongest approach**, implemented in
-two phases:
+**`openstation merge <task>` as a manual, user-invoked command.**
 
-1. **Phase 1:** `openstation merge <task>` command with `--pr`,
-   `--squash`, `--cleanup` flags. This is immediately useful
-   regardless of how sessions are launched.
+No `--auto-pr` on `openstation run`. No lifecycle hook wiring.
 
-2. **Phase 2:** `--auto-pr` flag on `openstation run` that
-   calls `openstation merge --pr` as a post-session step. Sugar
-   on top of the existing command.
+**Rationale:**
+
+- Lifecycle hooks (0134) are global — they fire on every matching
+  transition regardless of whether the task used a worktree.
+  Auto-PR on `in-progress→review` would fail for non-worktree
+  tasks and block the transition.
+- A conditional hook wrapper is possible but adds fragility.
+- Keeping merge-back as an explicit user action is safest while
+  worktree usage is still opt-in and uncommon.
+- The command is independently useful — works days after a session,
+  works regardless of how the session was launched, lets the user
+  choose strategy after seeing results.
+
+**Future automation:** If worktree usage becomes the default,
+revisit hooking `openstation merge` into lifecycle hooks with
+a conditional matcher (e.g., `condition: "has:branch"` — currently
+deferred in the hooks spec).
 
 ---
 
@@ -374,8 +385,6 @@ M1 (pass-through)  ← done/in-progress
      ├── openstation merge command (new, parallel to M2)
      │
 M2 (branch scoping)
-     │
-     ├── --auto-pr on openstation run (after merge command exists)
      │
 M3 (agent awareness)
 ```

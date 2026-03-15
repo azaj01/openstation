@@ -2,7 +2,7 @@
 kind: task
 name: 0138-research-worktree-merge-back-workflow
 type: research
-status: review
+status: done
 assignee: researcher
 owner: user
 parent: "[[0122-worktree-integration]]"
@@ -54,10 +54,10 @@ Research artifact: `artifacts/research/worktree-merge-back-workflow.md`
    and Open Station has rich task context to populate PR bodies
    (findings, verification checklist, agent logs).
 
-4. **Recommended approach: hybrid (Option D).** Phase 1: standalone
-   `openstation merge <task>` command with `--pr`, `--squash`,
-   `--cleanup` flags. Phase 2: `--auto-pr` flag on
-   `openstation run` as sugar on top.
+4. **Decided: standalone `openstation merge <task>`** with `--pr`,
+   `--squash`, `--cleanup` flags. No `--auto-pr` on run, no
+   lifecycle hook wiring — hooks are global and would break
+   non-worktree tasks. Keep merge-back as an explicit user action.
 
 5. **Conflict risk is real but manageable.** Main risks are parent
    task file edits and shared docs. PR-based workflow is safest —
@@ -74,6 +74,33 @@ Research artifact: `artifacts/research/worktree-merge-back-workflow.md`
   (bugs #27753, #28422, #26725, #31488), worktrunk/workmux merge
   patterns, `gh pr create` feasibility, and four integration
   options. Produced research artifact.
+
+## Observed Pain Points (2026-03-15 session)
+
+Real issues hit during task 0139 worktree execution:
+
+1. **Agent didn't commit** — ran 51 turns, made changes across
+   5 files, but never committed. No branch to merge, just dirty
+   working tree files.
+2. **`git apply` failed** — worktree branched from older commit,
+   so diffs couldn't apply to main. Had to `cat` files manually.
+3. **CWD drift** — `cd` into worktree for testing broke all
+   subsequent `openstation` commands (`find_root()` resolved
+   worktree as vault root).
+4. **Stale task files** — worktree had old task versions, agent
+   read wrong task and went off-track ($1.79 wasted).
+
+### Additional investigation points from these observations
+
+- **Post-run auto-commit** — should `openstation run` instruct
+  the agent (via prompt) or use a hook to commit worktree changes
+  before session ends?
+- **`openstation merge <worktree>`** — new command that handles
+  diff/apply/cherry-pick from a worktree branch to main, with
+  conflict detection
+- **PR-based flow** — auto `gh pr create --head worktree-<name>`
+  after detached runs; populate PR body from task findings and
+  verification checklist
 
 ## Verification
 

@@ -3,6 +3,9 @@ name = "openstation"
 version = "0.6.1"
 description = "Task management system for coding AI agents"
 requires-python = ">=3.9"
+dependencies = [
+    "simple-term-menu>=1.6",
+]
 
 [project.scripts]
 openstation = "openstation.cli:main"

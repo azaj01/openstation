@@ -167,7 +167,7 @@ Change a task's lifecycle status.
 ### Synopsis
 
 ```
-openstation status TASK NEW_STATUS
+openstation status TASK [NEW_STATUS]
 ```
 
 ### Arguments
@@ -175,7 +175,7 @@ openstation status TASK NEW_STATUS
 | Argument     | Description |
 |--------------|-------------|
 | `TASK`       | Required. Task ID, slug, or full name. |
-| `NEW_STATUS` | Required. Target status: `backlog`, `ready`, `in-progress`, `review`, `done`, `failed`. |
+| `NEW_STATUS` | Optional. Target status: `backlog`, `ready`, `in-progress`, `review`, `done`, `failed`. When omitted, shows an interactive picker of valid transitions. |
 
 ### Valid Transitions
 
@@ -192,6 +192,7 @@ If the task has a parent, auto-promotion is applied after a successful transitio
 ### Examples
 
 ```bash
+openstation status 0042                   # interactive picker
 openstation status 0042 ready             # backlog → ready
 openstation status 42 in-progress         # short ID works
 openstation status cli-improvements review

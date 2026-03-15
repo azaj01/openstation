@@ -15,6 +15,7 @@ subtasks:
   - "[[0094-spec-branch-based-task-scoping]]"
   - "[[0109-implement-branch-based-task-scoping]]"
   - "[[0108-update-agent-skills-and-docs]]"
+  - "[[0138-research-worktree-merge-back-workflow]]"
 ---
 
 # Worktree Integration

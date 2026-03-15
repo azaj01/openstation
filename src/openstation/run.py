@@ -275,9 +275,10 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE, None
 
+    task_path = task_spec if worktree else f"artifacts/tasks/{task_name}.md"
     prompt = (
         f"Execute task {task_name}. Read its spec at "
-        f"artifacts/tasks/{task_name}.md and work through "
+        f"{task_path} and work through "
         f"the requirements."
     )
     cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
@@ -341,9 +342,10 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE
 
+    task_path = str(spec) if worktree else f"artifacts/tasks/{task_name}.md"
     prompt = (
         f"Execute task {task_name}. Read its spec at "
-        f"artifacts/tasks/{task_name}.md and work through "
+        f"{task_path} and work through "
         f"the requirements."
     )
 

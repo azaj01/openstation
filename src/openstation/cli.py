@@ -147,6 +147,7 @@ examples:
     # status
     status_p = sub.add_parser("status", help="Change a task's status", formatter_class=fmt, epilog="""\
 examples:
+  openstation status 0042                   # interactive picker
   openstation status 0042 ready             # backlog → ready
   openstation status 42 in-progress         # short ID works
   openstation status cli-improvements review
@@ -155,7 +156,8 @@ valid transitions:
   backlog → ready → in-progress → review → done
                                   review → failed → in-progress""")
     status_p.add_argument("task", help="Task ID or slug")
-    status_p.add_argument("new_status", help="Target status: backlog|ready|in-progress|review|done|failed")
+    status_p.add_argument("new_status", nargs="?", default=None,
+                          help="Target status (omit for interactive picker): backlog|ready|in-progress|review|done|failed")
 
     # run
     run_p = sub.add_parser("run", help="Launch an agent", formatter_class=fmt, epilog="""\

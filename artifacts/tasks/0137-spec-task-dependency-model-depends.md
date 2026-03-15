@@ -5,6 +5,7 @@ type: spec
 status: ready
 assignee: architect
 owner: user
+parent: "[[0140-introduce-task-dependencies-depends-on]]"
 created: 2026-03-14
 ---
 

@@ -35,15 +35,12 @@ INIT_GITKEEP_DIRS = [
     ".openstation/commands",
 ]
 
-INIT_COMMANDS = [
-    "commands/openstation.create.md",
-    "commands/openstation.done.md",
-    "commands/openstation.list.md",
-    "commands/openstation.ready.md",
-    "commands/openstation.reject.md",
-    "commands/openstation.show.md",
-    "commands/openstation.update.md",
-]
+def _discover_commands(source_dir):
+    """Discover command files from the local cache."""
+    cmd_dir = Path(source_dir) / "commands"
+    if not cmd_dir.is_dir():
+        return []
+    return sorted(f"commands/{p.name}" for p in cmd_dir.glob("*.md"))
 
 INIT_SKILLS = [
     "skills/openstation-execute/SKILL.md",
@@ -183,7 +180,7 @@ def _install_agents(source_dir, agents_filter, force, dry_run, stats):
         _init_info(f"{link} → {target}", dry_run)
 
 
-def _create_claude_symlinks(dry_run):
+def _create_claude_symlinks(dry_run, commands):
     """Create .claude/ → .openstation/ directory symlinks."""
     print("Creating symlinks...")
 
@@ -202,7 +199,7 @@ def _create_claude_symlinks(dry_run):
     elif cp.is_dir():
         if any(cp.iterdir()):
             _init_warn(".claude/commands/ exists with files — merging")
-            for f in INIT_COMMANDS:
+            for f in commands:
                 fname = Path(f).name
                 fl = cp / fname
                 ft = f"../../.openstation/{f}"
@@ -276,7 +273,7 @@ def _create_user_symlinks(source_dir, dry_run, force):
     if not dry_run:
         cmd_dir.mkdir(parents=True, exist_ok=True)
 
-    for f in INIT_COMMANDS:
+    for f in _discover_commands(str(source)):
         fname = Path(f).name
         link = cmd_dir / fname
         target = source / f
@@ -413,8 +410,9 @@ def cmd_init(args):
                 Path(d).mkdir(parents=True, exist_ok=True)
                 gk.touch()
 
+    commands = _discover_commands(source_dir_str)
     print("Installing commands...")
-    for f in INIT_COMMANDS:
+    for f in commands:
         dst = f".openstation/{f}"
         if not _copy_from_cache(f, dst, source_dir_str, dry_run):
             return core.EXIT_USAGE
@@ -444,7 +442,7 @@ def cmd_init(args):
     else:
         _install_agents(source_dir_str, agents_filter, force, dry_run, stats)
 
-    _create_claude_symlinks(dry_run)
+    _create_claude_symlinks(dry_run, commands)
 
     print()
     if is_reinit:

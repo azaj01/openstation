@@ -1510,6 +1510,164 @@ class TestStatusCommand(unittest.TestCase):
         self.assertIn("backlog → ready", out)
 
 
+class TestInteractiveStatusPicker(unittest.TestCase):
+    """Tests for interactive status picker when new_status is omitted."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def _run_with_input(self, args, stdin_text, cwd=None):
+        """Run CLI with simulated stdin input."""
+        run_env = dict(os.environ)
+        existing = run_env.get("PYTHONPATH", "")
+        run_env["PYTHONPATH"] = SRC_DIR + (os.pathsep + existing if existing else "")
+        result = subprocess.run(
+            [sys.executable, "-m", "openstation"] + args,
+            capture_output=True,
+            text=True,
+            input=stdin_text,
+            cwd=cwd or self.tmpdir,
+            env=run_env,
+        )
+        return result.stdout, result.stderr, result.returncode
+
+    def _run_status_interactive(self, task_name, picker_return):
+        """Run cmd_status with mocked interactive picker."""
+        from unittest.mock import patch
+        from openstation import tasks as _tasks
+
+        args = type("Args", (), {"task": task_name, "new_status": None})()
+        with patch.object(sys.stdin, "isatty", return_value=True), \
+             patch.object(_tasks, "_interactive_status_picker", return_value=picker_return):
+            return _tasks.cmd_status(args, self.root, "")
+
+    def test_picker_shows_current_status_and_options(self):
+        """Omitting new_status invokes picker which shows current and targets."""
+        from unittest.mock import patch, call
+        from openstation import tasks as _tasks
+
+        make_task(self.root, "0001-alpha", status="backlog")
+        captured = {}
+        def fake_picker(task_name, current):
+            captured["task_name"] = task_name
+            captured["current"] = current
+            return "ready"
+        args = type("Args", (), {"task": "0001", "new_status": None})()
+        with patch.object(sys.stdin, "isatty", return_value=True), \
+             patch.object(_tasks, "_interactive_status_picker", side_effect=fake_picker):
+            rc = _tasks.cmd_status(args, self.root, "")
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured["current"], "backlog")
+        self.assertIn("0001-alpha", captured["task_name"])
+
+    def test_picker_performs_transition(self):
+        """Selecting via picker performs the transition."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        rc = self._run_status_interactive("0001", "ready")
+        self.assertEqual(rc, 0)
+        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: ready", content)
+
+    def test_picker_multiple_options(self):
+        """Status with multiple transitions passes current to picker."""
+        from unittest.mock import patch
+        from openstation import tasks as _tasks
+
+        make_task(self.root, "0001-alpha", status="ready")
+        # ready -> backlog or in-progress; pick backlog
+        rc = self._run_status_interactive("0001", "backlog")
+        self.assertEqual(rc, 0)
+        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: backlog", content)
+
+    def test_picker_no_valid_transitions(self):
+        """Status with no transitions shows message and exits cleanly."""
+        make_task(self.root, "0001-alpha", status="done")
+        # Picker returns None when no valid transitions
+        rc = self._run_status_interactive("0001", None)
+        self.assertEqual(rc, 0)
+
+    def test_picker_cancel_returns_ok(self):
+        """Cancelling the picker exits cleanly."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        rc = self._run_status_interactive("0001", None)
+        self.assertEqual(rc, 0)
+
+    def test_picker_invalid_input(self):
+        """INVALID return from picker exits with usage error."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        rc = self._run_status_interactive("0001", "INVALID")
+        self.assertEqual(rc, 1)
+
+    def test_non_tty_requires_positional_arg(self):
+        """Non-TTY stdin without new_status exits with usage error."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        # subprocess.run pipes stdin, so isatty() returns False
+        _, stderr, rc = self._run_with_input(["status", "0001"], "")
+        self.assertNotEqual(rc, 0)
+        self.assertIn("new_status argument required", stderr)
+
+    def test_non_tty_with_explicit_status_works(self):
+        """Non-TTY stdin with explicit new_status works fine."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        out, _, rc = self._run_with_input(["status", "0001", "ready"], "")
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
+
+    def test_explicit_new_status_still_works(self):
+        """Providing new_status explicitly works as before (no picker)."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
+
+    def test_numbered_picker_fallback(self):
+        """_numbered_picker shows current status and numbered options."""
+        from io import StringIO
+        from unittest.mock import patch
+        from openstation.tasks import _numbered_picker
+
+        with patch("builtins.input", return_value="1"):
+            result = _numbered_picker("0001-test", "backlog", ["ready"])
+        self.assertEqual(result, "ready")
+
+    def test_numbered_picker_invalid_input(self):
+        """_numbered_picker returns INVALID on non-numeric input."""
+        from unittest.mock import patch
+        from openstation.tasks import _numbered_picker
+
+        with patch("builtins.input", return_value="abc"):
+            result = _numbered_picker("0001-test", "backlog", ["ready"])
+        self.assertEqual(result, "INVALID")
+
+    def test_numbered_picker_out_of_range(self):
+        """_numbered_picker returns INVALID on out-of-range input."""
+        from unittest.mock import patch
+        from openstation.tasks import _numbered_picker
+
+        with patch("builtins.input", return_value="99"):
+            result = _numbered_picker("0001-test", "backlog", ["ready"])
+        self.assertEqual(result, "INVALID")
+
+    def test_allowed_from_backlog(self):
+        """allowed_from returns correct transitions for backlog."""
+        from openstation.tasks import allowed_from
+        self.assertEqual(allowed_from("backlog"), {"ready"})
+
+    def test_allowed_from_ready(self):
+        """allowed_from returns correct transitions for ready."""
+        from openstation.tasks import allowed_from
+        self.assertEqual(allowed_from("ready"), {"in-progress", "backlog"})
+
+    def test_allowed_from_done(self):
+        """allowed_from returns empty set for terminal status."""
+        from openstation.tasks import allowed_from
+        self.assertEqual(allowed_from("done"), set())
+
+
 # ── Init Command Tests ──────────────────────────────────────────────
 
 

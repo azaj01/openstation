@@ -626,15 +626,77 @@ def cmd_create(args, root, prefix):
     return core.EXIT_OK
 
 
+def _term_menu_picker(task_name, current, options):
+    """Arrow-key menu using simple-term-menu. Returns chosen status or None."""
+    from simple_term_menu import TerminalMenu
+
+    title = f"{task_name}  [current: {current}]"
+    labels = [f"  {opt}  " for opt in options]
+    menu = TerminalMenu(
+        labels,
+        title=title,
+        menu_cursor_style=("fg_cyan", "bold"),
+        menu_highlight_style=("bg_cyan", "fg_black", "bold"),
+        status_bar=f"current status: {current}",
+        status_bar_style=("fg_yellow", "italic"),
+    )
+    idx = menu.show()
+    if idx is None:
+        return None
+    return options[idx]
+
+
+def _numbered_picker(task_name, current, options):
+    """Fallback numbered picker for environments without arrow-key support."""
+    print(f"{task_name}: current status is \033[1m{current}\033[0m")
+    for i, opt in enumerate(options, 1):
+        print(f"  {i}) {opt}")
+
+    try:
+        choice = input("select> ")
+    except (EOFError, KeyboardInterrupt):
+        return None
+
+    try:
+        idx = int(choice)
+    except ValueError:
+        core.err(f"invalid choice: {choice}")
+        return "INVALID"
+
+    if idx < 1 or idx > len(options):
+        core.err(f"choice out of range: {idx} (1-{len(options)})")
+        return "INVALID"
+
+    return options[idx - 1]
+
+
+def _interactive_status_picker(task_name, current):
+    """Show an interactive picker for valid status transitions.
+
+    Uses simple-term-menu for arrow-key navigation when available,
+    falls back to a numbered picker otherwise.
+
+    Returns the chosen status string, or None if no valid transition
+    or user cancels.  Returns "INVALID" on bad input (numbered fallback).
+    """
+    options = sorted(allowed_from(current))
+    if not options:
+        print(f"{task_name}: status is {current} — no valid transitions")
+        return None
+
+    try:
+        return _term_menu_picker(task_name, current, options)
+    except Exception:
+        # Fall back to numbered picker if term menu fails
+        return _numbered_picker(task_name, current, options)
+
+
 def cmd_status(args, root, prefix):
     """Handle the status subcommand."""
     query = args.task
     new_status = args.new_status
 
-    if new_status not in core.VALID_STATUSES:
-        core.err(f"invalid status: {new_status}")
-        return core.EXIT_USAGE
-
+    # Resolve task first (needed for both interactive and direct paths)
     task_name, error, code = resolve_task(root, prefix, query)
     if error:
         core.err(error)
@@ -651,6 +713,22 @@ def cmd_status(args, root, prefix):
 
     fm = core.parse_frontmatter(text)
     current = fm.get("status", "")
+
+    # Interactive picker when new_status is omitted
+    if new_status is None:
+        if not sys.stdin.isatty():
+            core.err("new_status argument required in non-interactive mode")
+            core.err("  usage: openstation status <task> <new-status>")
+            return core.EXIT_USAGE
+        new_status = _interactive_status_picker(task_name, current)
+        if new_status is None:
+            return core.EXIT_OK
+        if new_status == "INVALID":
+            return core.EXIT_USAGE
+
+    if new_status not in core.VALID_STATUSES:
+        core.err(f"invalid status: {new_status}")
+        return core.EXIT_USAGE
 
     if current == new_status:
         print(f"{task_name}: already at {new_status}")

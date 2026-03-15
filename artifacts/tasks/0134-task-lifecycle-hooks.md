@@ -2,7 +2,7 @@
 kind: task
 name: 0134-task-lifecycle-hooks
 type: feature
-status: ready
+status: in-progress
 assignee: architect
 owner: user
 created: 2026-03-14

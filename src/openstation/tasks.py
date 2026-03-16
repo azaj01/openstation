@@ -741,6 +741,12 @@ def cmd_status(args, root, prefix):
         core.err(f"       allowed from {current}: {allowed_str}")
         return core.EXIT_INVALID_TRANSITION
 
+    # --- Hook execution (pre-transition) ---
+    from openstation import hooks
+    hook_err = hooks.run_matched(root, prefix, task_name, current, new_status, spec)
+    if hook_err:
+        return hook_err
+
     try:
         update_frontmatter(spec, current, new_status)
     except OSError:

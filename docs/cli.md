@@ -189,6 +189,12 @@ Invalid transitions produce an error showing allowed targets from the current st
 
 If the task has a parent, auto-promotion is applied after a successful transition.
 
+### Hooks
+
+If lifecycle hooks are configured in `settings.json`, matching
+hooks run before the status is written. A failed hook aborts the
+transition (exit code 10). See `docs/hooks.md` for configuration.
+
 ### Examples
 
 ```bash
@@ -438,6 +444,7 @@ openstation init --dry-run                # preview without writing
 | 7    | `EXIT_NO_CLAUDE`      | `claude` CLI not found on `$PATH` |
 | 8    | `EXIT_AGENT_ERROR`    | Agent execution failed (non-zero exit from claude) |
 | 9    | `EXIT_SOURCE_GUARD`   | Refused to init inside the source repo |
+| 10   | `EXIT_HOOK_FAILED`    | A lifecycle hook failed or timed out (see `docs/hooks.md`) |
 
 ## Project Discovery
 

@@ -1,6 +1,7 @@
 ---
 kind: agent
 name: author
+aliases: [au]
 description: >-
   Prompt and instruction writer — crafts agent specs, skills,
   commands, task specs, and documentation that direct LLM

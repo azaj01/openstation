@@ -161,6 +161,42 @@ sub-task lifecycle, and artifact routing.
 Tasks without a `type` field are treated as `feature` for
 backward compatibility.
 
+### Type-Specific Documentation Standards
+
+Documentation artifacts (files in `docs/`, skills, or commands)
+produced by `documentation` and `feature` tasks must meet
+content standards based on their subject matter.
+
+#### Architecture Section
+
+Docs that describe a feature, system, or component **with code**
+must include an `## Architecture` section covering:
+
+- **Module layout** — files and directories that implement the
+  feature, with a brief role for each
+- **Integration points** — how the feature connects to other
+  components (hooks, events, CLI entry points, file conventions)
+- **Data flow** — how data moves through the system for the
+  feature's key operations
+- **Key abstractions** — important types, interfaces, patterns,
+  or conventions the implementation relies on
+
+The section should be concrete enough that a developer
+unfamiliar with the codebase can understand *how the feature is
+built*, not just how to use it.
+
+#### Applicability
+
+| Doc subject | Architecture section | Examples |
+|---|---|---|
+| Feature with code | **Required** | `docs/hooks.md`, `docs/cli.md` |
+| Convention / process | Not required | `docs/lifecycle.md`, `docs/task.spec.md` |
+| Pure schema / format | Not required | Field references, YAML schemas |
+| Skill (operational) | Required if wrapping code | Skills that drive CLI tools or code |
+
+When in doubt, include the section — it is easier to trim than
+to retrofit.
+
 ### Artifacts Field
 
 The `artifacts` list uses **Obsidian wikilinks** pointing to the
@@ -223,8 +259,8 @@ varies by task type:
 | `research`       | Key results, sources consulted, confidence levels   |
 | `spec`           | Summary of design, key trade-offs made              |
 | `implementation` | What was built/changed, design decisions, gotchas   |
-| `documentation`  | What was written/updated, scope of changes          |
-| `feature`        | What was built, how it works, notable decisions     |
+| `documentation`  | What was written/updated, scope of changes. Note: if the doc covers a feature with code, confirm the artifact includes an Architecture section per § Type-Specific Documentation Standards. |
+| `feature`        | What was built, how it works, notable decisions. Note: if docs were produced, confirm they include an Architecture section per § Type-Specific Documentation Standards. |
 
 Link to artifacts where relevant. Lead with conclusions, not
 process narrative.

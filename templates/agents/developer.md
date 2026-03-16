@@ -1,6 +1,7 @@
 ---
 kind: agent
 name: developer
+aliases: [dev]
 description: >-
   Hands-on implementer — turns technical specs into working code
   using Python, Bash, and pytest.

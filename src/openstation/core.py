@@ -21,6 +21,7 @@ EXIT_INVALID_TRANSITION = 6
 EXIT_NO_CLAUDE = 7
 EXIT_AGENT_ERROR = 8
 EXIT_SOURCE_GUARD = 9
+EXIT_HOOK_FAILED = 10
 
 # --- Lifecycle constants ------------------------------------------------------
 

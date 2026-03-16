@@ -192,7 +192,7 @@ After writing the changelog, present this release checklist and
 
 ```
 Release v<VERSION>:
-1. Write new version to .version file: echo "<VERSION>" > .version
+1. Update version in pyproject.toml → "<VERSION>"
 2. Update OPENSTATION_VERSION in install.sh → "v<VERSION>"
 3. Commit: "chore: release v<VERSION>"
 4. Tag: git tag v<VERSION>

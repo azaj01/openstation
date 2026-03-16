@@ -164,4 +164,5 @@ openstation run --task <id> --attached     Run a task interactively
 | `.openstation/docs/task.spec.md` | Task format, fields, naming |
 | `.openstation/docs/cli.md` | Full CLI reference (flags, exit codes) |
 | `.openstation/docs/storage-query-layer.md` | Storage model, query patterns |
+| `.openstation/docs/hooks.md` | Lifecycle hooks configuration |
 <!-- openstation:end -->

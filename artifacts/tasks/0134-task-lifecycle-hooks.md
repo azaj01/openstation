@@ -9,6 +9,7 @@ created: 2026-03-14
 subtasks:
   - "[[0135-hooks-spec-design-configuration-schema]]"
   - "[[0136-hooks-implementation-implement-hooks-in]]"
+  - "[[0142-document-hooks-configuration-and-usage]]"
 ---
 
 # Task Lifecycle Hooks

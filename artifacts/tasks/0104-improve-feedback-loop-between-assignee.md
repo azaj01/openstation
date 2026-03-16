@@ -2,7 +2,7 @@
 kind: task
 name: 0104-improve-feedback-loop-between-assignee
 type: spec
-status: review
+status: done
 assignee: architect
 owner: user
 artifacts:
@@ -69,8 +69,8 @@ Full spec: `artifacts/specs/assignee-reviewer-feedback-loop.md`
 
 ## Verification
 
-- [ ] User stories document real pain points from this project
-- [ ] Spec defines what assignees must provide before `review`
-- [ ] Spec addresses all task types (not just research)
-- [ ] Changes to `task.spec.md` and `lifecycle.md` are specified
-- [ ] Downstream work flagging mechanism is defined
+- [x] User stories document real pain points from this project
+- [x] Spec defines what assignees must provide before `review`
+- [x] Spec addresses all task types (not just research)
+- [x] Changes to `task.spec.md` and `lifecycle.md` are specified
+- [x] Downstream work flagging mechanism is defined

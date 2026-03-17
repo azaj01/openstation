@@ -10,6 +10,8 @@ subtasks:
   - "[[0135-hooks-spec-design-configuration-schema]]"
   - "[[0136-hooks-implementation-implement-hooks-in]]"
   - "[[0142-document-hooks-configuration-and-usage]]"
+  - "[[0144-post-transition-hooks]]"
+  - "[[0147-hooks-improvements-support-task-creation]]"
 ---
 
 # Task Lifecycle Hooks

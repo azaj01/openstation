@@ -1,4 +1,9 @@
-"""Task lifecycle hooks — run commands on status transitions."""
+"""Task lifecycle hooks — run commands on status transitions.
+
+Hooks support two phases:
+  - ``"pre"``  (default) — runs before status is written; failure aborts.
+  - ``"post"`` — runs after status is written; failure is a warning only.
+"""
 
 import json
 import os
@@ -10,6 +15,7 @@ from openstation import core
 
 DEFAULT_TIMEOUT = 30
 _SIGKILL_GRACE = 5
+VALID_PHASES = ("pre", "post")
 
 
 def _settings_path(root: Path, prefix: str) -> Path:
@@ -50,13 +56,23 @@ def _normalize_matcher(matcher: str) -> str:
     return matcher.replace("->", "\u2192")
 
 
-def match_hooks(hooks: list[dict], old: str, new: str) -> list[dict]:
-    """Filter hooks whose matcher matches the (old, new) pair.
+def match_hooks(
+    hooks: list[dict], old: str, new: str, *, phase: str = "pre"
+) -> list[dict]:
+    """Filter hooks whose matcher matches the (old, new) pair and phase.
+
+    *phase* must be ``"pre"`` or ``"post"``.  Hooks without an explicit
+    ``phase`` field default to ``"pre"``.
 
     Returns matching hooks in declaration order.
     """
     matched = []
     for hook in hooks:
+        hook_phase = hook.get("phase", "pre")
+        if hook_phase not in VALID_PHASES:
+            hook_phase = "pre"
+        if hook_phase != phase:
+            continue
         matcher = hook.get("matcher", "")
         matcher = _normalize_matcher(matcher)
         if "\u2192" not in matcher:
@@ -115,6 +131,19 @@ def _run_hook(hook: dict, env: dict) -> tuple[bool, str]:
     return True, ""
 
 
+def _build_hook_env(
+    root: Path, task_name: str, old: str, new: str, task_file: Path,
+) -> dict:
+    """Build the OS_ environment dict for hook execution."""
+    env = os.environ.copy()
+    env["OS_TASK_NAME"] = task_name
+    env["OS_OLD_STATUS"] = old
+    env["OS_NEW_STATUS"] = new
+    env["OS_TASK_FILE"] = str(task_file.resolve())
+    env["OS_VAULT_ROOT"] = str(root.resolve())
+    return env
+
+
 def run_matched(
     root: Path,
     prefix: str,
@@ -122,30 +151,36 @@ def run_matched(
     old: str,
     new: str,
     task_file: Path,
+    *,
+    phase: str = "pre",
 ) -> Optional[int]:
     """Load, match, and execute hooks for a transition.
 
-    Returns None on success (all hooks passed or no hooks matched).
-    Returns EXIT_HOOK_FAILED (10) if any hook fails or times out.
+    *phase* selects which hooks to run (``"pre"`` or ``"post"``).
+
+    **Pre-hooks** — returns ``None`` on success, ``EXIT_HOOK_FAILED``
+    on failure.  First failure aborts remaining hooks.
+
+    **Post-hooks** — always returns ``None``.  Failures are reported
+    as warnings (via ``core.err``) but do **not** roll back the
+    transition.
     """
     all_hooks = load_hooks(root, prefix)
-    matched = match_hooks(all_hooks, old, new)
+    matched = match_hooks(all_hooks, old, new, phase=phase)
 
     if not matched:
         return None
 
-    # Build environment: inherit parent env + OS_ variables
-    env = os.environ.copy()
-    env["OS_TASK_NAME"] = task_name
-    env["OS_OLD_STATUS"] = old
-    env["OS_NEW_STATUS"] = new
-    env["OS_TASK_FILE"] = str(task_file.resolve())
-    env["OS_VAULT_ROOT"] = str(root.resolve())
+    env = _build_hook_env(root, task_name, old, new, task_file)
 
     for hook in matched:
         ok, err_msg = _run_hook(hook, env)
         if not ok:
-            core.err(err_msg)
-            return core.EXIT_HOOK_FAILED
+            if phase == "pre":
+                core.err(err_msg)
+                return core.EXIT_HOOK_FAILED
+            else:
+                # Post-hook failure is a warning only
+                core.err(f"warning: {err_msg}")
 
     return None

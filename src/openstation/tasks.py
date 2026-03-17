@@ -743,7 +743,9 @@ def cmd_status(args, root, prefix):
 
     # --- Hook execution (pre-transition) ---
     from openstation import hooks
-    hook_err = hooks.run_matched(root, prefix, task_name, current, new_status, spec)
+    hook_err = hooks.run_matched(
+        root, prefix, task_name, current, new_status, spec, phase="pre",
+    )
     if hook_err:
         return hook_err
 
@@ -758,5 +760,10 @@ def cmd_status(args, root, prefix):
     msg = auto_promote_parent(tasks_dir, task_name, new_status)
     if msg:
         print(msg)
+
+    # --- Hook execution (post-transition) ---
+    hooks.run_matched(
+        root, prefix, task_name, current, new_status, spec, phase="post",
+    )
 
     return core.EXIT_OK

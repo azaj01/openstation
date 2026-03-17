@@ -239,3 +239,125 @@ class TestCLIIntegration:
         # Task file should still be at ready
         text = task_file.read_text()
         assert "status: ready" in text
+
+
+# ---------------------------------------------------------------------------
+# Phase filtering
+# ---------------------------------------------------------------------------
+
+class TestPhaseFiltering:
+    """match_hooks respects the phase parameter."""
+
+    def test_default_phase_is_pre(self):
+        h = [{"matcher": "*→*", "command": "echo 1"}]
+        assert len(hooks.match_hooks(h, "ready", "done", phase="pre")) == 1
+        assert len(hooks.match_hooks(h, "ready", "done", phase="post")) == 0
+
+    def test_explicit_pre(self):
+        h = [{"matcher": "*→*", "command": "echo 1", "phase": "pre"}]
+        assert len(hooks.match_hooks(h, "ready", "done", phase="pre")) == 1
+        assert len(hooks.match_hooks(h, "ready", "done", phase="post")) == 0
+
+    def test_explicit_post(self):
+        h = [{"matcher": "*→*", "command": "echo 1", "phase": "post"}]
+        assert len(hooks.match_hooks(h, "ready", "done", phase="pre")) == 0
+        assert len(hooks.match_hooks(h, "ready", "done", phase="post")) == 1
+
+    def test_invalid_phase_defaults_to_pre(self):
+        h = [{"matcher": "*→*", "command": "echo 1", "phase": "invalid"}]
+        assert len(hooks.match_hooks(h, "ready", "done", phase="pre")) == 1
+        assert len(hooks.match_hooks(h, "ready", "done", phase="post")) == 0
+
+    def test_mixed_phases_declaration_order(self):
+        h = [
+            {"matcher": "*→*", "command": "echo pre1"},
+            {"matcher": "*→*", "command": "echo post1", "phase": "post"},
+            {"matcher": "*→*", "command": "echo pre2", "phase": "pre"},
+            {"matcher": "*→*", "command": "echo post2", "phase": "post"},
+        ]
+        pre = hooks.match_hooks(h, "ready", "done", phase="pre")
+        post = hooks.match_hooks(h, "ready", "done", phase="post")
+        assert [x["command"] for x in pre] == ["echo pre1", "echo pre2"]
+        assert [x["command"] for x in post] == ["echo post1", "echo post2"]
+
+
+# ---------------------------------------------------------------------------
+# Post-hook execution
+# ---------------------------------------------------------------------------
+
+class TestPostHooks:
+    def test_post_hook_runs_after_status_written(self, vault):
+        """Post-hooks see the new status on disk."""
+        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        out = vault / "status_check.txt"
+        cmd = f'grep "status:" {task_file} > {out}'
+        write_settings(vault, [
+            {"matcher": "*→*", "command": cmd, "phase": "post"},
+        ])
+        # Simulate: write the new status first (as cmd_status does)
+        from openstation.tasks import update_frontmatter
+        update_frontmatter(task_file, "ready", "in-progress")
+        # Then run post-hooks
+        result = hooks.run_matched(
+            vault, "", "0001-test-task", "ready", "in-progress",
+            task_file, phase="post",
+        )
+        assert result is None
+        content = out.read_text().strip()
+        assert "in-progress" in content
+
+    def test_post_hook_failure_returns_none(self, vault):
+        """Post-hook failure does not return an error code."""
+        write_settings(vault, [
+            {"matcher": "*→*", "command": "exit 1", "phase": "post"},
+        ])
+        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        result = hooks.run_matched(
+            vault, "", "0001-test-task", "ready", "in-progress",
+            task_file, phase="post",
+        )
+        assert result is None
+
+    def test_post_hook_failure_does_not_abort_remaining(self, vault):
+        """All post-hooks run even if one fails."""
+        out = vault / "post_order.txt"
+        write_settings(vault, [
+            {"matcher": "*→*", "command": f"echo first >> {out}", "phase": "post"},
+            {"matcher": "*→*", "command": "exit 1", "phase": "post"},
+            {"matcher": "*→*", "command": f"echo third >> {out}", "phase": "post"},
+        ])
+        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        result = hooks.run_matched(
+            vault, "", "0001-test-task", "ready", "in-progress",
+            task_file, phase="post",
+        )
+        assert result is None
+        lines = out.read_text().strip().splitlines()
+        assert lines == ["first", "third"]
+
+    def test_post_hook_env_vars(self, vault):
+        """Post-hooks receive the same env vars as pre-hooks."""
+        out = vault / "post_env.txt"
+        cmd = f'echo "$OS_TASK_NAME $OS_OLD_STATUS $OS_NEW_STATUS" > {out}'
+        write_settings(vault, [
+            {"matcher": "*→*", "command": cmd, "phase": "post"},
+        ])
+        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        hooks.run_matched(
+            vault, "", "0001-test-task", "ready", "in-progress",
+            task_file, phase="post",
+        )
+        content = out.read_text().strip()
+        assert content == "0001-test-task ready in-progress"
+
+    def test_pre_hooks_still_abort(self, vault):
+        """Pre-hooks still abort on failure (backward compat)."""
+        write_settings(vault, [
+            {"matcher": "*→*", "command": "exit 1"},
+        ])
+        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        result = hooks.run_matched(
+            vault, "", "0001-test-task", "ready", "in-progress",
+            task_file, phase="pre",
+        )
+        assert result == core.EXIT_HOOK_FAILED

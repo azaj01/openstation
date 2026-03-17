@@ -9,9 +9,14 @@ Hooks run shell commands when a task's status changes. Use them
 to enforce checks, send notifications, or automate workflows
 around status transitions.
 
-Hooks are **pre-transition** — they run after validation but
-before the status is written to disk. If a hook fails, the
-transition aborts and the task file is unchanged.
+Hooks run in one of two **phases**:
+
+- **Pre-transition** (default) — runs after validation but
+  before the status is written to disk. If a pre-hook fails,
+  the transition aborts and the task file is unchanged.
+- **Post-transition** — runs after the status is written and
+  parent auto-promotion succeeds. Post-hook failure does **not**
+  roll back the transition — it is reported as a warning.
 
 ## Configuration
 
@@ -49,6 +54,7 @@ If the file is missing or has no `hooks` key, no hooks fire.
 | `matcher` | string | yes | — | Transition pattern (see Matchers below) |
 | `command` | string | yes | — | Shell command to run (`/bin/sh -c`) |
 | `timeout` | integer | no | `30` | Max seconds before the hook is killed |
+| `phase` | string | no | `"pre"` | When to run: `"pre"` (before write) or `"post"` (after write) |
 
 ### Matchers
 
@@ -91,20 +97,31 @@ Hooks fire in **declaration order** (array index in
 ```
 validate status value
 validate transition legality
-─── hooks fire here ───
-update_frontmatter()      ← only if all hooks pass
+─── pre-hooks fire here ───       ← failure aborts transition
+update_frontmatter()              ← only if all pre-hooks pass
 auto_promote_parent()
 print confirmation
+─── post-hooks fire here ───      ← failure is a warning only
 ```
 
-### Failure
+### Pre-Hook Failure
 
-If a hook exits non-zero:
+If a pre-hook exits non-zero:
 
-1. Remaining hooks are **skipped**
+1. Remaining pre-hooks are **skipped**
 2. The status transition is **aborted** (task file unchanged)
 3. An error is printed: `hook failed: <command> (exit <code>)`
 4. `openstation status` exits with code 10 (`EXIT_HOOK_FAILED`)
+5. Post-hooks do **not** run
+
+### Post-Hook Failure
+
+If a post-hook exits non-zero:
+
+1. Remaining post-hooks still run
+2. The transition is **not** rolled back (status already written)
+3. A warning is printed: `warning: hook failed: <command> (exit <code>)`
+4. `openstation status` exits with code 0 (success)
 
 ### Timeout
 
@@ -137,7 +154,7 @@ in the terminal.
 }
 ```
 
-### Notify on completion
+### Notify on completion (post-hook)
 
 ```json
 {
@@ -145,12 +162,17 @@ in the terminal.
     "StatusTransition": [
       {
         "matcher": "*→done",
-        "command": "notify-send 'Task $OS_TASK_NAME completed'"
+        "command": "notify-send 'Task $OS_TASK_NAME completed'",
+        "phase": "post"
       }
     ]
   }
 }
 ```
+
+Notifications should run **after** the status is written so the
+task file reflects the new status. Use `"phase": "post"` — a
+failure won't block the transition.
 
 ### Log all transitions
 
@@ -167,7 +189,65 @@ in the terminal.
 }
 ```
 
-### Multiple hooks
+### Auto-commit on task completion
+
+Use Claude Code (`claude -p`) as a post-hook to identify
+task-related files and create a commit. The agent reads the task
+file for context, reviews the git diff, and judges which changes
+belong to the task — no brittle file-matching heuristics needed.
+
+```json
+{
+  "hooks": {
+    "StatusTransition": [
+      {
+        "matcher": "*→done",
+        "command": "bin/hooks/auto-commit",
+        "phase": "post",
+        "timeout": 120
+      }
+    ]
+  }
+}
+```
+
+The `bin/hooks/auto-commit` script:
+
+1. **Guards** — exits 0 (no-op) if there are no uncommitted
+   changes or if `claude` is not on `$PATH`
+2. **Invokes** `claude -p` with a prompt that instructs the
+   agent to:
+   - Read `$OS_TASK_FILE` for task context (title, requirements,
+     findings)
+   - Run `git status` / `git diff` to find related changes
+   - Stage only task-related files (explicit paths, never
+     `git add .`)
+   - Create a conventional commit:
+     `chore(<task-id>): complete <task-name>`
+3. **Scopes tools** to the minimum needed: `Bash`, `Read`,
+   `Glob`, `Grep` — no file writes, no network access
+
+The timeout is set to 120 seconds to allow the agent time to
+read the task file, review diffs, and create the commit.
+
+**Edge cases:**
+
+| Scenario | Behavior |
+|----------|----------|
+| No uncommitted changes | Script exits 0 before invoking claude |
+| `claude` not on PATH | Script exits 0 with a warning |
+| No task-related changes in diff | Agent prints a message and exits without committing |
+| Large diffs (>500 lines) | Agent uses `git diff --stat` for overview first |
+| Worktree | Works normally — `$OS_VAULT_ROOT` resolves to the correct directory |
+
+**Works in both contexts:**
+
+| Context | Settings path | Script path |
+|---------|---------------|-------------|
+| Source repo | `settings.json` | `bin/hooks/auto-commit` |
+| Installed project | `.openstation/settings.json` | `.openstation/bin/hooks/auto-commit` |
+
+### Multiple hooks with phases
 
 ```json
 {
@@ -180,16 +260,21 @@ in the terminal.
       {
         "matcher": "*→done",
         "command": "bin/archive-task $OS_TASK_NAME",
-        "timeout": 60
+        "timeout": 60,
+        "phase": "post"
       },
       {
         "matcher": "*→*",
-        "command": "echo \"$OS_TASK_NAME: $OS_OLD_STATUS → $OS_NEW_STATUS\" >> .openstation/hook.log"
+        "command": "echo \"$OS_TASK_NAME: $OS_OLD_STATUS → $OS_NEW_STATUS\" >> .openstation/hook.log",
+        "phase": "post"
       }
     ]
   }
 }
 ```
+
+The lint hook (pre, default) gates the transition. The archive
+and log hooks run after the status is persisted.
 
 ## Scope
 
@@ -197,9 +282,9 @@ Hooks fire only on `openstation status` transitions. They do
 not fire on task creation, manual file edits, or slash commands
 that edit frontmatter directly.
 
-Features deferred for future work: post-transition hooks,
-create-time hooks, dry-run mode, conditional hooks (filtering
-by task fields), and structured output capture.
+Features deferred for future work: create-time hooks, dry-run
+mode, conditional hooks (filtering by task fields), and
+structured output capture.
 
 ## Architecture
 
@@ -215,29 +300,31 @@ public functions form the API:
 |----------|---------|
 | `load_hooks(root, prefix)` | Read `StatusTransition` entries from `settings.json` |
 | `match_hooks(hooks, old, new)` | Filter entries whose matcher matches the transition |
-| `run_matched(root, prefix, task_name, old, new, task_file)` | Orchestrate: load → match → execute. Returns `None` on success, `EXIT_HOOK_FAILED` on failure. |
+| `run_matched(root, prefix, task_name, old, new, task_file, *, phase)` | Orchestrate: load → match → execute for the given phase. Returns `None` on success (or always for post-hooks), `EXIT_HOOK_FAILED` on pre-hook failure. |
 
 Private helpers: `_settings_path` resolves the settings file,
 `_normalize_matcher` converts ASCII `->` to `→`,
+`_build_hook_env` constructs the `OS_` environment dict,
 `_run_hook` executes a single command via `subprocess.Popen`.
 
 ### Integration Point
 
-Hooks are invoked from a single call site in `cmd_status()`
-(`src/openstation/tasks.py`), between transition validation
-and `update_frontmatter()`:
+Hooks are invoked from two call sites in `cmd_status()`
+(`src/openstation/tasks.py`):
 
 ```
 validate status value
 validate transition legality
-─── hooks.run_matched() ───      ← single call site
+─── hooks.run_matched(phase="pre") ───    ← aborts on failure
 update_frontmatter()
 auto_promote_parent()
 print confirmation
+─── hooks.run_matched(phase="post") ───   ← warnings only
 ```
 
-This placement ensures hooks run after the transition is
-validated but before the task file changes on disk.
+Pre-hooks run after validation but before the task file changes.
+Post-hooks run after the status is persisted and parent
+auto-promotion completes.
 
 ### Data Flow
 
@@ -248,13 +335,15 @@ settings.json
 load_hooks()        ← parse JSON, extract StatusTransition array
   │
   ▼
-match_hooks()       ← filter by old→new pattern against each matcher
+match_hooks(phase)  ← filter by old→new pattern + phase ("pre"/"post")
   │
   ▼
 run_matched()       ← build OS_ env vars, run each hook via subprocess.Popen
-  │                    stop on first failure
+  │                    pre: stop on first failure
+  │                    post: warn and continue
   ▼
-None | EXIT_HOOK_FAILED (10)
+pre:  None | EXIT_HOOK_FAILED (10)
+post: always None
 ```
 
 ### Exit Code

@@ -19,7 +19,7 @@ Generate a new task spec from a description.
    everything and present a complete draft in one message. Do not
    create files yet.
 
-   Run `openstation agents list` to get the agent list, then present:
+   Present:
 
    - **Type** — infer from keywords in the description. Use
      `type` values: `feature`, `research`, `spec`,
@@ -28,8 +28,8 @@ Generate a new task spec from a description.
      testable requirements.
    - **Verification** — derive checklist items from the
      requirements.
-   - **Agent & owner** — suggest the best agent from the list
-     based on the inferred type. Default owner: `user`.
+   - **Agent & owner** — suggest the best agent based on the
+     inferred type. Default owner: `user`.
    - **Status** — recommend `ready` or `backlog` based on
      whether requirements are concrete enough to execute.
    - **Decomposition** (only if warranted) — if requirements
@@ -43,7 +43,8 @@ Generate a new task spec from a description.
    them, present the updated draft, and ask again. Repeat until
    approved.
 
-4. **Create the task file** using the CLI:
+4. **Create the task file.** Run `openstation agents list` to
+   confirm the agent name, then create via the CLI:
 
    ```bash
    openstation create "<description>" \

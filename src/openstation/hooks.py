@@ -23,22 +23,35 @@ def _settings_path(root: Path, prefix: str) -> Path:
     return root / prefix / "settings.json" if prefix else root / "settings.json"
 
 
+def load_settings(root: Path, prefix: str) -> dict:
+    """Read the full settings.json for the vault.
+
+    Returns an empty dict if the file is missing or invalid.
+    """
+    path = _settings_path(root, prefix)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    return data
+
+
 def load_hooks(root: Path, prefix: str) -> list[dict]:
     """Read StatusTransition hooks from settings.json.
 
     Returns an empty list if the file is missing, has no
     'hooks' key, or has no 'StatusTransition' key.
     """
-    path = _settings_path(root, prefix)
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
-        return []
-
-    try:
-        data = json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        return []
+    data = load_settings(root, prefix)
 
     hooks = data.get("hooks", {})
     if not isinstance(hooks, dict):

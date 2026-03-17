@@ -1,5 +1,79 @@
 # Changelog
 
+## v0.10.0
+
+Lifecycle hooks, a `verified` status gate, and the `--verify` flag
+for agent-driven task verification. Hooks enable automated actions
+on status transitions (e.g., auto-commit on completion), while the
+new verified status adds a mandatory review checkpoint before tasks
+reach done.
+
+### CLI
+
+- **`--verify` flag** — `openstation run --task <id> --verify`
+  launches an agent in verification mode, loading the task's
+  `## Verification` section as the prompt. Agent resolution follows
+  a 4-level priority chain: `--agent` > task `owner` (skips
+  `user`/empty) > `settings.verify.agent` > `project-manager`
+  fallback.
+- **`verified` status** — New status between `review` and `done`.
+  `openstation status <task> verified` transitions review →
+  verified. The full chain is now `backlog → ready → in-progress →
+  review → verified → done/failed`.
+- **`--force` flag for `status`** — `openstation status <task>
+  <status> --force` bypasses transition validation, allowing any
+  status change.
+- **`--editor` flag** — Renamed from `--vim` across `list`, `show`,
+  and `agents show`. Opens files in `$EDITOR`.
+- **Interactive status picker** — `openstation status <task>`
+  without a target status presents an interactive picker showing
+  valid transitions.
+- **CLI defaults in settings** — `settings.json` now supports
+  `defaults.run.attached`, `defaults.run.worktree`, and
+  `defaults.run.dsp` keys to set project-level defaults for
+  `openstation run`.
+
+### Hooks
+
+- **Lifecycle hooks engine** — Status transitions can trigger hooks
+  defined in `settings.json`. Supports `pre` and `post` phases with
+  `command` type hooks. Configuration documented in `docs/hooks.md`.
+- **Post-transition hooks** — Hooks fire after the status transition
+  completes, enabling side effects like notifications or artifact
+  generation.
+- **Auto-commit hook** — Built-in `auto-commit` hook
+  (`bin/hooks/auto-commit`) commits task artifacts when a task
+  transitions to `done` or `verified`. Requests user permission
+  before committing.
+
+### Commands
+
+- **Updated `done` and `verify`** — `/openstation.done` and
+  `/openstation.verify` updated to support the `verified` status
+  gate. Verify command now transitions to `verified`; done
+  transitions from `verified` to `done`.
+- **Updated `create`** — `/openstation.create` updated for future
+  hooks integration (task creation support specs added).
+
+### Specs & Docs
+
+- **`verified` status in lifecycle** — `docs/lifecycle.md` and
+  `docs/task.spec.md` updated with the new status, transition
+  rules, and ownership model.
+- **`docs/hooks.md`** — New documentation for lifecycle hooks
+  configuration, built-in hooks, and custom hook authoring.
+- **`docs/settings.md`** — New settings reference documenting all
+  `settings.json` keys including `verify.agent`, CLI defaults, and
+  hooks.
+- **Architecture section required** — Feature specs now require an
+  `## Architecture` section per `docs/task.spec.md`.
+
+### Research
+
+- **Worktree merge-back workflow** — Research into strategies for
+  merging agent work from worktree branches back to the parent
+  branch (`artifacts/research/worktree-merge-back-workflow.md`).
+
 ## v0.9.0
 
 Worktree integration, feedback loops, lifecycle hooks, and a new

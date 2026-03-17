@@ -1,6 +1,6 @@
 [project]
 name = "openstation"
-version = "0.9.1"
+version = "0.10.0"
 description = "Task management system for coding AI agents"
 requires-python = ">=3.9"
 dependencies = [

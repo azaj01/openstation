@@ -172,7 +172,9 @@ examples:
   openstation run --task 0042                 # autonomous (detached)
   openstation run --task 0042 --attached --dry-run  # preview attached command
   openstation run researcher --dry-run        # show command without executing
-  openstation run --task 42 --dry-run --json  # structured JSON dry-run output""")
+  openstation run --task 42 --dry-run --json  # structured JSON dry-run output
+  openstation run --task 42 --verify          # launch verification (agent from task owner)
+  openstation run --task 42 --verify --attached  # interactive verification""")
     run_p.add_argument("agent", nargs="?", default=None,
                        help="Agent name or task ID (auto-detected: numeric prefix → task)")
     run_p.add_argument("--task", default=None,
@@ -196,6 +198,8 @@ examples:
     run_p.add_argument("-w", "--worktree",
                        nargs="?", const=True, default=None, metavar="NAME",
                        help="Run in a Claude worktree (optional name, default: auto-derived)")
+    run_p.add_argument("--verify", action="store_true",
+                       help="Launch verification: resolve agent from task owner, pre-load /openstation.verify")
     run_p.add_argument("--dangerously-skip-permissions", "-dsp", action="store_true",
                        default=False,
                        help="Pass --dangerously-skip-permissions to claude")

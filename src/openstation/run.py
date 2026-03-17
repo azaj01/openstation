@@ -405,9 +405,7 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget
     core.detail("log", str(log_file.relative_to(root)))
     if session_id:
         core.detail("session", session_id)
-        print(file=sys.stderr)
-        core.hint(f"Resume this session with:")
-        core.hint(f"  claude --resume {session_id}")
+    core.tips_block(session_id=session_id, task_name=task_name)
 
     return rc
 
@@ -493,7 +491,9 @@ def cmd_run(args, root, prefix):
         task_ref = agent_name
         agent_name = None
 
-    if agent_name and task_ref:
+    verify = getattr(args, "verify", False)
+
+    if agent_name and task_ref and not verify:
         core.err("Specify either an agent name or --task, not both")
         return core.EXIT_USAGE
     if not agent_name and not task_ref:
@@ -514,6 +514,97 @@ def cmd_run(args, root, prefix):
     json_output = getattr(args, "json", False)
     skip_perms = getattr(args, "dangerously_skip_permissions", False)
     worktree = getattr(args, "worktree", None)
+
+    # --- --verify mode ---
+    if verify:
+        if not task_ref:
+            core.err("--verify requires --task")
+            return core.EXIT_USAGE
+
+        task_name, error, code = tasks.resolve_task(root, prefix, task_ref)
+        if error:
+            core.err(error)
+            return code
+
+        tdir = core.tasks_dir_path(root, prefix)
+        spec = tdir / f"{task_name}.md"
+
+        try:
+            text = spec.read_text(encoding="utf-8")
+        except OSError:
+            core.err(f"Task spec missing: {spec}")
+            return core.EXIT_USAGE
+        fm = core.parse_frontmatter(text)
+        task_status = fm.get("status", "")
+        if task_status != "review":
+            core.err(f"Task {task_name} has status '{task_status}' (expected 'review')")
+            return core.EXIT_TASK_NOT_READY
+
+        # Agent resolution: --agent flag > task owner > fallback
+        if agent_name:
+            verify_agent = agent_name
+        else:
+            verify_agent = fm.get("owner", "") or "project-manager"
+
+        verify_agent, alias_err = resolve_agent_alias(root, prefix, verify_agent)
+        if alias_err:
+            core.err(alias_err)
+            return core.EXIT_USAGE
+
+        agent_spec = find_agent_spec(root, prefix, verify_agent)
+        if agent_spec is None:
+            core.err(f"Agent spec not found: {verify_agent}")
+            core.err("  hint: check agents/ directory for available agent specs")
+            return core.EXIT_NOT_FOUND
+
+        tools = parse_allowed_tools(agent_spec)
+        if not tools:
+            core.err(f"No allowed-tools found in agent spec: {agent_spec}")
+            core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
+            return core.EXIT_USAGE
+
+        if worktree is True:
+            worktree = task_name
+
+        prompt = f"/openstation.verify {task_name}"
+        cmd = build_command(verify_agent, budget, turns, prompt, tools,
+                            attached=attached,
+                            dangerously_skip_permissions=skip_perms,
+                            worktree=worktree)
+
+        if dry_run:
+            if json_output:
+                print(json.dumps({
+                    "command": cmd,
+                    "task": task_name,
+                    "agent": verify_agent,
+                    "mode": "verify",
+                }, indent=2))
+            else:
+                print(core.shlex_join(cmd))
+            return core.EXIT_OK
+
+        core.header(f"openstation run --task {task_name} --verify")
+        core.detail("Task", task_name)
+        core.detail("Agent", verify_agent)
+        core.detail("Mode", "verify")
+        if attached:
+            os.execvp(cmd[0], cmd)
+            return core.EXIT_OK  # unreachable
+
+        # Detached verify
+        log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"{task_name}.jsonl"
+        os.chdir(str(root))
+        rc, session_id, result_text = _stream_and_capture(cmd, root, log_file)
+        if result_text:
+            print(result_text, file=sys.stderr)
+        core.detail("log", str(log_file.relative_to(root)))
+        if session_id:
+            core.detail("session", session_id)
+        core.tips_block(session_id=session_id, task_name=task_name)
+        return rc
 
     # --- Attached mode incompatibility checks ---
     if attached:
@@ -607,6 +698,7 @@ def cmd_run(args, root, prefix):
                 resume_cmd=f"openstation run --task {task_name}",
                 next_task=next_sub,
                 session_id=last_session_id,
+                task_name=task_name,
             )
             return core.EXIT_OK if completed > 0 else core.EXIT_AGENT_ERROR
         else:

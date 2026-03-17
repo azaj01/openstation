@@ -219,7 +219,7 @@ class TestResumeCommandOnFailure(unittest.TestCase):
         _, stderr, rc = self._run(["run", "--task", "0001-parent"])
         self.assertNotEqual(rc, 0)
         self.assertIn(f"claude --resume {SESSION_UUID}", stderr)
-        self.assertIn("Resume this session with", stderr)
+        self.assertIn("Resume session:", stderr)
 
     def test_resume_command_on_single_task_failure(self):
         """Single task failure prints resume command."""

@@ -98,6 +98,7 @@ openstation create "<description>" [--assignee <a>] [--owner <o>] [--status <s>]
 openstation status <task> <new-status>
 openstation run <agent> [--attached] [--worktree] [--dry-run]
 openstation run --task <id> [--attached] [--worktree] [--dry-run]
+openstation run --task <id> --verify [--attached] [--worktree]
 openstation agents [list] [--json | --quiet]
 openstation agents show <name> [--json | --vim]
 ```
@@ -109,6 +110,7 @@ openstation run researcher --attached      # interactive session
 openstation run --task 0042 --attached     # interactive task session
 openstation run --task 0042                # autonomous (detached)
 openstation run --task 0042 --worktree --attached  # in a worktree
+openstation run --task 0042 --verify --attached    # verify a task in review
 ```
 
 The agent auto-loads the `openstation-execute` skill (via the

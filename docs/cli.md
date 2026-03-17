@@ -215,6 +215,7 @@ Launch an agent to execute tasks.
 ```
 openstation run AGENT [flags]             # by-agent mode
 openstation run --task TASK [flags]       # by-task mode
+openstation run --task TASK --verify [flags]  # verify mode
 ```
 
 A positional argument starting with a digit is treated as a task ID (equivalent to `--task`).
@@ -228,6 +229,8 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 **By-agent:** Launches the named agent with the prompt "Execute your ready tasks." Uses `text` output format in detached mode.
 
 **By-task:** Resolves the task, finds ready subtasks (if any), and executes them sequentially with `stream-json` output. If no subtasks exist, executes the task directly. The agent is read from the task's `assignee` field.
+
+**Verify (`--verify`):** Launches task verification. Requires `--task` and task must be in `review` status. Agent resolution: `--agent` flag → task `owner` field → fallback `project-manager`. Pre-loads `/openstation.verify <task-id>` as the prompt. Works with `--attached` and `--worktree`.
 
 ### Flags
 
@@ -243,6 +246,7 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 | `--dry-run`         | —       | Print the command without executing |
 | `-q`, `--quiet`     | —       | Suppress progress output (detached only) |
 | `-j`, `--json`      | —       | Structured JSON dry-run output (detached only) |
+| `--verify`          | —       | Launch verification (agent from task `owner`, requires `--task` in `review`) |
 
 ### Incompatibilities
 
@@ -255,6 +259,8 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 | `--attached` + `--max-tasks` | Warning to stderr, flag ignored |
 | `--attached` + `--dry-run` | Allowed — prints the command that would be `execvp`'d |
 | `--attached` + task with subtasks | Error with hint to target a specific subtask |
+| `--verify` without `--task` | Error: "--verify requires --task" |
+| `--verify` + task not in `review` | Error with current status |
 
 ### Examples
 
@@ -267,6 +273,8 @@ openstation run --task 0042 --worktree my-feature --attached  # explicit worktre
 openstation run --task 0042 --attached --dry-run  # preview attached command
 openstation run researcher --dry-run        # show command without executing
 openstation run --task 42 --dry-run --json  # structured JSON dry-run output
+openstation run --task 42 --verify --attached  # interactive verification
+openstation run --task 42 --verify             # autonomous verification
 ```
 
 ### Logs

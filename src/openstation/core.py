@@ -367,8 +367,25 @@ def format_duration(seconds):
     return f"{m}m {s:02d}s"
 
 
+def tips_block(session_id=None, task_name=None):
+    """Print actionable tips at the end of a run."""
+    if _quiet:
+        return
+    tips = []
+    if session_id:
+        tips.append(f"Resume session:  claude --resume {session_id}")
+    if task_name:
+        tips.append(f"View task:       openstation show {task_name} -v")
+    if not tips:
+        return
+    print(file=sys.stderr)
+    header("Tips")
+    for t in tips:
+        hint(t)
+
+
 def summary_block(completed, failed, pending, resume_cmd=None, next_task=None,
-                  session_id=None):
+                  session_id=None, task_name=None):
     """Print a run summary block with counts, session ID, and resume hint."""
     if not _quiet:
         print(file=sys.stderr)
@@ -379,13 +396,9 @@ def summary_block(completed, failed, pending, resume_cmd=None, next_task=None,
         failure(f"{failed} failed")
     if pending:
         remaining_line(f"{pending} remaining")
-    if session_id and not _quiet:
-        detail("session", session_id)
-        print(file=sys.stderr)
-        hint(f"Resume this session with:")
-        hint(f"  claude --resume {session_id}")
     if next_task and not _quiet:
         print(f"\n  Next: {next_task}", file=sys.stderr)
     if resume_cmd and pending > 0 and not _quiet:
         print(f"\n  To continue:", file=sys.stderr)
         print(f"    {resume_cmd}", file=sys.stderr)
+    tips_block(session_id=session_id, task_name=task_name)

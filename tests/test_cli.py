@@ -943,6 +943,102 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertIn("No agent assigned", stderr)
 
 
+class TestRunVerifyFlag(unittest.TestCase):
+    """Test --verify flag for run subcommand."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "project-manager")
+        make_agent_spec(self.root, "researcher")
+
+    def test_verify_without_task_errors(self):
+        _, stderr, rc = run_cli(
+            ["run", "researcher", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("--verify requires --task", stderr)
+
+    def test_verify_task_not_in_review_errors(self):
+        make_task(self.root, "0001-alpha", status="ready",
+                  assignee="researcher", owner="project-manager")
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 5)  # EXIT_TASK_NOT_READY
+        self.assertIn("expected 'review'", stderr)
+
+    def test_verify_defaults_to_owner_agent(self):
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent project-manager", out)
+        self.assertIn("/openstation.verify 0001-alpha", out)
+
+    def test_verify_agent_override(self):
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        out, _, rc = run_cli(
+            ["run", "researcher", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent researcher", out)
+        self.assertIn("/openstation.verify 0001-alpha", out)
+
+    def test_verify_fallback_to_project_manager(self):
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent project-manager", out)
+
+    def test_verify_attached_dry_run(self):
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--attached", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("claude", out)
+        self.assertIn("--agent project-manager", out)
+        # Attached: no budget/turns
+        self.assertNotIn("--max-budget-usd", out)
+
+    def test_verify_worktree_dry_run(self):
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--worktree", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--worktree 0001-alpha", out)
+
+    def test_verify_dry_run_json(self):
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run", "--json"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertEqual(data["mode"], "verify")
+        self.assertEqual(data["agent"], "project-manager")
+        self.assertEqual(data["task"], "0001-alpha")
+
+
 class TestRunSubtasks(unittest.TestCase):
     """Test subtask discovery and execution in by-task mode."""
 

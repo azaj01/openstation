@@ -446,7 +446,7 @@ def cmd_list(args, root, prefix):
         status_filter = "all" if task_tree_mode else "active"
 
     if status_filter == "active":
-        tasks = [t for t in tasks if t["status"] in ("ready", "in-progress", "review")]
+        tasks = [t for t in tasks if t["status"] in ("ready", "in-progress", "review", "verified")]
     elif status_filter != "all":
         tasks = [t for t in tasks if t["status"] == status_filter]
 
@@ -743,6 +743,11 @@ def cmd_status(args, root, prefix):
         if force:
             core.warn(f"forced transition {current} → {new_status} (not a valid lifecycle transition)")
         else:
+            if current == "review" and new_status == "done":
+                core.err(f"invalid transition: review → done")
+                core.err(f"  task is in review — run verification first before marking done")
+                core.err(f"  use: openstation run --task {task_name} --verify --attached")
+                return core.EXIT_INVALID_TRANSITION
             allowed = allowed_from(current)
             allowed_str = ", ".join(sorted(allowed)) if allowed else "(none)"
             core.err(f"invalid transition: {current} → {new_status}")

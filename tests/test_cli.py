@@ -92,12 +92,14 @@ class TestListCommand(unittest.TestCase):
         make_task(self.root, "0004-delta", status="in-progress")
         make_task(self.root, "0005-epsilon", status="backlog")
         make_task(self.root, "0006-zeta", status="review")
+        make_task(self.root, "0007-eta", status="verified")
 
         out, _, rc = run_cli(["list"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001", out)   # ready — included
         self.assertIn("0004", out)   # in-progress — included
         self.assertIn("0006", out)   # review — included
+        self.assertIn("0007", out)   # verified — included
         self.assertNotIn("0002", out)  # done — excluded
         self.assertNotIn("0003", out)  # failed — excluded
         self.assertNotIn("0005", out)  # backlog — excluded
@@ -1627,7 +1629,8 @@ class TestStatusCommand(unittest.TestCase):
             ("backlog", "ready"),
             ("ready", "in-progress"),
             ("in-progress", "review"),
-            ("review", "done"),
+            ("review", "verified"),
+            ("verified", "done"),
         ]
         for current, target in transitions:
             with self.subTest(transition=f"{current} → {target}"):
@@ -3139,6 +3142,109 @@ class TestListVim(unittest.TestCase):
         out, _, rc = run_cli(["list", "-e"], cwd=self.tmpdir, env=env)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha.md", out)
+
+
+class TestVerifiedStatusTransitions(unittest.TestCase):
+    """Tests for the verified status in lifecycle transitions."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_review_to_verified(self):
+        make_task(self.root, "0001-alpha", status="review")
+        out, _, rc = run_cli(["status", "0001", "verified"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("review → verified", out)
+
+    def test_verified_to_done(self):
+        make_task(self.root, "0001-alpha", status="verified")
+        out, _, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("verified → done", out)
+
+    def test_verified_to_failed(self):
+        make_task(self.root, "0001-alpha", status="verified")
+        out, _, rc = run_cli(["status", "0001", "failed"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("verified → failed", out)
+
+    def test_review_to_done_blocked(self):
+        """review → done must be rejected with a verification hint."""
+        make_task(self.root, "0001-alpha", status="review")
+        _, stderr, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)
+        self.assertEqual(rc, 6)  # EXIT_INVALID_TRANSITION
+        self.assertIn("review → done", stderr)
+        self.assertIn("verification", stderr)
+
+    def test_review_to_done_error_mentions_verify_command(self):
+        make_task(self.root, "0001-alpha", status="review")
+        _, stderr, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)
+        self.assertEqual(rc, 6)
+        self.assertIn("--verify", stderr)
+
+    def test_list_status_verified(self):
+        make_task(self.root, "0001-alpha", status="verified")
+        make_task(self.root, "0002-beta", status="review")
+        out, _, rc = run_cli(["list", "--status", "verified"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001", out)
+        self.assertNotIn("0002", out)
+
+    def test_list_active_includes_verified(self):
+        make_task(self.root, "0001-alpha", status="verified")
+        make_task(self.root, "0002-beta", status="done")
+        out, _, rc = run_cli(["list"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001", out)      # verified — included in active
+        self.assertNotIn("0002", out)    # done — excluded
+
+    def test_verified_file_content_updated(self):
+        make_task(self.root, "0001-alpha", status="review")
+        run_cli(["status", "0001", "verified"], cwd=self.tmpdir)
+        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: verified", content)
+
+
+class TestVerifiedParentAutoPromotion(unittest.TestCase):
+    """Test parent auto-promotion with verified status."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def _read_status(self, name):
+        spec = self.root / "artifacts" / "tasks" / f"{name}.md"
+        text = spec.read_text()
+        for line in text.splitlines():
+            if line.startswith("status:"):
+                return line.split(":")[1].strip()
+        return None
+
+    def test_child_verified_promotes_backlog_parent_to_in_progress(self):
+        """A verified child should auto-promote parent to in-progress."""
+        make_task(self.root, "0001-parent", status="backlog",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="review",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["status", "0002-child", "verified"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("auto-promoted", out)
+        self.assertEqual(self._read_status("0001-parent"), "in-progress")
+
+    def test_no_promote_when_parent_already_in_progress(self):
+        """Parent already at in-progress should not be promoted further for verified child."""
+        make_task(self.root, "0001-parent", status="in-progress",
+                  subtasks=["0002-child"])
+        make_task(self.root, "0002-child", status="review",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["status", "0002-child", "verified"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("auto-promoted", out)
+        self.assertEqual(self._read_status("0001-parent"), "in-progress")
 
 
 if __name__ == "__main__":

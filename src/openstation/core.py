@@ -30,16 +30,18 @@ VALID_TRANSITIONS = {
     ("ready", "in-progress"),
     ("ready", "backlog"),
     ("in-progress", "review"),
-    ("review", "done"),
+    ("review", "verified"),
     ("review", "failed"),
+    ("verified", "done"),
+    ("verified", "failed"),
     ("failed", "in-progress"),
 }
 
-VALID_STATUSES = {"backlog", "ready", "in-progress", "review", "done", "failed"}
+VALID_STATUSES = {"backlog", "ready", "in-progress", "review", "verified", "done", "failed"}
 
-_STATUS_RANK = {"backlog": 0, "ready": 1, "in-progress": 2, "review": 3, "done": 4, "failed": 3}
+_STATUS_RANK = {"backlog": 0, "ready": 1, "in-progress": 2, "review": 3, "verified": 4, "done": 5, "failed": 3}
 _MIN_PARENT_STATUS = {"ready": "ready", "in-progress": "in-progress", "review": "in-progress",
-                       "done": "in-progress", "failed": "in-progress"}
+                       "verified": "in-progress", "done": "in-progress", "failed": "in-progress"}
 
 # --- Module-level state -------------------------------------------------------
 
@@ -367,7 +369,7 @@ def format_duration(seconds):
     return f"{m}m {s:02d}s"
 
 
-def tips_block(session_id=None, task_name=None):
+def tips_block(session_id=None, task_name=None, verify=False):
     """Print actionable tips at the end of a run."""
     if _quiet:
         return
@@ -376,7 +378,10 @@ def tips_block(session_id=None, task_name=None):
         tips.append(f"Resume session:  claude --resume {session_id}")
     if task_name:
         tips.append(f"View task:       openstation show {task_name} -v")
-        tips.append(f"Verify task:     openstation run --task {task_name} --verify --attached")
+        if verify:
+            tips.append(f"Mark done:       openstation status {task_name} done")
+        else:
+            tips.append(f"Verify task:     openstation run --task {task_name} --verify --attached")
     if not tips:
         return
     print(file=sys.stderr)

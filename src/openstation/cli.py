@@ -132,8 +132,8 @@ examples:
     list_p.add_argument("filter", nargs="?", default=None,
                         help="Task ID/slug or assignee name (auto-detected)")
     list_p.add_argument("--status", default=None,
-                        help="Filter by status: backlog|ready|in-progress|review|done|failed|active|all "
-                             "(default: active = ready + in-progress + review)")
+                        help="Filter by status: backlog|ready|in-progress|review|verified|done|failed|active|all "
+                             "(default: active = ready + in-progress + review + verified)")
     list_p.add_argument("--assignee", default="",
                         help="Filter by assignee (exact match)")
     list_output = list_p.add_mutually_exclusive_group()

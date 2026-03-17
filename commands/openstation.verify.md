@@ -48,13 +48,21 @@ Example: `0042-add-login-page` or `add-login-page`
    ```
 
 9. If **all items pass**:
-   - Tell the user all verification criteria passed.
-   - Ask the user to confirm before proceeding.
-   - On confirmation, run `/openstation.done <task-name>` to
-     complete the task (handles status transition and artifact
-     promotion).
+   - Transition the task to `verified`:
+
+     ```bash
+     openstation status <task-name> verified
+     ```
+
+     **Manual fallback** — if the CLI is unavailable, edit
+     `status: review` → `status: verified` directly in the task
+     frontmatter.
+   - Confirm to the user that all verification criteria passed and
+     the task is now `verified`.
+   - Tell the user they can run `/openstation.done <task-name>`
+     when ready to accept and complete the task.
 
 10. If **any items fail**:
     - Report which items failed and why.
-    - Do **not** transition the task status.
+    - Do **not** transition the task status — it stays in `review`.
     - Suggest what needs to be fixed before re-verification.

@@ -59,7 +59,7 @@ execution when appropriate:
 | `/openstation.list` | List tasks with filters |
 | `/openstation.show` | Show full task details |
 | `/openstation.ready` | Promote backlog → ready |
-| `/openstation.done` | Mark review → done (with artifact promotion) |
+| `/openstation.done` | Mark verified → done (with artifact promotion) |
 | `/openstation.reject` | Mark review → failed (with reason) |
 | `/openstation.verify` | Verify a task's checklist against evidence |
 | `/openstation.update` | Edit task metadata (not status) |
@@ -242,7 +242,9 @@ If `owner` is your agent name:
 1. Read the task spec and its **Verification** section.
 2. Check each verification item against the artifacts and changes
    produced.
-3. If ALL items pass: run `/openstation.done <task-name>`.
+3. If ALL items pass: run `/openstation.verify <task-name>` to
+   transition to `verified`, then `/openstation.done <task-name>`
+   to complete the task.
 4. If ANY item fails: set `status: failed` and document which
    items failed and why (add a note in the task body or as an
    artifact).

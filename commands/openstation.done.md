@@ -21,27 +21,27 @@ Example: `0003-research-obsidian-plugin-api` or
 
 1. Parse the task name from `$ARGUMENTS`.
 2. Resolve the task file per `docs/task.spec.md` § Task Resolution.
-3. Read the task frontmatter. Verify `status: review`
-   — refuse with an error if the task is not in review. Only
-   `review` → `done` is a valid transition.
-4. Check the `## Verification` section for unchecked items
-   (`- [ ]`). If any exist, refuse with an error:
-   "Verification incomplete — N items unchecked. Run
-   `/openstation.verify <task-name>` first."
-5. Set the status using the CLI:
+3. Read the task frontmatter. Verify `status: verified`
+   — only `verified` → `done` is a valid transition.
+   - If `status: review`, refuse with an error:
+     "Task is in `review` — run `/openstation.verify <task-name>`
+     first to verify all checklist items before completing."
+   - If any other status, refuse with an error:
+     "Task must be in `verified` status to complete."
+4. Set the status using the CLI:
 
    ```bash
    openstation status <task-name> done
    ```
 
    **Manual fallback** — if the CLI is unavailable, edit
-   `status: review` → `status: done` directly in the task
+   `status: verified` → `status: done` directly in the task
    frontmatter.
 
-6. Artifacts are already in `artifacts/` — they do not need to
+5. Artifacts are already in `artifacts/` — they do not need to
    be moved.
-7. Check the task's `artifacts` frontmatter field for paths
+6. Check the task's `artifacts` frontmatter field for paths
    matching `artifacts/agents/*.md`. For each, create a discovery
    symlink: `agents/<name>.md → ../artifacts/agents/<name>.md`
    (skip if already exists).
-8. Confirm the task was completed and show the file path.
+7. Confirm the task was completed and show the file path.

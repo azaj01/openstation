@@ -106,4 +106,4 @@ PROMPT="${PROMPT//\$OS_TASK_FILE/$OS_TASK_FILE}"
 PROMPT="${PROMPT//\$TASK_ID/$TASK_ID}"
 
 # ── Invoke Claude Code ───────────────────────────────────────
-claude -p "$PROMPT" --allowedTools 'Bash(readonly=false),Read,Glob,Grep'
+claude -p "$PROMPT" --allowedTools 'Bash(git:*),Read,Glob,Grep'

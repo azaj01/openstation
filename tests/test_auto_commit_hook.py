@@ -121,3 +121,26 @@ class TestClaudeMissing:
         result = run_hook(env, cwd=git_repo)
         assert result.returncode == 0
         assert "claude not found" in result.stderr or "no uncommitted changes" in result.stdout
+
+
+class TestAllowedToolsScoping:
+    """Verify the claude invocation uses properly scoped --allowedTools."""
+
+    def test_script_uses_scoped_bash_pattern(self):
+        """The script must use Bash(git:*) not Bash(readonly=false)."""
+        content = SCRIPT.read_text()
+        # Must use git-scoped Bash pattern for non-interactive execution
+        assert "Bash(git:*)" in content, (
+            "auto-commit hook should use Bash(git:*) to scope bash to git commands"
+        )
+        # Must NOT use the invalid readonly=false pattern
+        assert "readonly=false" not in content, (
+            "Bash(readonly=false) is not a valid --allowedTools pattern"
+        )
+
+    def test_script_does_not_use_dangerously_skip_permissions(self):
+        """The script should scope tools, not skip all permissions."""
+        content = SCRIPT.read_text()
+        assert "--dangerously-skip-permissions" not in content, (
+            "auto-commit hook should use scoped --allowedTools, not skip all permissions"
+        )

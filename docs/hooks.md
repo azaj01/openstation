@@ -224,8 +224,9 @@ The `bin/hooks/auto-commit` script:
      `git add .`)
    - Create a conventional commit:
      `chore(<task-id>): complete <task-name>`
-3. **Scopes tools** to the minimum needed: `Bash`, `Read`,
-   `Glob`, `Grep` — no file writes, no network access
+3. **Scopes tools** to the minimum needed: `Bash(git:*)`,
+   `Read`, `Glob`, `Grep` — only git commands, no file writes,
+   no network access
 
 The timeout is set to 120 seconds to allow the agent time to
 read the task file, review diffs, and create the commit.

@@ -19,10 +19,24 @@ backlog → ready          (use /openstation.ready)
 ready → in-progress      (assigned agent picks up the task)
 ready → backlog          (deprioritize — requirements changed, blocked, etc.)
 in-progress → review     (agent finishes work)
-review → done            (owner verifies — use /openstation.done)
+review → verified        (/openstation.verify — all checks pass)
 review → failed          (owner rejects — use /openstation.reject)
+verified → done          (/openstation.done — owner accepts)
+verified → failed        (/openstation.reject — owner rejects after re-review)
 failed → in-progress     (agent reworks)
 ```
+
+### Status Descriptions
+
+| Status | Meaning |
+|--------|---------|
+| `backlog` | Created, not ready for execution |
+| `ready` | Requirements defined, agent assigned |
+| `in-progress` | Agent is actively working |
+| `review` | Work complete, awaiting verification |
+| `verified` | All verification items passed, awaiting owner sign-off |
+| `done` | Owner accepted — verification passed, task complete |
+| `failed` | Owner rejected — verification failed or work insufficient |
 
 ### Pre-Review Checklist
 
@@ -43,11 +57,15 @@ Before transitioning to `review`, the assignee must ensure:
   metadata fields (assignee, owner, parent, etc.).
 - `backlog → ready` is only allowed via `/openstation.ready`,
   which validates requirements and updates the status.
-- `review → done` is only allowed via `/openstation.done`, which
-  completes the task in one step. Use `/openstation.verify` first
-  to check each verification item against the implementation.
-- `review → failed` is only allowed via `/openstation.reject`,
-  which records the rejection reason and marks the task failed.
+- `review → verified` is only allowed via `/openstation.verify`,
+  which checks each verification item against the implementation.
+  When all items pass, the task transitions to `verified`.
+- `verified → done` is only allowed via `/openstation.done`, which
+  accepts the task and completes it. Tasks must be in `verified`
+  status — `/openstation.done` rejects tasks still in `review`.
+- `review → failed` and `verified → failed` are only allowed via
+  `/openstation.reject`, which records the rejection reason and
+  marks the task failed.
 - Agents must NOT self-verify their own work. After completing
   requirements, set `status: review` and stop. Only the
   designated `owner` may transition to `done` or `failed`.
@@ -58,7 +76,7 @@ The `owner` field names who is responsible for verification.
 
 - Value is an agent name or `user` (default).
 - Only the designated owner may transition a task from `review` →
-  `done` or `review` → `failed`.
+  `verified`, `verified` → `done`, or to `failed`.
 - When `owner: user`, a human operator verifies.
 
 ## Sub-Tasks
@@ -90,11 +108,11 @@ When a sub-task transitions to a status that outranks its parent,
 the parent is automatically promoted through valid transitions
 to match the minimum required level:
 
-| Sub-task reaches  | Parent must be at least |
-|-------------------|------------------------|
-| `ready`           | `ready`                |
-| `in-progress`     | `in-progress`          |
-| `review` / `done` | `in-progress`          |
+| Sub-task reaches              | Parent must be at least |
+|-------------------------------|------------------------|
+| `ready`                       | `ready`                |
+| `in-progress`                 | `in-progress`          |
+| `review` / `verified` / `done` | `in-progress`          |
 
 This is enforced by the CLI on both `openstation status` and
 `openstation create --parent`.

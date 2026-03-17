@@ -142,6 +142,7 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 | `ready` | Requirements defined, agent assigned |
 | `in-progress` | Agent is actively working |
 | `review` | Work complete, awaiting verification |
+| `verified` | All verification checks passed, awaiting owner acceptance |
 | `done` | Verification passed |
 | `failed` | Verification failed |
 

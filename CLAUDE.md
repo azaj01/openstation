@@ -120,8 +120,9 @@ the skill playbook, and executes.
 ## Task Lifecycle
 
 Statuses: `backlog` → `ready` → `in-progress` → `review` →
-`done`/`failed`. See `docs/lifecycle.md` for transition rules,
-ownership model, artifact storage, and promotion routing.
+`verified` → `done`/`failed`. See `docs/lifecycle.md` for
+transition rules, ownership model, artifact storage, and
+promotion routing.
 
 ## Discovery
 

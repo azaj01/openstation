@@ -2,7 +2,7 @@
 kind: task
 name: 0143-require-architecture-section-in-feature
 type: spec
-status: review
+status: done
 assignee: architect
 owner: user
 created: 2026-03-16
@@ -67,7 +67,7 @@ with no added discovery benefit.
 
 ## Verification
 
-- [ ] Architecture section requirements are defined (what to include)
-- [ ] Applicability criteria are clear (which docs need it, which don't)
-- [ ] Convention is codified in task spec or execute skill (not just this task)
-- [ ] Existing type-specific guidance table in task.spec.md is updated
+- [x] Architecture section requirements are defined (what to include)
+- [x] Applicability criteria are clear (which docs need it, which don't)
+- [x] Convention is codified in task spec or execute skill (not just this task)
+- [x] Existing type-specific guidance table in task.spec.md is updated

@@ -670,16 +670,22 @@ def _numbered_picker(task_name, current, options):
     return options[idx - 1]
 
 
-def _interactive_status_picker(task_name, current):
-    """Show an interactive picker for valid status transitions.
+def _interactive_status_picker(task_name, current, *, force=False):
+    """Show an interactive picker for status transitions.
 
     Uses simple-term-menu for arrow-key navigation when available,
     falls back to a numbered picker otherwise.
 
+    When *force* is True, all statuses (except the current one) are
+    shown, not just valid transitions.
+
     Returns the chosen status string, or None if no valid transition
     or user cancels.  Returns "INVALID" on bad input (numbered fallback).
     """
-    options = sorted(allowed_from(current))
+    if force:
+        options = sorted(s for s in core.VALID_STATUSES if s != current)
+    else:
+        options = sorted(allowed_from(current))
     if not options:
         print(f"{task_name}: status is {current} — no valid transitions")
         return None
@@ -695,6 +701,7 @@ def cmd_status(args, root, prefix):
     """Handle the status subcommand."""
     query = args.task
     new_status = args.new_status
+    force = getattr(args, "force", False)
 
     # Resolve task first (needed for both interactive and direct paths)
     task_name, error, code = resolve_task(root, prefix, query)
@@ -720,7 +727,7 @@ def cmd_status(args, root, prefix):
             core.err("new_status argument required in non-interactive mode")
             core.err("  usage: openstation status <task> <new-status>")
             return core.EXIT_USAGE
-        new_status = _interactive_status_picker(task_name, current)
+        new_status = _interactive_status_picker(task_name, current, force=force)
         if new_status is None:
             return core.EXIT_OK
         if new_status == "INVALID":
@@ -735,11 +742,14 @@ def cmd_status(args, root, prefix):
         return core.EXIT_OK
 
     if not validate_transition(current, new_status):
-        allowed = allowed_from(current)
-        allowed_str = ", ".join(sorted(allowed)) if allowed else "(none)"
-        core.err(f"invalid transition: {current} → {new_status}")
-        core.err(f"       allowed from {current}: {allowed_str}")
-        return core.EXIT_INVALID_TRANSITION
+        if force:
+            core.warn(f"forced transition {current} → {new_status} (not a valid lifecycle transition)")
+        else:
+            allowed = allowed_from(current)
+            allowed_str = ", ".join(sorted(allowed)) if allowed else "(none)"
+            core.err(f"invalid transition: {current} → {new_status}")
+            core.err(f"       allowed from {current}: {allowed_str}")
+            return core.EXIT_INVALID_TRANSITION
 
     # --- Hook execution (pre-transition) ---
     from openstation import hooks

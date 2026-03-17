@@ -1633,7 +1633,7 @@ class TestInteractiveStatusPicker(unittest.TestCase):
         from unittest.mock import patch
         from openstation import tasks as _tasks
 
-        args = type("Args", (), {"task": task_name, "new_status": None})()
+        args = type("Args", (), {"task": task_name, "new_status": None, "force": False})()
         with patch.object(sys.stdin, "isatty", return_value=True), \
              patch.object(_tasks, "_interactive_status_picker", return_value=picker_return):
             return _tasks.cmd_status(args, self.root, "")
@@ -1645,11 +1645,12 @@ class TestInteractiveStatusPicker(unittest.TestCase):
 
         make_task(self.root, "0001-alpha", status="backlog")
         captured = {}
-        def fake_picker(task_name, current):
+        def fake_picker(task_name, current, *, force=False):
             captured["task_name"] = task_name
             captured["current"] = current
+            captured["force"] = force
             return "ready"
-        args = type("Args", (), {"task": "0001", "new_status": None})()
+        args = type("Args", (), {"task": "0001", "new_status": None, "force": False})()
         with patch.object(sys.stdin, "isatty", return_value=True), \
              patch.object(_tasks, "_interactive_status_picker", side_effect=fake_picker):
             rc = _tasks.cmd_status(args, self.root, "")
@@ -1762,6 +1763,86 @@ class TestInteractiveStatusPicker(unittest.TestCase):
         """allowed_from returns empty set for terminal status."""
         from openstation.tasks import allowed_from
         self.assertEqual(allowed_from("done"), set())
+
+
+# ── Force Flag Tests ────────────────────────────────────────────────
+
+
+class TestForceFlag(unittest.TestCase):
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_force_invalid_transition(self):
+        """--force allows an invalid transition (done → backlog)."""
+        make_task(self.root, "0001-alpha", status="done")
+        out, stderr, rc = run_cli(["status", "0001", "backlog", "--force"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("done → backlog", out)
+        # Verify file was updated
+        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        self.assertIn("status: backlog", task_file.read_text())
+
+    def test_force_prints_warning_on_invalid_transition(self):
+        """--force prints a warning when the transition is invalid."""
+        make_task(self.root, "0001-alpha", status="done")
+        _, stderr, rc = run_cli(["status", "0001", "backlog", "--force"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("warning:", stderr)
+        self.assertIn("forced transition", stderr)
+
+    def test_force_valid_transition_no_warning(self):
+        """--force on a valid transition works without warning."""
+        make_task(self.root, "0001-alpha", status="backlog")
+        out, stderr, rc = run_cli(["status", "0001", "ready", "--force"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("backlog → ready", out)
+        self.assertNotIn("warning:", stderr)
+
+    def test_force_short_flag(self):
+        """-f short form works."""
+        make_task(self.root, "0001-alpha", status="done")
+        out, _, rc = run_cli(["status", "0001", "backlog", "-f"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("done → backlog", out)
+
+    def test_force_interactive_picker_shows_all_statuses(self):
+        """--force makes the interactive picker show all statuses."""
+        from openstation.tasks import _interactive_status_picker
+        from unittest.mock import patch
+
+        # 'done' normally has no valid transitions
+        captured_options = {}
+        def fake_numbered(task_name, current, options):
+            captured_options["options"] = options
+            return options[0]
+        with patch("openstation.tasks._term_menu_picker", side_effect=Exception), \
+             patch("openstation.tasks._numbered_picker", side_effect=fake_numbered):
+            _interactive_status_picker("0001-test", "done", force=True)
+
+        # Should see all statuses except current ('done')
+        opts = captured_options["options"]
+        self.assertIn("backlog", opts)
+        self.assertIn("ready", opts)
+        self.assertIn("in-progress", opts)
+        self.assertIn("review", opts)
+        self.assertIn("failed", opts)
+        self.assertNotIn("done", opts)
+
+    def test_force_hooks_still_fire(self):
+        """Hooks still fire on forced transitions."""
+        from unittest.mock import patch, MagicMock
+        from openstation import tasks as _tasks
+
+        make_task(self.root, "0001-alpha", status="done")
+        args = type("Args", (), {"task": "0001", "new_status": "backlog", "force": True})()
+
+        with patch("openstation.hooks.run_matched", return_value=None) as mock_hooks:
+            rc = _tasks.cmd_status(args, self.root, "")
+        self.assertEqual(rc, 0)
+        # pre and post hooks should both have been called
+        self.assertEqual(mock_hooks.call_count, 2)
 
 
 # ── Init Command Tests ──────────────────────────────────────────────

@@ -1,6 +1,7 @@
 """Entry point: argparse definition, subcommand routing, and main()."""
 
 import argparse
+import os
 import sys
 
 from openstation import __version__ as VERSION
@@ -9,6 +10,99 @@ from openstation import tasks
 from openstation import run
 from openstation import init
 from openstation import artifacts
+from openstation import hooks
+
+
+def _command_key(args):
+    """Derive the defaults lookup key from parsed args.
+
+    Top-level commands use their name directly (``"show"``,
+    ``"list"``).  Nested sub-actions use dot notation
+    (``"agents.show"``, ``"artifacts.list"``).
+    """
+    cmd = args.command
+    # Normalize aliases
+    if cmd == "ag":
+        cmd = "agents"
+    elif cmd == "art":
+        cmd = "artifacts"
+
+    for attr in ("agents_action", "artifacts_action"):
+        action = getattr(args, attr, None)
+        if action:
+            return f"{cmd}.{action}"
+    return cmd
+
+
+# Boolean flags use store_true (default False).
+# String flags use None or "" as their unset sentinel.
+_UNSET_SENTINELS = {False, None, ""}
+
+
+# Map short flags to their argparse attribute names.
+_SHORT_TO_ATTR = {
+    "j": "json", "v": "vim", "q": "quiet", "a": "attached",
+    "w": "worktree", "f": "force",
+}
+
+
+def _explicit_flags(argv=None):
+    """Return flag names explicitly passed on the command line.
+
+    Scans *argv* (default: ``sys.argv[1:]``) for ``--flag`` and
+    short ``-f`` tokens.  Returns attribute-style names (dashes
+    replaced with underscores) so they match argparse attributes.
+    """
+    tokens = argv if argv is not None else sys.argv[1:]
+    flags = set()
+    for tok in tokens:
+        if tok == "--":
+            break
+        if tok.startswith("--"):
+            name = tok.split("=", 1)[0].lstrip("-").replace("-", "_")
+            flags.add(name)
+        elif tok.startswith("-") and len(tok) == 2:
+            short = tok.lstrip("-")
+            flags.add(_SHORT_TO_ATTR.get(short, short))
+    return flags
+
+
+def _apply_cli_defaults(args, settings, argv=None):
+    """Merge ``settings.defaults.<command>`` into *args*.
+
+    Only fills in values the user did not explicitly set on the
+    command line.  A flag is considered unset when its value is
+    ``False``, ``None``, or ``""`` **and** it was not passed in
+    ``sys.argv``.  This prevents defaults from overriding flags
+    in mutually exclusive groups where the user chose a different
+    option.
+    """
+    defaults = settings.get("defaults", {})
+    if not isinstance(defaults, dict):
+        return
+
+    key = _command_key(args)
+    cmd_defaults = defaults.get(key, {})
+    if not isinstance(cmd_defaults, dict):
+        return
+
+    explicit = _explicit_flags(argv)
+
+    for flag, value in cmd_defaults.items():
+        if flag in explicit:
+            continue
+        current = getattr(args, flag, _UNSET_SENTINELS)
+        if current not in _UNSET_SENTINELS:
+            continue
+        # For boolean True defaults, skip if the user already
+        # explicitly set another boolean flag to True (respects
+        # mutually exclusive groups like --json / --vim / --quiet).
+        if value is True and any(
+            f in explicit and getattr(args, f, False) is True
+            for f in vars(args)
+        ):
+            continue
+        setattr(args, flag, value)
 
 
 def main():
@@ -158,6 +252,8 @@ valid transitions:
     status_p.add_argument("task", help="Task ID or slug")
     status_p.add_argument("new_status", nargs="?", default=None,
                           help="Target status (omit for interactive picker): backlog|ready|in-progress|review|done|failed")
+    status_p.add_argument("-f", "--force", action="store_true",
+                          help="Bypass transition validation (any status → any status)")
 
     # run
     run_p = sub.add_parser("run", help="Launch an agent", formatter_class=fmt, epilog="""\
@@ -242,6 +338,11 @@ examples:
         core.err("not in an Open Station project")
         core.err("  hint: run from a directory containing .openstation/")
         return core.EXIT_NO_PROJECT
+
+    # Apply CLI defaults from settings (human context only)
+    if not os.environ.get("CLAUDECODE"):
+        settings = hooks.load_settings(root, prefix)
+        _apply_cli_defaults(args, settings)
 
     if args.command == "list":
         return tasks.cmd_list(args, root, prefix) or 0

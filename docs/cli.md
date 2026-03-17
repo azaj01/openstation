@@ -177,6 +177,12 @@ openstation status TASK [NEW_STATUS]
 | `TASK`       | Required. Task ID, slug, or full name. |
 | `NEW_STATUS` | Optional. Target status: `backlog`, `ready`, `in-progress`, `review`, `done`, `failed`. When omitted, shows an interactive picker of valid transitions. |
 
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `-f`, `--force` | Bypass transition validation, allowing any status → any status. Prints a warning for invalid transitions. Hooks and parent auto-promotion still run. When combined with the interactive picker (no `NEW_STATUS`), shows all statuses. |
+
 ### Valid Transitions
 
 ```
@@ -202,6 +208,8 @@ openstation status 0042                   # interactive picker
 openstation status 0042 ready             # backlog → ready
 openstation status 42 in-progress         # short ID works
 openstation status cli-improvements review
+openstation status 0042 backlog --force   # bypass validation
+openstation status 0042 --force           # picker shows all statuses
 ```
 
 ---

@@ -35,6 +35,7 @@ JSON object with top-level keys:
 |-----|------|-------------|---------|
 | `hooks` | object | Lifecycle hooks that run on status transitions | [hooks.md](hooks.md) |
 | `defaults` | object | Default flag values for CLI commands | See below |
+| `verify` | object | Verification settings | See below |
 
 Keys not listed above are ignored.
 
@@ -62,7 +63,7 @@ notation for nested commands (`agents.show`, `agents.list`,
 `artifacts.show`, `artifacts.list`).
 
 **Flag names** match the argparse attribute (long form, dashes
-replaced with underscores): `vim`, `json`, `quiet`, `status`,
+replaced with underscores): `editor`, `json`, `quiet`, `status`,
 `assignee`, `dry_run`, etc.
 
 **Values** are the default to apply — `true`/`false` for boolean
@@ -73,7 +74,7 @@ flags, strings for value flags.
 Defaults apply **only in human CLI context**. When the
 `CLAUDECODE` environment variable is set (indicating an agent
 session), all defaults are skipped. This prevents defaults like
-`"vim": true` from interfering with agent automation.
+`"editor": true` from interfering with agent automation.
 
 ### Override Precedence
 
@@ -83,8 +84,8 @@ Explicit CLI flags always override defaults:
 explicit CLI flag  >  settings default  >  argparse default
 ```
 
-If a user passes `--json` and the default says `"vim": true`,
-`--json` wins — the default for `vim` is not applied. This
+If a user passes `--json` and the default says `"editor": true`,
+`--json` wins — the default for `editor` is not applied. This
 also respects mutually exclusive flag groups.
 
 ### Examples
@@ -94,7 +95,7 @@ Open tasks in the editor by default:
 ```json
 {
   "defaults": {
-    "show": { "vim": true }
+    "show": { "editor": true }
   }
 }
 ```
@@ -114,16 +115,57 @@ Multiple commands:
 ```json
 {
   "defaults": {
-    "show": { "vim": true },
-    "agents.show": { "vim": true },
+    "show": { "editor": true },
+    "agents.show": { "editor": true },
     "list": { "status": "ready" }
   }
 }
 ```
 
+## `verify`
+
+Settings for `openstation run --verify`.
+
+### Schema
+
+```json
+{
+  "verify": {
+    "agent": "<agent-name>"
+  }
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `agent` | string | Default agent for `--verify` mode. Used when the task `owner` is `user` or empty and no `--agent` flag is given. |
+
+### Agent Resolution Order
+
+When `--verify` resolves the verification agent, it uses this
+precedence (highest to lowest):
+
+1. `--agent` CLI argument
+2. Task `owner` field (skipped if `user` or empty)
+3. `settings.verify.agent` (project-level default)
+4. Hardcoded fallback: `project-manager`
+
+### Example
+
+```json
+{
+  "verify": {
+    "agent": "reviewer"
+  }
+}
+```
+
+With this setting, `openstation run --task 42 --verify` uses
+the `reviewer` agent when the task's `owner` is `user`.
+
 ## Example
 
-Settings file with a hook and defaults:
+Settings file with a hook, defaults, and verify agent:
 
 ```json
 {
@@ -138,7 +180,10 @@ Settings file with a hook and defaults:
     ]
   },
   "defaults": {
-    "show": { "vim": true }
+    "show": { "editor": true }
+  },
+  "verify": {
+    "agent": "project-manager"
   }
 }
 ```

@@ -41,7 +41,7 @@ _UNSET_SENTINELS = {False, None, ""}
 
 # Map short flags to their argparse attribute names.
 _SHORT_TO_ATTR = {
-    "j": "json", "v": "vim", "q": "quiet", "a": "attached",
+    "j": "json", "e": "editor", "q": "quiet", "a": "attached",
     "w": "worktree", "f": "force",
 }
 
@@ -96,7 +96,7 @@ def _apply_cli_defaults(args, settings, argv=None):
             continue
         # For boolean True defaults, skip if the user already
         # explicitly set another boolean flag to True (respects
-        # mutually exclusive groups like --json / --vim / --quiet).
+        # mutually exclusive groups like --json / --editor / --quiet).
         if value is True and any(
             f in explicit and getattr(args, f, False) is True
             for f in vars(args)
@@ -126,8 +126,8 @@ examples:
   openstation list --status ready --assignee researcher
   openstation list -q --status ready        # one task name per line (pipe-friendly)
   openstation list --json                   # JSON array of task objects
-  openstation list --vim                    # open active tasks in vim
-  openstation list --status ready --vim     # open only ready tasks in vim
+  openstation list --editor                 # open active tasks in $EDITOR
+  openstation list --status ready --editor  # open only ready tasks in $EDITOR
   openstation list 0042                     # show task 0042 and its subtask tree""")
     list_p.add_argument("filter", nargs="?", default=None,
                         help="Task ID/slug or assignee name (auto-detected)")
@@ -141,8 +141,8 @@ examples:
                         help="Emit output as a JSON array of task objects")
     list_output.add_argument("-q", "--quiet", action="store_true",
                         help="Emit one task name per line, no header (pipe-friendly)")
-    list_output.add_argument("-v", "--vim", action="store_true",
-                        help="Open matching task files in vim as a buffer list")
+    list_output.add_argument("-e", "--editor", action="store_true",
+                        help="Open matching task files in $EDITOR")
     list_p.add_argument("--type", default=None,
                         help="Filter by type: feature|research|spec|implementation|documentation")
 
@@ -155,7 +155,7 @@ examples:
   openstation agents list --quiet           # one name per line (pipe-friendly)
   openstation agents show researcher        # print full agent spec
   openstation agents show researcher --json # frontmatter + body as JSON
-  openstation agents show researcher --vim  # open in editor""")
+  openstation agents show researcher --editor  # open in $EDITOR""")
     agents_sub = agents_p.add_subparsers(dest="agents_action")
 
     # agents list (also the default when no sub-action given)
@@ -172,8 +172,8 @@ examples:
     agents_show_output = agents_show_p.add_mutually_exclusive_group()
     agents_show_output.add_argument("-j", "--json", action="store_true",
                         help="Emit parsed frontmatter + body as JSON object")
-    agents_show_output.add_argument("-v", "--vim", action="store_true",
-                        help="Open the agent spec file in editor")
+    agents_show_output.add_argument("-e", "--editor", action="store_true",
+                        help="Open the agent spec file in $EDITOR")
 
     # artifacts (with sub-actions: list, show)
     artifacts_p = sub.add_parser("artifacts", aliases=["art"], help="Browse non-task artifacts", formatter_class=fmt, epilog="""\
@@ -185,7 +185,7 @@ examples:
   openstation artifacts list --quiet          # one name per line (pipe-friendly)
   openstation artifacts show cli-feature-spec # print full artifact
   openstation artifacts show cli-feature-spec --json  # frontmatter + body as JSON
-  openstation artifacts show cli-feature-spec --vim   # open in editor""")
+  openstation artifacts show cli-feature-spec --editor   # open in $EDITOR""")
     artifacts_sub = artifacts_p.add_subparsers(dest="artifacts_action")
 
     # artifacts list (also the default when no sub-action given)
@@ -204,8 +204,8 @@ examples:
     artifacts_show_output = artifacts_show_p.add_mutually_exclusive_group()
     artifacts_show_output.add_argument("-j", "--json", action="store_true",
                         help="Emit parsed frontmatter + body as JSON object")
-    artifacts_show_output.add_argument("-v", "--vim", action="store_true",
-                        help="Open the artifact file in editor")
+    artifacts_show_output.add_argument("-e", "--editor", action="store_true",
+                        help="Open the artifact file in $EDITOR")
 
     # show
     show_p = sub.add_parser("show", help="Show a task spec", formatter_class=fmt, epilog="""\
@@ -215,12 +215,12 @@ examples:
   openstation show 0042-cli-improvements    # show by full name
   openstation show cli-improvements         # show by slug
   openstation show 0042 --json              # frontmatter + body as JSON
-  openstation show 0042 --vim               # open in vim with markdown support""")
+  openstation show 0042 --editor             # open in $EDITOR""")
     show_p.add_argument("task", help="Task ID or slug (e.g. 0023, 23, or cli-feature-spec)")
     show_p.add_argument("-j", "--json", action="store_true",
                         help="Emit parsed frontmatter and body as a JSON object")
-    show_p.add_argument("-v", "--vim", action="store_true",
-                        help="Open the task file in vim (markdown plugins work)")
+    show_p.add_argument("-e", "--editor", action="store_true",
+                        help="Open the task file in $EDITOR")
 
     # create
     create_p = sub.add_parser("create", help="Create a new task", formatter_class=fmt, epilog="""\

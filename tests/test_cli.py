@@ -1039,6 +1039,104 @@ class TestRunVerifyFlag(unittest.TestCase):
         self.assertEqual(data["task"], "0001-alpha")
 
 
+class TestRunVerifyAgentResolution(unittest.TestCase):
+    """Test verify agent resolution order: --agent > owner > settings > fallback."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+        make_agent_spec(self.root, "project-manager")
+        make_agent_spec(self.root, "researcher")
+        make_agent_spec(self.root, "reviewer")
+
+    def _write_settings(self, data):
+        """Write settings.json to vault root."""
+        (self.root / "settings.json").write_text(json.dumps(data))
+
+    def test_owner_user_falls_through_to_settings(self):
+        """owner: user should be skipped, settings.verify.agent used."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="user")
+        self._write_settings({"verify": {"agent": "reviewer"}})
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent reviewer", out)
+
+    def test_owner_user_falls_through_to_fallback(self):
+        """owner: user with no settings falls to project-manager."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="user")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent project-manager", out)
+
+    def test_empty_owner_falls_through_to_settings(self):
+        """Empty owner should be skipped, settings.verify.agent used."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="")
+        self._write_settings({"verify": {"agent": "reviewer"}})
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent reviewer", out)
+
+    def test_agent_flag_overrides_all(self):
+        """--agent flag takes highest priority over everything."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        self._write_settings({"verify": {"agent": "reviewer"}})
+        out, _, rc = run_cli(
+            ["run", "researcher", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent researcher", out)
+
+    def test_owner_takes_priority_over_settings(self):
+        """Non-user owner takes priority over settings.verify.agent."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="project-manager")
+        self._write_settings({"verify": {"agent": "reviewer"}})
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent project-manager", out)
+
+    def test_settings_without_verify_key_falls_to_fallback(self):
+        """Settings with no verify key falls to project-manager."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="user")
+        self._write_settings({"defaults": {}})
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent project-manager", out)
+
+    def test_settings_verify_empty_agent_falls_to_fallback(self):
+        """Settings with empty verify.agent falls to project-manager."""
+        make_task(self.root, "0001-alpha", status="review",
+                  assignee="researcher", owner="user")
+        self._write_settings({"verify": {"agent": ""}})
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--verify", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--agent project-manager", out)
+
+
 class TestRunSubtasks(unittest.TestCase):
     """Test subtask discovery and execution in by-task mode."""
 
@@ -2976,28 +3074,28 @@ class TestListVim(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp()
         self.root = make_source_vault(self.tmpdir)
 
-    def test_list_vim_mutually_exclusive_with_json(self):
-        """--vim and --json cannot be combined."""
+    def test_list_editor_mutually_exclusive_with_json(self):
+        """--editor and --json cannot be combined."""
         make_task(self.root, "0001-alpha", status="ready")
-        _, err, rc = run_cli(["list", "--vim", "--json"], cwd=self.tmpdir)
+        _, err, rc = run_cli(["list", "--editor", "--json"], cwd=self.tmpdir)
         self.assertNotEqual(rc, 0)
         self.assertIn("not allowed", err)
 
-    def test_list_vim_mutually_exclusive_with_quiet(self):
-        """--vim and --quiet cannot be combined."""
+    def test_list_editor_mutually_exclusive_with_quiet(self):
+        """--editor and --quiet cannot be combined."""
         make_task(self.root, "0001-alpha", status="ready")
-        _, err, rc = run_cli(["list", "--vim", "--quiet"], cwd=self.tmpdir)
+        _, err, rc = run_cli(["list", "--editor", "--quiet"], cwd=self.tmpdir)
         self.assertNotEqual(rc, 0)
         self.assertIn("not allowed", err)
 
-    def test_list_vim_no_matching_tasks(self):
-        """--vim with no matching tasks prints message, exits 0."""
-        out, _, rc = run_cli(["list", "--vim", "--status", "done"], cwd=self.tmpdir)
+    def test_list_editor_no_matching_tasks(self):
+        """--editor with no matching tasks prints message, exits 0."""
+        out, _, rc = run_cli(["list", "--editor", "--status", "done"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("no matching tasks", out)
 
-    def test_list_vim_calls_execvp(self):
-        """--vim launches editor with task file paths.
+    def test_list_editor_calls_execvp(self):
+        """--editor launches editor with task file paths.
 
         We can't test os.execvp directly from subprocess, so we set
         EDITOR to echo and verify it receives the expected file paths.
@@ -3006,39 +3104,39 @@ class TestListVim(unittest.TestCase):
         make_task(self.root, "0002-beta", status="ready")
         env = dict(os.environ)
         env["EDITOR"] = "echo"
-        out, _, rc = run_cli(["list", "--vim"], cwd=self.tmpdir, env=env)
+        out, _, rc = run_cli(["list", "--editor"], cwd=self.tmpdir, env=env)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha.md", out)
         self.assertIn("0002-beta.md", out)
 
-    def test_list_vim_respects_status_filter(self):
-        """--vim with --status only opens filtered tasks."""
+    def test_list_editor_respects_status_filter(self):
+        """--editor with --status only opens filtered tasks."""
         make_task(self.root, "0001-alpha", status="ready")
         make_task(self.root, "0002-beta", status="done")
         env = dict(os.environ)
         env["EDITOR"] = "echo"
-        out, _, rc = run_cli(["list", "--vim", "--status", "ready"], cwd=self.tmpdir, env=env)
+        out, _, rc = run_cli(["list", "--editor", "--status", "ready"], cwd=self.tmpdir, env=env)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha.md", out)
         self.assertNotIn("0002-beta.md", out)
 
-    def test_list_vim_respects_assignee_filter(self):
-        """--vim with --assignee only opens tasks for that assignee."""
+    def test_list_editor_respects_assignee_filter(self):
+        """--editor with --assignee only opens tasks for that assignee."""
         make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
         make_task(self.root, "0002-beta", status="ready", assignee="author")
         env = dict(os.environ)
         env["EDITOR"] = "echo"
-        out, _, rc = run_cli(["list", "--vim", "--assignee", "researcher"], cwd=self.tmpdir, env=env)
+        out, _, rc = run_cli(["list", "--editor", "--assignee", "researcher"], cwd=self.tmpdir, env=env)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha.md", out)
         self.assertNotIn("0002-beta.md", out)
 
-    def test_list_vim_short_flag(self):
-        """-v short flag works for --vim."""
+    def test_list_editor_short_flag(self):
+        """-e short flag works for --editor."""
         make_task(self.root, "0001-alpha", status="ready")
         env = dict(os.environ)
         env["EDITOR"] = "echo"
-        out, _, rc = run_cli(["list", "-v"], cwd=self.tmpdir, env=env)
+        out, _, rc = run_cli(["list", "-e"], cwd=self.tmpdir, env=env)
         self.assertEqual(rc, 0)
         self.assertIn("0001-alpha.md", out)
 

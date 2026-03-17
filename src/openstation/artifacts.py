@@ -163,7 +163,7 @@ def cmd_artifacts_show(args, root, prefix):
 
     text = artifact_path.read_text(encoding="utf-8")
 
-    if getattr(args, "vim", False):
+    if getattr(args, "editor", False):
         editor = os.environ.get("EDITOR", "vim")
         os.execvp(editor, [editor, str(artifact_path)])
         return core.EXIT_OK  # unreachable

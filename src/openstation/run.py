@@ -465,7 +465,7 @@ def cmd_agents_show(args, root, prefix):
 
     text = spec_path.read_text(encoding="utf-8")
 
-    if getattr(args, "vim", False):
+    if getattr(args, "editor", False):
         editor = os.environ.get("EDITOR", "vim")
         os.execvp(editor, [editor, str(spec_path)])
         return core.EXIT_OK  # unreachable
@@ -540,14 +540,28 @@ def cmd_run(args, root, prefix):
             core.err(f"Task {task_name} has status '{task_status}' (expected 'review')")
             return core.EXIT_TASK_NOT_READY
 
-        # Agent resolution: --agent flag > positional > task owner > fallback
+        # Agent resolution (highest to lowest priority):
+        #   1. --agent CLI argument
+        #   2. Task owner field (skip if "user" or empty)
+        #   3. settings.verify.agent (project-level default)
+        #   4. Hardcoded fallback: project-manager
         explicit_agent = getattr(args, "verify_agent", None)
         if explicit_agent:
             verify_agent = explicit_agent
         elif agent_name:
             verify_agent = agent_name
         else:
-            verify_agent = fm.get("owner", "") or "project-manager"
+            task_owner = fm.get("owner", "")
+            if task_owner and task_owner != "user":
+                verify_agent = task_owner
+            else:
+                from openstation import hooks
+                settings = hooks.load_settings(root, prefix)
+                verify_cfg = settings.get("verify", {})
+                if isinstance(verify_cfg, dict) and verify_cfg.get("agent"):
+                    verify_agent = verify_cfg["agent"]
+                else:
+                    verify_agent = "project-manager"
 
         verify_agent, alias_err = resolve_agent_alias(root, prefix, verify_agent)
         if alias_err:

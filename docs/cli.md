@@ -35,7 +35,7 @@ List tasks from the vault.
 
 ```
 openstation list [FILTER] [--status STATUS] [--assignee NAME]
-                 [--type TYPE] [-q | -j | -v]
+                 [--type TYPE] [-q | -j | -e]
 ```
 
 ### Arguments
@@ -53,9 +53,9 @@ openstation list [FILTER] [--status STATUS] [--assignee NAME]
 | `--type TYPE`      | —        | Filter by type: `feature`, `research`, `spec`, `implementation`, `documentation` |
 | `-q`, `--quiet`    | —        | One task name per line, no header (pipe-friendly) |
 | `-j`, `--json`     | —        | JSON array of task objects |
-| `-v`, `--vim`      | —        | Open matching task files in `$EDITOR` (default: vim) |
+| `-e`, `--editor`      | —        | Open matching task files in `$EDITOR` (default: vim) |
 
-Output flags (`-q`, `-j`, `-v`) are mutually exclusive.
+Output flags (`-q`, `-j`, `-e`) are mutually exclusive.
 
 ### Examples
 
@@ -65,7 +65,7 @@ openstation list --status all             # all tasks regardless of status
 openstation list --status ready --assignee researcher
 openstation list -q --status ready        # one task name per line
 openstation list --json                   # JSON array of task objects
-openstation list --vim                    # open active tasks in editor
+openstation list --editor                    # open active tasks in editor
 openstation list 0042                     # show task 0042 and its subtask tree
 ```
 
@@ -78,7 +78,7 @@ Display a single task spec.
 ### Synopsis
 
 ```
-openstation show TASK [-j | -v]
+openstation show TASK [-j | -e]
 ```
 
 ### Arguments
@@ -92,7 +92,7 @@ openstation show TASK [-j | -v]
 | Flag            | Description |
 |-----------------|-------------|
 | `-j`, `--json`  | Emit parsed frontmatter and body as a JSON object |
-| `-v`, `--vim`   | Open the task file in `$EDITOR` (default: vim) |
+| `-e`, `--editor`   | Open the task file in `$EDITOR` (default: vim) |
 
 ### Task Resolution
 
@@ -112,7 +112,7 @@ openstation show 42                       # short ID (auto-padded)
 openstation show 0042-cli-improvements    # show by full name
 openstation show cli-improvements         # show by slug
 openstation show 0042 --json              # frontmatter + body as JSON
-openstation show 0042 --vim               # open in editor
+openstation show 0042 --editor               # open in editor
 ```
 
 ---
@@ -238,7 +238,14 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 
 **By-task:** Resolves the task, finds ready subtasks (if any), and executes them sequentially with `stream-json` output. If no subtasks exist, executes the task directly. The agent is read from the task's `assignee` field.
 
-**Verify (`--verify`):** Launches task verification. Requires `--task` and task must be in `review` status. Agent resolution: `--agent` flag → task `owner` field → fallback `project-manager`. Pre-loads `/openstation.verify <task-id>` as the prompt. Works with `--attached` and `--worktree`.
+**Verify (`--verify`):** Launches task verification. Requires `--task` and task must be in `review` status. Pre-loads `/openstation.verify <task-id>` as the prompt. Works with `--attached` and `--worktree`.
+
+Agent resolution order (highest to lowest priority):
+
+1. `--agent` CLI argument
+2. Task `owner` field (skipped if `user` or empty)
+3. `settings.verify.agent` project-level default (see `docs/settings.md`)
+4. Hardcoded fallback: `project-manager`
 
 ### Flags
 
@@ -299,7 +306,7 @@ Browse non-task artifacts from `artifacts/` subdirectories.
 
 ```
 openstation artifacts [list] [--kind KIND] [-q | -j]
-openstation artifacts show <name> [-j | -v]
+openstation artifacts show <name> [-j | -e]
 ```
 
 Bare `openstation artifacts` (no sub-action) defaults to `list`.
@@ -327,7 +334,7 @@ Display a single artifact by name, resolved across `artifacts/research/`, `artif
 | Flag | Description |
 |------|-------------|
 | `--json` | Frontmatter fields + `body` key as JSON object |
-| `--vim` | Open artifact file in `$EDITOR` (default: vim) |
+| `--editor` | Open artifact file in `$EDITOR` (default: vim) |
 
 Exit code 3 if artifact not found. Exit code 4 if ambiguous.
 
@@ -341,7 +348,7 @@ openstation artifacts list --json             # JSON array
 openstation artifacts list -q                 # one name per line
 openstation artifacts show cli-feature-spec   # print full artifact
 openstation artifacts show cli-feature-spec --json  # as JSON
-openstation artifacts show cli-feature-spec --vim   # open in editor
+openstation artifacts show cli-feature-spec --editor   # open in editor
 openstation art list -q                       # alias works too
 ```
 
@@ -355,7 +362,7 @@ Manage and inspect agent specs from `artifacts/agents/`.
 
 ```
 openstation agents [list] [--json | --quiet]
-openstation agents show <name> [--json | --vim]
+openstation agents show <name> [--json | --editor]
 ```
 
 Bare `openstation agents` (no sub-action) defaults to `list`.
@@ -380,7 +387,7 @@ Display the full agent spec (frontmatter + body).
 | Flag | Description |
 |------|-------------|
 | `--json` | Frontmatter fields + `body` key as JSON object |
-| `--vim` | Open spec file in `$EDITOR` (default: vim) |
+| `--editor` | Open spec file in `$EDITOR` (default: vim) |
 
 Exit code 3 if agent not found (hints available agents).
 
@@ -393,7 +400,7 @@ openstation agents list --json              # JSON array of agent objects
 openstation agents list --quiet             # one name per line
 openstation agents show researcher          # print full agent spec
 openstation agents show researcher --json   # frontmatter + body as JSON
-openstation agents show researcher --vim    # open in editor
+openstation agents show researcher --editor    # open in editor
 ```
 
 ---

@@ -459,7 +459,7 @@ def cmd_list(args, root, prefix):
     tasks = pull_in_subtasks(tasks, all_tasks)
     rows = group_tasks_for_display(tasks)
 
-    if getattr(args, "vim", False):
+    if getattr(args, "editor", False):
         if not rows:
             print("no matching tasks")
             return core.EXIT_OK
@@ -509,15 +509,13 @@ def cmd_show(args, root, prefix):
         core.err(f"cannot read task: {e}")
         return core.EXIT_NOT_FOUND
 
-    if getattr(args, "vim", False):
-        editor = os.environ.get("EDITOR", "vim")
-        os.execvp(editor, [editor, str(spec)])
-        return core.EXIT_OK
-
     if getattr(args, "json", False):
         fm = core.parse_frontmatter_for_json(text)
         fm["body"] = core.extract_body(text)
         print(json.dumps(fm, indent=2))
+    elif getattr(args, "editor", False):
+        editor = os.environ.get("EDITOR", "vim")
+        os.execvp(editor, [editor, str(spec)])
     else:
         print(text, end="")
     return core.EXIT_OK

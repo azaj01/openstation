@@ -100,7 +100,7 @@ openstation run <agent> [--attached] [--worktree] [--dry-run]
 openstation run --task <id> [--attached] [--worktree] [--dry-run]
 openstation run --task <id> --verify [--attached] [--worktree]
 openstation agents [list] [--json | --quiet]
-openstation agents show <name> [--json | --vim]
+openstation agents show <name> [--json | --editor]
 ```
 
 ## Running an Agent

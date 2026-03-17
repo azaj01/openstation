@@ -8,5 +8,8 @@
         "timeout": 120
       }
     ]
+  },
+  "defaults": {
+    "show": { "editor": true }
   }
 }

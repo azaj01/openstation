@@ -76,8 +76,8 @@ class TestExplicitFlags:
     def test_short_flag_j(self):
         assert "json" in _explicit_flags(["show", "0042", "-j"])
 
-    def test_short_flag_v(self):
-        assert "vim" in _explicit_flags(["show", "0042", "-v"])
+    def test_short_flag_e(self):
+        assert "editor" in _explicit_flags(["show", "0042", "-e"])
 
     def test_no_flags(self):
         assert _explicit_flags(["show", "0042"]) == set()
@@ -90,11 +90,11 @@ class TestExplicitFlags:
         assert "status" in _explicit_flags(["list", "--status=ready"])
 
     def test_does_not_apply_when_explicit(self):
-        """Explicit --json prevents vim default from being applied."""
-        args = Namespace(command="show", vim=False, json=True)
-        settings = {"defaults": {"show": {"vim": True}}}
+        """Explicit --json prevents editor default from being applied."""
+        args = Namespace(command="show", editor=False, json=True)
+        settings = {"defaults": {"show": {"editor": True}}}
         _apply_cli_defaults(args, settings, argv=["show", "0042", "--json"])
-        assert args.vim is False
+        assert args.editor is False
 
 
 class TestCommandKey:
@@ -129,16 +129,16 @@ class TestCommandKey:
 
 class TestApplyCliDefaults:
     def test_sets_boolean_flag(self):
-        args = Namespace(command="show", vim=False, json=False)
-        settings = {"defaults": {"show": {"vim": True}}}
+        args = Namespace(command="show", editor=False, json=False)
+        settings = {"defaults": {"show": {"editor": True}}}
         _apply_cli_defaults(args, settings, argv=[])
-        assert args.vim is True
+        assert args.editor is True
 
     def test_does_not_override_explicit_flag(self):
-        args = Namespace(command="show", vim=True, json=False)
-        settings = {"defaults": {"show": {"vim": False}}}
-        _apply_cli_defaults(args, settings, argv=["show", "0042", "--vim"])
-        assert args.vim is True  # explicit wins
+        args = Namespace(command="show", editor=True, json=False)
+        settings = {"defaults": {"show": {"editor": False}}}
+        _apply_cli_defaults(args, settings, argv=["show", "0042", "--editor"])
+        assert args.editor is True  # explicit wins
 
     def test_sets_string_flag_from_none(self):
         args = Namespace(command="list", status=None)
@@ -159,36 +159,36 @@ class TestApplyCliDefaults:
         assert args.status == "done"
 
     def test_no_defaults_key(self):
-        args = Namespace(command="show", vim=False)
+        args = Namespace(command="show", editor=False)
         _apply_cli_defaults(args, {"hooks": {}})
-        assert args.vim is False
+        assert args.editor is False
 
     def test_no_command_defaults(self):
-        args = Namespace(command="show", vim=False)
-        settings = {"defaults": {"list": {"vim": True}}}
+        args = Namespace(command="show", editor=False)
+        settings = {"defaults": {"list": {"editor": True}}}
         _apply_cli_defaults(args, settings, argv=[])
-        assert args.vim is False
+        assert args.editor is False
 
     def test_invalid_defaults_type(self):
-        args = Namespace(command="show", vim=False)
+        args = Namespace(command="show", editor=False)
         _apply_cli_defaults(args, {"defaults": "bad"})
-        assert args.vim is False
+        assert args.editor is False
 
     def test_invalid_command_defaults_type(self):
-        args = Namespace(command="show", vim=False)
+        args = Namespace(command="show", editor=False)
         _apply_cli_defaults(args, {"defaults": {"show": "bad"}})
-        assert args.vim is False
+        assert args.editor is False
 
     def test_empty_settings(self):
-        args = Namespace(command="show", vim=False)
+        args = Namespace(command="show", editor=False)
         _apply_cli_defaults(args, {})
-        assert args.vim is False
+        assert args.editor is False
 
     def test_nested_command_key(self):
-        args = Namespace(command="agents", agents_action="show", vim=False, json=False)
-        settings = {"defaults": {"agents.show": {"vim": True}}}
+        args = Namespace(command="agents", agents_action="show", editor=False, json=False)
+        settings = {"defaults": {"agents.show": {"editor": True}}}
         _apply_cli_defaults(args, settings, argv=[])
-        assert args.vim is True
+        assert args.editor is True
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +222,7 @@ class TestAgentContextSkipsDefaults:
         """Without CLAUDECODE, defaults.show.json applies."""
         root = make_source_vault(tmp_path)
         make_task(root, "0001-test-task")
-        # Use json=true as a testable default (vim would exec into editor)
+        # Use json=true as a testable default (editor would exec into editor)
         write_settings(root, {"defaults": {"show": {"json": True}}})
 
         stdout, stderr, rc = run_cli(
@@ -239,12 +239,12 @@ class TestAgentContextSkipsDefaults:
 # ---------------------------------------------------------------------------
 
 class TestExplicitOverridesDefault:
-    def test_explicit_json_overrides_default_vim(self, tmp_path):
-        """--json flag takes precedence over defaults.show.vim."""
+    def test_explicit_json_overrides_default_editor(self, tmp_path):
+        """--json flag takes precedence over defaults.show.editor."""
         root = make_source_vault(tmp_path)
         make_task(root, "0001-test-task")
-        # defaults say vim, but user passes --json
-        write_settings(root, {"defaults": {"show": {"vim": True}}})
+        # defaults say editor, but user passes --json
+        write_settings(root, {"defaults": {"show": {"editor": True}}})
 
         stdout, stderr, rc = run_cli(
             ["show", "0001-test-task", "--json"], cwd=str(root),

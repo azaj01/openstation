@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "StatusTransition": [
+      {
+        "matcher": "*→done",
+        "command": "bin/hooks/auto-commit",
+        "phase": "post",
+        "timeout": 120
+      }
+    ]
+  }
+}

@@ -2,7 +2,7 @@
 kind: task
 name: 0144-post-transition-hooks
 type: feature
-status: review
+status: done
 assignee: developer
 owner: user
 parent: "[[0134-task-lifecycle-hooks]]"

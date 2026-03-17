@@ -2,3 +2,5 @@
 .openstation/
 .DS_Store
 __pycache__/
+*.egg-info/
+.claude/worktrees/

@@ -540,8 +540,11 @@ def cmd_run(args, root, prefix):
             core.err(f"Task {task_name} has status '{task_status}' (expected 'review')")
             return core.EXIT_TASK_NOT_READY
 
-        # Agent resolution: --agent flag > task owner > fallback
-        if agent_name:
+        # Agent resolution: --agent flag > positional > task owner > fallback
+        explicit_agent = getattr(args, "verify_agent", None)
+        if explicit_agent:
+            verify_agent = explicit_agent
+        elif agent_name:
             verify_agent = agent_name
         else:
             verify_agent = fm.get("owner", "") or "project-manager"

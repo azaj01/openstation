@@ -200,6 +200,8 @@ examples:
                        help="Run in a Claude worktree (optional name, default: auto-derived)")
     run_p.add_argument("--verify", action="store_true",
                        help="Launch verification: resolve agent from task owner, pre-load /openstation.verify")
+    run_p.add_argument("--agent", default=None, dest="verify_agent",
+                       help="Override agent for --verify (default: task owner)")
     run_p.add_argument("--dangerously-skip-permissions", "-dsp", action="store_true",
                        default=False,
                        help="Pass --dangerously-skip-permissions to claude")

@@ -376,6 +376,7 @@ def tips_block(session_id=None, task_name=None):
         tips.append(f"Resume session:  claude --resume {session_id}")
     if task_name:
         tips.append(f"View task:       openstation show {task_name} -v")
+        tips.append(f"Verify task:     openstation run --task {task_name} --verify --attached")
     if not tips:
         return
     print(file=sys.stderr)

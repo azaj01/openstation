@@ -1265,6 +1265,39 @@ class TestRunClaude(unittest.TestCase):
         self.assertIn("--agent researcher", args)
         self.assertIn("0001-alpha", args)
 
+    def test_by_task_detached_uses_original_cwd(self):
+        """Detached mode should run claude in the original CWD, not vault root."""
+        make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
+        # Create a subdirectory to simulate running from a worktree
+        subdir = self.root / "fake_worktree"
+        subdir.mkdir()
+        # Rewrite mock claude to log its pwd
+        cwd_log = Path(self.tmpdir) / "claude_cwd.log"
+        mock_claude = self.mock_bin / "claude"
+        mock_claude.write_text(
+            f'#!/bin/bash\npwd > {cwd_log}\necho "$@" > {self.mock_log}\nexit 0\n'
+        )
+        mock_claude.chmod(0o755)
+        # Run from the subdirectory
+        env = dict(self.env)
+        existing = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = SRC_DIR + (os.pathsep + existing if existing else "")
+        result = subprocess.run(
+            [sys.executable, "-m", "openstation", "run", "--task", "0001"],
+            capture_output=True, text=True,
+            cwd=str(subdir),
+            env=env,
+        )
+        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
+        self.assertTrue(cwd_log.exists(), "Mock claude was not invoked")
+        actual_cwd = cwd_log.read_text().strip()
+        # Resolve both to handle symlinks (e.g., /private/var vs /var on macOS)
+        self.assertEqual(
+            Path(actual_cwd).resolve(),
+            subdir.resolve(),
+            f"Claude ran in {actual_cwd}, expected {subdir}",
+        )
+
     def test_claude_not_on_path(self):
         # Use an empty PATH so claude is not found
         env = os.environ.copy()

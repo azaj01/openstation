@@ -2,10 +2,12 @@
 kind: task
 name: 0154-detached-openstation-run-in-worktree
 type: bug
-status: ready
+status: verified
 assignee: developer
 owner: user
 created: 2026-03-17
+subtasks:
+  - "[[0161-update-run-prompts-to-include]]"
 ---
 
 # `openstation run` in Worktree Executes in Main Repo
@@ -51,11 +53,44 @@ All six sites that set `cwd` to `root`:
 - `cmd_run` line 767: `os.chdir(str(root))` — by-agent attached
 - `cmd_run` line 791: `os.chdir(str(root))` — by-agent detached
 
+## Findings
+
+Separated Claude execution CWD from vault root in `run.py` by
+capturing `exec_cwd = Path.cwd()` at the top of `cmd_run` and
+threading it through to all execution sites.
+
+### Changes
+
+**`src/openstation/run.py`** — All seven sites updated:
+- `cmd_run`: Captures `exec_cwd = Path.cwd()` at entry, passes
+  it to `_exec_or_run` and `run_single_task` via new `exec_cwd`
+  kwarg. Verify-detached and by-agent paths use `exec_cwd`
+  directly for `os.chdir()` and `_stream_and_capture()`.
+- `_exec_or_run`: New `exec_cwd` param; detached path uses
+  `exec_cwd` for both `os.chdir()` and `_stream_and_capture()`.
+- `run_single_task`: New `exec_cwd` param; uses it as
+  `_stream_and_capture()` cwd (falls back to `root` when None).
+
+Vault operations (log dir creation, task resolution, artifact
+paths) remain unchanged — they still use `root`.
+
+**`tests/test_cli.py`** — Added
+`test_by_task_detached_uses_original_cwd` in `TestRunClaude`:
+creates a subdirectory, runs `openstation run --task` from it,
+and verifies the mock claude subprocess received that subdirectory
+as its CWD (not the vault root).
+
+## Progress
+
+- 2026-03-18 — Fixed all 7 execution sites in `run.py` to use
+  original CWD instead of vault root. Added test. All 418 tests
+  pass.
+
 ## Verification
 
-- [ ] `openstation run --task <id>` (detached) from a worktree directory runs Claude in that worktree
-- [ ] `openstation run --task <id> --attached` from a worktree runs Claude in that worktree
-- [ ] `openstation run <agent> --attached` from a worktree runs Claude in that worktree
-- [ ] `openstation run --task <id> --verify` from a worktree runs Claude in that worktree
-- [ ] `openstation run --task <id>` from the main repo still works correctly (no regression)
-- [ ] Vault operations (task discovery, log paths) still resolve to the main repo root
+- [x] `openstation run --task <id>` (detached) from a worktree directory runs Claude in that worktree
+- [x] `openstation run --task <id> --attached` from a worktree runs Claude in that worktree
+- [x] `openstation run <agent> --attached` from a worktree runs Claude in that worktree
+- [x] `openstation run --task <id> --verify` from a worktree runs Claude in that worktree
+- [x] `openstation run --task <id>` from the main repo still works correctly (no regression)
+- [x] Vault operations (task discovery, log paths) still resolve to the main repo root

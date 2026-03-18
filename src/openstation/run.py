@@ -246,7 +246,7 @@ def _stream_and_capture(cmd, cwd, log_file):
 
 def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
                     json_output=False, dangerously_skip_permissions=False,
-                    worktree=None):
+                    worktree=None, exec_cwd=None):
     """Execute one task: resolve agent, build command, launch. Returns (exit_code, session_id)."""
     task_spec = Path(task_spec)
 
@@ -302,7 +302,8 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{task_name}.jsonl"
 
-    rc, session_id, result_text = _stream_and_capture(cmd, root, log_file)
+    cwd = exec_cwd if exec_cwd is not None else root
+    rc, session_id, result_text = _stream_and_capture(cmd, cwd, log_file)
     core.detail("log", str(log_file.relative_to(root)))
     if session_id:
         core.detail("session", session_id)
@@ -314,7 +315,7 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
 def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget, turns,
                   dry_run, json_output=False, attached=False,
                   dangerously_skip_permissions=False,
-                  worktree=None):
+                  worktree=None, exec_cwd=None):
     """Execute a single task with stream-json capture."""
     tasks_dir = Path(tasks_dir)
     spec = tasks_dir / f"{task_name}.md"
@@ -396,8 +397,9 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{task_name}.jsonl"
 
-    os.chdir(str(root))
-    rc, session_id, result_text = _stream_and_capture(cmd, root, log_file)
+    cwd = exec_cwd if exec_cwd is not None else root
+    os.chdir(str(cwd))
+    rc, session_id, result_text = _stream_and_capture(cmd, cwd, log_file)
 
     if result_text:
         print(result_text, file=sys.stderr)
@@ -481,6 +483,7 @@ def cmd_agents_show(args, root, prefix):
 
 def cmd_run(args, root, prefix):
     """Handle the run subcommand."""
+    exec_cwd = Path.cwd()
     core.set_quiet(getattr(args, "quiet", False))
     core.set_run_start(time.time())
 
@@ -613,8 +616,8 @@ def cmd_run(args, root, prefix):
         log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"{task_name}.jsonl"
-        os.chdir(str(root))
-        rc, session_id, result_text = _stream_and_capture(cmd, root, log_file)
+        os.chdir(str(exec_cwd))
+        rc, session_id, result_text = _stream_and_capture(cmd, exec_cwd, log_file)
         if result_text:
             print(result_text, file=sys.stderr)
         core.detail("log", str(log_file.relative_to(root)))
@@ -689,7 +692,7 @@ def cmd_run(args, root, prefix):
                 rc, sid = run_single_task(root, prefix, sub_spec, sub_name, budget, turns,
                                           dry_run, json_output=json_output,
                                           dangerously_skip_permissions=skip_perms,
-                                          worktree=worktree)
+                                          worktree=worktree, exec_cwd=exec_cwd)
                 elapsed = time.time() - start
                 if sid:
                     last_session_id = sid
@@ -723,7 +726,7 @@ def cmd_run(args, root, prefix):
             return _exec_or_run(root, prefix, tdir, task_name, agent_name, budget, turns,
                                 dry_run, json_output=json_output, attached=attached,
                                 dangerously_skip_permissions=skip_perms,
-                                worktree=worktree)
+                                worktree=worktree, exec_cwd=exec_cwd)
     else:
         # --- BY-AGENT MODE ---
         # Resolve alias to canonical agent name
@@ -764,7 +767,7 @@ def cmd_run(args, root, prefix):
             core.header(f"openstation run {agent_name} --attached")
             core.detail("Agent", agent_name)
             core.detail("Mode", "attached")
-            os.chdir(str(root))
+            os.chdir(str(exec_cwd))
             os.execvp(cmd[0], cmd)
             return core.EXIT_OK  # unreachable
 
@@ -788,6 +791,6 @@ def cmd_run(args, root, prefix):
         print(file=sys.stderr)
         core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
-        os.chdir(str(root))
+        os.chdir(str(exec_cwd))
         os.execvp(cmd[0], cmd)
         return core.EXIT_OK  # unreachable

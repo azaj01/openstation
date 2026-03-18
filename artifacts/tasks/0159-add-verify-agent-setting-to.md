@@ -2,7 +2,7 @@
 kind: task
 name: 0159-add-verify-agent-setting-to
 type: feature
-status: review
+status: done
 assignee: developer
 owner: user
 created: 2026-03-17
@@ -60,8 +60,8 @@ to `project-manager`.
 
 ## Verification
 
-- [ ] `settings.verify.agent` is read from settings.json
-- [ ] Resolution order: `--agent` > task `owner` > settings > fallback
-- [ ] `owner: user` falls through to settings/fallback
-- [ ] `docs/settings.md` documents `verify.agent`
-- [ ] Tests cover all resolution levels
+- [x] `settings.verify.agent` is read from settings.json
+- [x] Resolution order: `--agent` > task `owner` > settings > fallback
+- [x] `owner: user` falls through to settings/fallback
+- [x] `docs/settings.md` documents `verify.agent`
+- [x] Tests cover all resolution levels

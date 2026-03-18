@@ -377,7 +377,7 @@ def tips_block(session_id=None, task_name=None, verify=False):
     if session_id:
         tips.append(f"Resume session:  claude --resume {session_id}")
     if task_name:
-        tips.append(f"View task:       openstation show {task_name} -v")
+        tips.append(f"View task:       openstation show {task_name} -e")
         if verify:
             tips.append(f"Mark done:       openstation status {task_name} done")
         else:

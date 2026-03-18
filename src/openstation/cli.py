@@ -11,6 +11,7 @@ from openstation import run
 from openstation import init
 from openstation import artifacts
 from openstation import hooks
+from openstation import update
 
 
 def _command_key(args):
@@ -323,15 +324,26 @@ examples:
     init_p.add_argument("--force", action="store_true",
                         help="Overwrite user-owned files too")
 
+    # self-update
+    selfupdate_p = sub.add_parser("self-update", help="Update Open Station to latest version",
+                                  formatter_class=fmt, epilog="""\
+examples:
+  openstation self-update                    # update to latest tag
+  openstation self-update --version v0.10.0  # pin to a specific version""")
+    selfupdate_p.add_argument("--version", default=None,
+                              help="Target version tag (default: latest)")
+
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
         return core.EXIT_USAGE
 
-    # init operates on CWD, doesn't need find_root()
+    # init and self-update operate on CWD / install cache, don't need find_root()
     if args.command == "init":
         return init.cmd_init(args) or 0
+    if args.command == "self-update":
+        return update.cmd_self_update(args) or 0
 
     root, prefix = core.find_root()
     if root is None:

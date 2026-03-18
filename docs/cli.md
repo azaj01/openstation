@@ -17,6 +17,7 @@ name: cli-reference
 | `artifacts` | Browse non-task artifacts (research, specs, agents) |
 | `agents`  | Manage and inspect agent specs               |
 | `init`    | Initialize Open Station in current directory |
+| `self-update` | Update Open Station to latest version    |
 
 ## Global Flags
 
@@ -450,6 +451,47 @@ openstation init --dry-run                # preview without writing
 
 - Refuses to run inside the Open Station source repo itself.
 - Requires the install cache to exist (prompts to run the installer if missing).
+
+---
+
+## `self-update`
+
+Update the Open Station install cache and re-link the CLI binary.
+
+### Synopsis
+
+```
+openstation self-update [--version TAG]
+```
+
+### Flags
+
+| Flag              | Default  | Description |
+|-------------------|----------|-------------|
+| `--version TAG`   | latest   | Target version tag (e.g. `v0.10.0`). When omitted, updates to the latest tag from the remote. Bare version numbers are auto-prefixed with `v`. |
+
+### What It Does
+
+1. Fetches tags from the remote in the install cache (`~/.local/share/openstation/` or `$OPENSTATION_DIR`)
+2. Checks out the target version (latest tag or `--version`)
+3. Force-checkouts to handle dirty install caches (the cache is not user-editable)
+4. Re-creates the CLI binary symlink (`~/.local/bin/openstation` → `dist/openstation`)
+5. Prints the old and new version
+6. If run inside a project with `.openstation/`, suggests running `openstation init` to update the project
+
+### Prerequisites
+
+- The install cache must exist (run the installer first)
+- The install cache must be a git clone (curl-only installs are not supported)
+- `git` must be available on `$PATH`
+
+### Examples
+
+```bash
+openstation self-update                    # update to latest tag
+openstation self-update --version v0.10.0  # pin to a specific version
+openstation self-update --version 0.10.0   # bare version (auto-prefixed with v)
+```
 
 ---
 

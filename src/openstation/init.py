@@ -373,10 +373,6 @@ def cmd_init(args):
         return _create_user_symlinks(source_dir_str, dry_run, force)
 
     cwd = Path.cwd()
-    if (cwd / "agents").is_dir() and (cwd / "install.sh").is_file():
-        _init_err("Cannot init inside the Open Station source repo.")
-        return core.EXIT_SOURCE_GUARD
-
     is_reinit = (cwd / ".openstation").is_dir()
 
     try:

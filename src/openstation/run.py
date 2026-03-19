@@ -327,7 +327,7 @@ def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
         core.err(f"No agent assigned to task: {task_name}")
         return core.EXIT_USAGE
 
-    agent_spec = find_agent_spec(root, prefix, agent)
+    agent_spec = find_agent_spec(root, agent)
     if agent_spec is None:
         core.err(f"Agent spec not found: {agent}")
         core.err("  hint: check agents/ directory for available agent specs")
@@ -394,7 +394,7 @@ def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
     print(file=sys.stderr)
     core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
-    log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
+    log_dir = core.vault_path(root, "artifacts", "logs")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{task_name}.jsonl"
 
@@ -415,9 +415,9 @@ def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
 
 # --- Command handlers ---------------------------------------------------------
 
-def cmd_agents_list(args, root, prefix):
+def cmd_agents_list(args, root):
     """Handle 'agents list' (and bare 'agents')."""
-    agents = discover_agents(root, prefix)
+    agents = discover_agents(root)
     agents.sort(key=lambda a: a["name"])
 
     if getattr(args, "json", False):
@@ -431,19 +431,16 @@ def cmd_agents_list(args, root, prefix):
             print(output)
 
 
-def _find_agent_artifact(root, prefix, name):
+def _find_agent_artifact(root, name):
     """Locate an agent spec in artifacts/agents/. Returns Path or None."""
-    if prefix:
-        p = Path(root) / prefix / "artifacts" / "agents" / f"{name}.md"
-    else:
-        p = Path(root) / "artifacts" / "agents" / f"{name}.md"
+    p = core.vault_path(root, "artifacts", "agents", f"{name}.md")
     return p if p.is_file() else None
 
 
-def _agent_not_found(name, root, prefix):
+def _agent_not_found(name, root):
     """Print not-found error with available agents hint. Returns exit code."""
     core.err(f"Agent not found: {name}")
-    agents = discover_agents(root, prefix)
+    agents = discover_agents(root)
     if agents:
         parts = []
         for a in sorted(agents, key=lambda a: a["name"]):
@@ -456,15 +453,15 @@ def _agent_not_found(name, root, prefix):
     return core.EXIT_NOT_FOUND
 
 
-def cmd_agents_show(args, root, prefix):
+def cmd_agents_show(args, root):
     """Handle 'agents show <name>'."""
-    name, alias_err = resolve_agent_alias(root, prefix, args.name)
+    name, alias_err = resolve_agent_alias(root, args.name)
     if alias_err:
         core.err(alias_err)
         return core.EXIT_USAGE
-    spec_path = _find_agent_artifact(root, prefix, name)
+    spec_path = _find_agent_artifact(root, name)
     if spec_path is None:
-        return _agent_not_found(name, root, prefix)
+        return _agent_not_found(name, root)
 
     text = spec_path.read_text(encoding="utf-8")
 
@@ -482,7 +479,7 @@ def cmd_agents_show(args, root, prefix):
     return core.EXIT_OK
 
 
-def cmd_run(args, root, prefix):
+def cmd_run(args, root):
     """Handle the run subcommand."""
     exec_cwd = Path.cwd()
     core.set_quiet(getattr(args, "quiet", False))
@@ -525,12 +522,12 @@ def cmd_run(args, root, prefix):
             core.err("--verify requires --task")
             return core.EXIT_USAGE
 
-        task_name, error, code = tasks.resolve_task(root, prefix, task_ref)
+        task_name, error, code = tasks.resolve_task(root, task_ref)
         if error:
             core.err(error)
             return code
 
-        tdir = core.tasks_dir_path(root, prefix)
+        tdir = core.tasks_dir_path(root)
         spec = tdir / f"{task_name}.md"
 
         try:
@@ -560,19 +557,19 @@ def cmd_run(args, root, prefix):
                 verify_agent = task_owner
             else:
                 from openstation import hooks
-                settings = hooks.load_settings(root, prefix)
+                settings = hooks.load_settings(root)
                 verify_cfg = settings.get("verify", {})
                 if isinstance(verify_cfg, dict) and verify_cfg.get("agent"):
                     verify_agent = verify_cfg["agent"]
                 else:
                     verify_agent = "project-manager"
 
-        verify_agent, alias_err = resolve_agent_alias(root, prefix, verify_agent)
+        verify_agent, alias_err = resolve_agent_alias(root, verify_agent)
         if alias_err:
             core.err(alias_err)
             return core.EXIT_USAGE
 
-        agent_spec = find_agent_spec(root, prefix, verify_agent)
+        agent_spec = find_agent_spec(root, verify_agent)
         if agent_spec is None:
             core.err(f"Agent spec not found: {verify_agent}")
             core.err("  hint: check agents/ directory for available agent specs")
@@ -614,7 +611,7 @@ def cmd_run(args, root, prefix):
             return core.EXIT_OK  # unreachable
 
         # Detached verify
-        log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
+        log_dir = core.vault_path(root, "artifacts", "logs")
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"{task_name}.jsonl"
         os.chdir(str(exec_cwd))
@@ -644,12 +641,12 @@ def cmd_run(args, root, prefix):
 
     if task_ref:
         # --- BY-TASK MODE ---
-        task_name, error, code = tasks.resolve_task(root, prefix, task_ref)
+        task_name, error, code = tasks.resolve_task(root, task_ref)
         if error:
             core.err(error)
             return code
 
-        tdir = core.tasks_dir_path(root, prefix)
+        tdir = core.tasks_dir_path(root)
         spec = tdir / f"{task_name}.md"
 
         if not force:
@@ -690,7 +687,7 @@ def cmd_run(args, root, prefix):
                 run_total = min(len(subtasks), max_tasks)
                 core.step(completed + 1, run_total, sub_name)
                 start = time.time()
-                rc, sid = run_single_task(root, prefix, sub_spec, sub_name, budget, turns,
+                rc, sid = run_single_task(root, sub_spec, sub_name, budget, turns,
                                           dry_run, json_output=json_output,
                                           dangerously_skip_permissions=skip_perms,
                                           worktree=worktree, exec_cwd=exec_cwd)
@@ -724,14 +721,14 @@ def cmd_run(args, root, prefix):
             return core.EXIT_OK if completed > 0 else core.EXIT_AGENT_ERROR
         else:
             core.info("No subtasks found, executing task directly")
-            return _exec_or_run(root, prefix, tdir, task_name, agent_name, budget, turns,
+            return _exec_or_run(root, tdir, task_name, agent_name, budget, turns,
                                 dry_run, json_output=json_output, attached=attached,
                                 dangerously_skip_permissions=skip_perms,
                                 worktree=worktree, exec_cwd=exec_cwd)
     else:
         # --- BY-AGENT MODE ---
         # Resolve alias to canonical agent name
-        agent_name, alias_err = resolve_agent_alias(root, prefix, agent_name)
+        agent_name, alias_err = resolve_agent_alias(root, agent_name)
         if alias_err:
             core.err(alias_err)
             return core.EXIT_USAGE
@@ -740,7 +737,7 @@ def cmd_run(args, root, prefix):
         if worktree is True:
             worktree = agent_name
 
-        agent_spec = find_agent_spec(root, prefix, agent_name)
+        agent_spec = find_agent_spec(root, agent_name)
         if agent_spec is None:
             core.err(f"Agent spec not found: {agent_name}")
             core.err("  hint: check agents/ directory for available agent specs")

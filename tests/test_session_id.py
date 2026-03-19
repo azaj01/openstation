@@ -31,14 +31,20 @@ def run_cli(args, cwd=None, env=None):
 
 def make_source_vault(tmpdir):
     root = Path(tmpdir)
-    (root / "agents").mkdir(parents=True, exist_ok=True)
-    (root / "install.sh").write_text("#!/bin/bash\n")
-    (root / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=str(root), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=str(root), capture_output=True, check=True,
+        env={**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
+             "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"},
+    )
+    (root / ".openstation" / "agents").mkdir(parents=True, exist_ok=True)
+    (root / ".openstation" / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
     return root
 
 
 def make_agent_spec(base, name):
-    agents_dir = base / "agents"
+    agents_dir = base / ".openstation" / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
     (agents_dir / f"{name}.md").write_text(
         f"---\nkind: agent\nname: {name}\n"
@@ -48,7 +54,7 @@ def make_agent_spec(base, name):
 
 
 def make_task(base, name, status="ready", assignee="researcher", subtasks=None, parent=None):
-    tasks_dir = base / "artifacts" / "tasks"
+    tasks_dir = base / ".openstation" / "artifacts" / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
     extra = ""
     if subtasks:
@@ -160,7 +166,7 @@ class TestSessionIdCapture(unittest.TestCase):
         make_task(self.root, "0002-child", status="ready", assignee="researcher")
 
         self._run(["run", "--task", "0001-parent"])
-        log_file = self.root / "artifacts" / "logs" / "0002-child.jsonl"
+        log_file = self.root / ".openstation" / "artifacts" / "logs" / "0002-child.jsonl"
         self.assertTrue(log_file.exists(), "JSONL log file was not created")
         content = log_file.read_text()
         self.assertIn(SESSION_UUID, content)
@@ -178,7 +184,7 @@ class TestSessionIdCapture(unittest.TestCase):
         make_task(self.root, "0001-single", status="ready", assignee="researcher")
 
         self._run(["run", "--task", "0001-single"])
-        log_file = self.root / "artifacts" / "logs" / "0001-single.jsonl"
+        log_file = self.root / ".openstation" / "artifacts" / "logs" / "0001-single.jsonl"
         self.assertTrue(log_file.exists(), "JSONL log file was not created")
         content = log_file.read_text()
         self.assertIn(SESSION_UUID, content)

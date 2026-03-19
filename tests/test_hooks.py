@@ -13,11 +13,10 @@ from openstation import hooks, core
 
 @pytest.fixture
 def vault(tmp_path):
-    """Create a minimal vault with a settings.json and a task file."""
-    # Source-repo layout (prefix="")
-    (tmp_path / "agents").mkdir()
-    (tmp_path / "install.sh").touch()
-    tasks_dir = tmp_path / "artifacts" / "tasks"
+    """Create a minimal vault with .openstation/ layout."""
+    os_dir = tmp_path / ".openstation"
+    os_dir.mkdir()
+    tasks_dir = os_dir / "artifacts" / "tasks"
     tasks_dir.mkdir(parents=True)
     task_file = tasks_dir / "0001-test-task.md"
     task_file.write_text("---\nkind: task\nname: 0001-test-task\nstatus: ready\n---\n")
@@ -27,7 +26,7 @@ def vault(tmp_path):
 def write_settings(vault, hook_entries):
     """Write a settings.json with the given StatusTransition hooks."""
     settings = {"hooks": {"StatusTransition": hook_entries}}
-    (vault / "settings.json").write_text(json.dumps(settings))
+    (vault / ".openstation" / "settings.json").write_text(json.dumps(settings))
 
 
 # ---------------------------------------------------------------------------
@@ -36,43 +35,43 @@ def write_settings(vault, hook_entries):
 
 class TestLoadHooks:
     def test_no_settings_file(self, vault):
-        result = hooks.load_hooks(vault, "")
+        result = hooks.load_hooks(vault)
         assert result == []
 
     def test_empty_settings(self, vault):
-        (vault / "settings.json").write_text("{}")
-        assert hooks.load_hooks(vault, "") == []
+        (vault / ".openstation" / "settings.json").write_text("{}")
+        assert hooks.load_hooks(vault) == []
 
     def test_no_status_transition_key(self, vault):
-        (vault / "settings.json").write_text('{"hooks": {}}')
-        assert hooks.load_hooks(vault, "") == []
+        (vault / ".openstation" / "settings.json").write_text('{"hooks": {}}')
+        assert hooks.load_hooks(vault) == []
 
     def test_loads_entries(self, vault):
         entries = [{"matcher": "*→done", "command": "echo done"}]
         write_settings(vault, entries)
-        result = hooks.load_hooks(vault, "")
+        result = hooks.load_hooks(vault)
         assert len(result) == 1
         assert result[0]["command"] == "echo done"
 
-    def test_installed_project_prefix(self, tmp_path):
+    def test_installed_project(self, tmp_path):
         os_dir = tmp_path / ".openstation"
         os_dir.mkdir()
         settings = {"hooks": {"StatusTransition": [{"matcher": "*→*", "command": "true"}]}}
         (os_dir / "settings.json").write_text(json.dumps(settings))
-        result = hooks.load_hooks(tmp_path, ".openstation")
+        result = hooks.load_hooks(tmp_path)
         assert len(result) == 1
 
     def test_invalid_json(self, vault):
-        (vault / "settings.json").write_text("not json")
-        assert hooks.load_hooks(vault, "") == []
+        (vault / ".openstation" / "settings.json").write_text("not json")
+        assert hooks.load_hooks(vault) == []
 
     def test_hooks_not_dict(self, vault):
-        (vault / "settings.json").write_text('{"hooks": "bad"}')
-        assert hooks.load_hooks(vault, "") == []
+        (vault / ".openstation" / "settings.json").write_text('{"hooks": "bad"}')
+        assert hooks.load_hooks(vault) == []
 
     def test_status_transition_not_list(self, vault):
-        (vault / "settings.json").write_text('{"hooks": {"StatusTransition": "bad"}}')
-        assert hooks.load_hooks(vault, "") == []
+        (vault / ".openstation" / "settings.json").write_text('{"hooks": {"StatusTransition": "bad"}}')
+        assert hooks.load_hooks(vault) == []
 
 
 # ---------------------------------------------------------------------------
@@ -130,24 +129,24 @@ class TestMatchHooks:
 class TestRunMatched:
     def test_no_hooks_returns_none(self, vault):
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         assert result is None
 
     def test_successful_hook(self, vault):
         write_settings(vault, [{"matcher": "*→*", "command": "true"}])
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         assert result is None
 
     def test_failing_hook_returns_exit_code(self, vault):
         write_settings(vault, [{"matcher": "*→*", "command": "false"}])
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         assert result == core.EXIT_HOOK_FAILED
 
@@ -157,18 +156,18 @@ class TestRunMatched:
         cmd = f'echo "$OS_TASK_NAME $OS_OLD_STATUS $OS_NEW_STATUS" > {out}'
         write_settings(vault, [{"matcher": "*→*", "command": cmd}])
         hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         content = out.read_text().strip()
         assert content == "0001-test-task ready in-progress"
 
     def test_env_vars_file_and_root(self, vault):
         out = vault / "env_out2.txt"
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
         cmd = f'echo "$OS_TASK_FILE|$OS_VAULT_ROOT" > {out}'
         write_settings(vault, [{"matcher": "*→*", "command": cmd}])
-        hooks.run_matched(vault, "", "0001-test-task", "ready", "in-progress", task_file)
+        hooks.run_matched(vault,"0001-test-task", "ready", "in-progress", task_file)
         content = out.read_text().strip()
         parts = content.split("|")
         assert parts[0] == str(task_file.resolve())
@@ -181,8 +180,8 @@ class TestRunMatched:
             {"matcher": "*→*", "command": f'echo second >> {out}'},
         ])
         hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         lines = out.read_text().strip().splitlines()
         assert lines == ["first", "second"]
@@ -194,8 +193,8 @@ class TestRunMatched:
             {"matcher": "*→*", "command": f'echo should-not-run >> {out}'},
         ])
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         assert result == core.EXIT_HOOK_FAILED
         assert not out.exists()
@@ -205,8 +204,8 @@ class TestRunMatched:
             {"matcher": "*→*", "command": "sleep 60", "timeout": 1},
         ])
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
-            vault / "artifacts" / "tasks" / "0001-test-task.md",
+            vault,"0001-test-task", "ready", "in-progress",
+            vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md",
         )
         assert result == core.EXIT_HOOK_FAILED
 
@@ -223,8 +222,8 @@ class TestCLIIntegration:
             {"matcher": "ready→in-progress", "command": f"touch {marker}"},
         ])
         # Simulate what cmd_status does: load, match, run
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
-        result = hooks.run_matched(vault, "", "0001-test-task", "ready", "in-progress", task_file)
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
+        result = hooks.run_matched(vault,"0001-test-task", "ready", "in-progress", task_file)
         assert result is None
         assert marker.exists()
 
@@ -233,8 +232,8 @@ class TestCLIIntegration:
         write_settings(vault, [
             {"matcher": "ready→in-progress", "command": "exit 1"},
         ])
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
-        result = hooks.run_matched(vault, "", "0001-test-task", "ready", "in-progress", task_file)
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
+        result = hooks.run_matched(vault,"0001-test-task", "ready", "in-progress", task_file)
         assert result == core.EXIT_HOOK_FAILED
         # Task file should still be at ready
         text = task_file.read_text()
@@ -288,7 +287,7 @@ class TestPhaseFiltering:
 class TestPostHooks:
     def test_post_hook_runs_after_status_written(self, vault):
         """Post-hooks see the new status on disk."""
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
         out = vault / "status_check.txt"
         cmd = f'grep "status:" {task_file} > {out}'
         write_settings(vault, [
@@ -299,7 +298,7 @@ class TestPostHooks:
         update_frontmatter(task_file, "ready", "in-progress")
         # Then run post-hooks
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
+            vault,"0001-test-task", "ready", "in-progress",
             task_file, phase="post",
         )
         assert result is None
@@ -311,9 +310,9 @@ class TestPostHooks:
         write_settings(vault, [
             {"matcher": "*→*", "command": "exit 1", "phase": "post"},
         ])
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
+            vault,"0001-test-task", "ready", "in-progress",
             task_file, phase="post",
         )
         assert result is None
@@ -326,9 +325,9 @@ class TestPostHooks:
             {"matcher": "*→*", "command": "exit 1", "phase": "post"},
             {"matcher": "*→*", "command": f"echo third >> {out}", "phase": "post"},
         ])
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
+            vault,"0001-test-task", "ready", "in-progress",
             task_file, phase="post",
         )
         assert result is None
@@ -342,9 +341,9 @@ class TestPostHooks:
         write_settings(vault, [
             {"matcher": "*→*", "command": cmd, "phase": "post"},
         ])
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
         hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
+            vault,"0001-test-task", "ready", "in-progress",
             task_file, phase="post",
         )
         content = out.read_text().strip()
@@ -355,9 +354,9 @@ class TestPostHooks:
         write_settings(vault, [
             {"matcher": "*→*", "command": "exit 1"},
         ])
-        task_file = vault / "artifacts" / "tasks" / "0001-test-task.md"
+        task_file = vault / ".openstation" / "artifacts" / "tasks" / "0001-test-task.md"
         result = hooks.run_matched(
-            vault, "", "0001-test-task", "ready", "in-progress",
+            vault,"0001-test-task", "ready", "in-progress",
             task_file, phase="pre",
         )
         assert result == core.EXIT_HOOK_FAILED

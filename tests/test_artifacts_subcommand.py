@@ -27,17 +27,23 @@ def run_cli(args, cwd=None, env=None):
 
 
 def make_source_vault(tmpdir):
-    """Create a source-repo-style vault."""
+    """Create a vault with .openstation/ layout."""
     root = Path(tmpdir)
-    (root / "agents").mkdir(parents=True, exist_ok=True)
-    (root / "install.sh").write_text("#!/bin/bash\n")
-    (root / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=str(root), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=str(root), capture_output=True, check=True,
+        env={**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
+             "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"},
+    )
+    (root / ".openstation" / "agents").mkdir(parents=True, exist_ok=True)
+    (root / ".openstation" / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
     return root
 
 
 def make_artifact(base, kind, name, description=None, body=None, fm_kind=None):
-    """Create an artifact in artifacts/<kind>/."""
-    subdir = base / "artifacts" / kind
+    """Create an artifact in .openstation/artifacts/<kind>/."""
+    subdir = base / ".openstation" / "artifacts" / kind
     subdir.mkdir(parents=True, exist_ok=True)
     fm_kind_val = fm_kind or kind.rstrip("s") if kind != "agents" else "agent"
     if kind == "agents":

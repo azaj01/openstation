@@ -31,7 +31,7 @@ def run_cli(args, cwd=None, env=None):
 def make_task(base, name, status="ready", assignee="researcher", owner="manual",
               subtasks=None, parent=None):
     """Create a minimal task fixture in the vault."""
-    tasks_dir = base / "artifacts" / "tasks"
+    tasks_dir = base / ".openstation" / "artifacts" / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
     extra = ""
     if subtasks:
@@ -45,12 +45,22 @@ def make_task(base, name, status="ready", assignee="researcher", owner="manual",
     )
 
 
+_GIT_ENV = {
+    **os.environ,
+    "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t",
+}
+
 def make_source_vault(tmpdir):
-    """Create a source-repo-style vault (agents/ + install.sh)."""
+    """Create a vault with .openstation/ layout."""
     root = Path(tmpdir)
-    (root / "agents").mkdir(parents=True, exist_ok=True)
-    (root / "install.sh").write_text("#!/bin/bash\n")
-    (root / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init"], cwd=str(root), capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=str(root), capture_output=True, check=True, env=_GIT_ENV,
+    )
+    (root / ".openstation" / "agents").mkdir(parents=True, exist_ok=True)
+    (root / ".openstation" / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
     return root
 
 
@@ -58,7 +68,7 @@ def make_agent_spec(base, name, tools=None):
     """Create a minimal agent spec with allowed-tools."""
     if tools is None:
         tools = ["Read", "Glob", "Grep"]
-    agents_dir = base / "agents"
+    agents_dir = base / ".openstation" / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
     tool_lines = "\n".join(f"  - {t}" for t in tools)
     (agents_dir / f"{name}.md").write_text(
@@ -69,11 +79,9 @@ def make_agent_spec(base, name, tools=None):
 
 
 def make_installed_vault(tmpdir):
-    """Create an installed-project-style vault (.openstation/)."""
-    root = Path(tmpdir)
-    os_dir = root / ".openstation"
-    (os_dir / "artifacts" / "tasks").mkdir(parents=True, exist_ok=True)
-    return root, os_dir
+    """Create a vault with .openstation/ layout (same as make_source_vault)."""
+    root = make_source_vault(tmpdir)
+    return root, root / ".openstation"
 
 
 # ── List Command Tests ──────────────────────────────────────────────
@@ -160,7 +168,7 @@ class TestListCommand(unittest.TestCase):
 
     def test_list_skips_non_task_files(self):
         # A .md file without kind: task should be skipped
-        tasks_dir = self.root / "artifacts" / "tasks"
+        tasks_dir = self.root / ".openstation" / "artifacts" / "tasks"
         tasks_dir.mkdir(parents=True, exist_ok=True)
         (tasks_dir / "roadmap.md").write_text("# Roadmap\nNot a task.\n")
 
@@ -674,35 +682,12 @@ class TestRootDetection(unittest.TestCase):
 
     def test_installed_project_root(self):
         tmpdir = tempfile.mkdtemp()
-        root, os_dir = make_installed_vault(tmpdir)
-        make_task(os_dir, "0001-alpha")
+        root, _os_dir = make_installed_vault(tmpdir)
+        make_task(root, "0001-alpha")
 
         out, _, rc = run_cli(["list"], cwd=tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("0001", out)
-
-    def test_source_repo_takes_precedence(self):
-        """If both .openstation/ and agents/+install.sh exist, prefer source repo."""
-        tmpdir = tempfile.mkdtemp()
-        root = Path(tmpdir)
-
-        # Source repo markers
-        (root / "agents").mkdir()
-        (root / "install.sh").write_text("#!/bin/bash\n")
-        (root / "artifacts" / "tasks").mkdir(parents=True)
-
-        # Installed markers with different task
-        os_dir = root / ".openstation"
-        (os_dir / "artifacts" / "tasks").mkdir(parents=True)
-
-        make_task(root, "0001-source-task")
-        make_task(os_dir, "0002-installed-task")
-
-        out, _, rc = run_cli(["list", "--status", "all"], cwd=tmpdir)
-        self.assertEqual(rc, 0)
-        # Source repo takes precedence over .openstation/
-        self.assertIn("0001", out)
-        self.assertNotIn("0002", out)
 
     def test_child_directory_finds_root(self):
         tmpdir = tempfile.mkdtemp()
@@ -887,7 +872,7 @@ class TestRunArgValidation(unittest.TestCase):
 
     def test_missing_allowed_tools(self):
         # Create agent spec without allowed-tools
-        agents_dir = self.root / "agents"
+        agents_dir = self.root / ".openstation" / "agents"
         agents_dir.mkdir(parents=True, exist_ok=True)
         (agents_dir / "empty-agent.md").write_text(
             "---\nkind: agent\nname: empty-agent\n---\n"
@@ -1052,8 +1037,8 @@ class TestRunVerifyAgentResolution(unittest.TestCase):
         make_agent_spec(self.root, "reviewer")
 
     def _write_settings(self, data):
-        """Write settings.json to vault root."""
-        (self.root / "settings.json").write_text(json.dumps(data))
+        """Write settings.json to .openstation/."""
+        (self.root / ".openstation" / "settings.json").write_text(json.dumps(data))
 
     def test_owner_user_falls_through_to_settings(self):
         """owner: user should be skipped, settings.verify.agent used."""
@@ -1299,9 +1284,12 @@ class TestRunClaude(unittest.TestCase):
         )
 
     def test_claude_not_on_path(self):
-        # Use an empty PATH so claude is not found
+        # Use a minimal PATH with git but without claude
+        import shutil
+        git_path = shutil.which("git")
+        git_dir = str(Path(git_path).parent) if git_path else ""
         env = os.environ.copy()
-        env["PATH"] = ""
+        env["PATH"] = git_dir
         env["PYTHONPATH"] = SRC_DIR
         result = subprocess.run(
             [sys.executable, "-m", "openstation", "run", "researcher"],
@@ -1319,8 +1307,8 @@ class TestRunClaude(unittest.TestCase):
 
 def make_agent_artifact(base, name, description=None, kind="agent", multiline=False,
                         aliases=None):
-    """Create an agent spec in artifacts/agents/."""
-    agents_dir = base / "artifacts" / "agents"
+    """Create an agent spec in .openstation/artifacts/agents/."""
+    agents_dir = base / ".openstation" / "artifacts" / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
     if multiline and description:
         desc_block = f"description: >-\n  {description}\n"
@@ -1375,7 +1363,7 @@ class TestAgentsCommand(unittest.TestCase):
     def test_agents_skips_non_agent_files(self):
         make_agent_artifact(self.root, "researcher", "Research agent")
         # Create a non-agent file in artifacts/agents/
-        agents_dir = self.root / "artifacts" / "agents"
+        agents_dir = self.root / ".openstation" / "artifacts" / "agents"
         (agents_dir / "readme.md").write_text("# Not an agent\n")
 
         out, _, rc = run_cli(["agents"], cwd=self.tmpdir)
@@ -1402,8 +1390,8 @@ class TestAgentsCommand(unittest.TestCase):
 
     def test_agents_installed_vault(self):
         tmpdir = tempfile.mkdtemp()
-        root, os_dir = make_installed_vault(tmpdir)
-        make_agent_artifact(os_dir, "researcher", "Research agent")
+        root, _os_dir = make_installed_vault(tmpdir)
+        make_agent_artifact(root, "researcher", "Research agent")
 
         out, _, rc = run_cli(["agents"], cwd=tmpdir)
         self.assertEqual(rc, 0)
@@ -1498,7 +1486,7 @@ class TestCreateCommand(unittest.TestCase):
         task_name = out.strip()
         self.assertTrue(task_name.startswith("0001-"))
         # Verify file exists
-        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         self.assertTrue(task_file.exists())
         content = task_file.read_text()
         self.assertIn("kind: task", content)
@@ -1557,7 +1545,7 @@ class TestCreateCommand(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         task_name = out.strip()
-        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         content = task_file.read_text()
         self.assertIn("assignee: researcher", content)
 
@@ -1568,7 +1556,7 @@ class TestCreateCommand(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         task_name = out.strip()
-        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         content = task_file.read_text()
         self.assertIn("status: ready", content)
 
@@ -1590,12 +1578,12 @@ class TestCreateCommand(unittest.TestCase):
         task_name = out.strip()
 
         # Child has parent field
-        child_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        child_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         child_content = child_file.read_text()
         self.assertIn('parent: "[[0001-parent-task]]"', child_content)
 
         # Parent has subtasks field with child
-        parent_file = self.root / "artifacts" / "tasks" / "0001-parent-task.md"
+        parent_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-parent-task.md"
         parent_content = parent_file.read_text()
         self.assertIn(f"[[{task_name}]]", parent_content)
         self.assertIn("subtasks:", parent_content)
@@ -1612,7 +1600,7 @@ class TestCreateCommand(unittest.TestCase):
         self.assertEqual(rc, 0)
         task_name = out.strip()
 
-        parent_file = self.root / "artifacts" / "tasks" / "0001-parent.md"
+        parent_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-parent.md"
         parent_content = parent_file.read_text()
         # Both children should be listed
         self.assertIn("0002-existing-child", parent_content)
@@ -1653,7 +1641,7 @@ class TestStatusCommand(unittest.TestCase):
         self.assertIn("backlog → ready", out)
 
         # Verify file was updated
-        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
         content = task_file.read_text()
         self.assertIn("status: ready", content)
 
@@ -1718,7 +1706,7 @@ class TestStatusCommand(unittest.TestCase):
         out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
 
-        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
         content = task_file.read_text()
         # Status changed
         self.assertIn("status: ready", content)
@@ -1770,7 +1758,7 @@ class TestInteractiveStatusPicker(unittest.TestCase):
         args = type("Args", (), {"task": task_name, "new_status": None, "force": False})()
         with patch.object(sys.stdin, "isatty", return_value=True), \
              patch.object(_tasks, "_interactive_status_picker", return_value=picker_return):
-            return _tasks.cmd_status(args, self.root, "")
+            return _tasks.cmd_status(args, self.root)
 
     def test_picker_shows_current_status_and_options(self):
         """Omitting new_status invokes picker which shows current and targets."""
@@ -1787,7 +1775,7 @@ class TestInteractiveStatusPicker(unittest.TestCase):
         args = type("Args", (), {"task": "0001", "new_status": None, "force": False})()
         with patch.object(sys.stdin, "isatty", return_value=True), \
              patch.object(_tasks, "_interactive_status_picker", side_effect=fake_picker):
-            rc = _tasks.cmd_status(args, self.root, "")
+            rc = _tasks.cmd_status(args, self.root)
         self.assertEqual(rc, 0)
         self.assertEqual(captured["current"], "backlog")
         self.assertIn("0001-alpha", captured["task_name"])
@@ -1797,7 +1785,7 @@ class TestInteractiveStatusPicker(unittest.TestCase):
         make_task(self.root, "0001-alpha", status="backlog")
         rc = self._run_status_interactive("0001", "ready")
         self.assertEqual(rc, 0)
-        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
         content = task_file.read_text()
         self.assertIn("status: ready", content)
 
@@ -1810,7 +1798,7 @@ class TestInteractiveStatusPicker(unittest.TestCase):
         # ready -> backlog or in-progress; pick backlog
         rc = self._run_status_interactive("0001", "backlog")
         self.assertEqual(rc, 0)
-        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
         content = task_file.read_text()
         self.assertIn("status: backlog", content)
 
@@ -1915,7 +1903,7 @@ class TestForceFlag(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("done → backlog", out)
         # Verify file was updated
-        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
         self.assertIn("status: backlog", task_file.read_text())
 
     def test_force_prints_warning_on_invalid_transition(self):
@@ -1973,7 +1961,7 @@ class TestForceFlag(unittest.TestCase):
         args = type("Args", (), {"task": "0001", "new_status": "backlog", "force": True})()
 
         with patch("openstation.hooks.run_matched", return_value=None) as mock_hooks:
-            rc = _tasks.cmd_status(args, self.root, "")
+            rc = _tasks.cmd_status(args, self.root)
         self.assertEqual(rc, 0)
         # pre and post hooks should both have been called
         self.assertEqual(mock_hooks.call_count, 2)
@@ -2125,17 +2113,6 @@ class TestInitCommand(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertFalse((self.target / ".openstation").is_dir())
         self.assertIn("[would]", out)
-
-    def test_source_repo_guard(self):
-        """Init refuses to run inside the source repo."""
-        src_dir = Path(self.tmpdir) / "src_repo"
-        src_dir.mkdir()
-        (src_dir / "agents").mkdir()
-        (src_dir / "install.sh").write_text("#!/bin/bash\n")
-
-        _, stderr, rc = run_cli(["init"], cwd=str(src_dir), env=self.env)
-        self.assertEqual(rc, 9)  # EXIT_SOURCE_GUARD
-        self.assertIn("Cannot init inside the Open Station source repo", stderr)
 
     def test_missing_install_gives_clear_error(self):
         """Init without prior install gives clear error message."""
@@ -2893,7 +2870,7 @@ class TestAutoPromoteParent(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
 
     def _read_status(self, name):
-        spec = self.root / "artifacts" / "tasks" / f"{name}.md"
+        spec = self.root / ".openstation" / "artifacts" / "tasks" / f"{name}.md"
         text = spec.read_text()
         for line in text.splitlines():
             if line.startswith("status:"):
@@ -2953,7 +2930,7 @@ class TestSubtaskStatusInheritance(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
 
     def _read_status(self, name):
-        spec = self.root / "artifacts" / "tasks" / f"{name}.md"
+        spec = self.root / ".openstation" / "artifacts" / "tasks" / f"{name}.md"
         text = spec.read_text()
         for line in text.splitlines():
             if line.startswith("status:"):
@@ -3026,7 +3003,7 @@ class TestTypeField(unittest.TestCase):
         )
         self.assertEqual(rc, 0)
         task_name = out.strip()
-        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         content = task_file.read_text()
         self.assertIn("type: research", content)
 
@@ -3034,14 +3011,14 @@ class TestTypeField(unittest.TestCase):
         out, _, rc = run_cli(["create", "new feature"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         task_name = out.strip()
-        task_file = self.root / "artifacts" / "tasks" / f"{task_name}.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         content = task_file.read_text()
         self.assertIn("type: feature", content)
 
     def test_list_type_filter(self):
         make_task(self.root, "0001-feat-one", status="ready")
         # Add type to a specific task
-        task_file = self.root / "artifacts" / "tasks" / "0001-feat-one.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-feat-one.md"
         content = task_file.read_text()
         content = content.replace("kind: task", "kind: task\ntype: research")
         task_file.write_text(content)
@@ -3058,7 +3035,7 @@ class TestTypeField(unittest.TestCase):
         make_task(self.root, "0001-untyped", status="ready")
         make_task(self.root, "0002-typed", status="ready")
         # Add type: research to 0002
-        task_file = self.root / "artifacts" / "tasks" / "0002-typed.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0002-typed.md"
         content = task_file.read_text()
         content = content.replace("kind: task", "kind: task\ntype: research")
         task_file.write_text(content)
@@ -3092,7 +3069,7 @@ class TestTypeField(unittest.TestCase):
     def test_list_json_includes_type(self):
         """JSON output includes the type field."""
         make_task(self.root, "0001-typed", status="ready")
-        task_file = self.root / "artifacts" / "tasks" / "0001-typed.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-typed.md"
         content = task_file.read_text()
         content = content.replace("kind: task", "kind: task\ntype: spec")
         task_file.write_text(content)
@@ -3235,7 +3212,7 @@ class TestVerifiedStatusTransitions(unittest.TestCase):
     def test_verified_file_content_updated(self):
         make_task(self.root, "0001-alpha", status="review")
         run_cli(["status", "0001", "verified"], cwd=self.tmpdir)
-        task_file = self.root / "artifacts" / "tasks" / "0001-alpha.md"
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
         content = task_file.read_text()
         self.assertIn("status: verified", content)
 
@@ -3248,7 +3225,7 @@ class TestVerifiedParentAutoPromotion(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
 
     def _read_status(self, name):
-        spec = self.root / "artifacts" / "tasks" / f"{name}.md"
+        spec = self.root / ".openstation" / "artifacts" / "tasks" / f"{name}.md"
         text = spec.read_text()
         for line in text.splitlines():
             if line.startswith("status:"):

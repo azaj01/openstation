@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.11.0
+
+Unified vault convention — all vault files now live under
+`.openstation/` everywhere, including the source repo. Removes the
+dual-path detection (root-level vs `.openstation/`) and the `prefix`
+parameter that threaded through every module. Also includes worktree
+improvements, self-update, and documentation fixes.
+
+### Breaking
+
+- **`.openstation/`-only convention** — The source repo now uses
+  `.openstation/` for vault directories (`artifacts/`, `agents/`,
+  `skills/`, `commands/`, `docs/`, `templates/`). The old root-level
+  layout (`agents/ + install.sh` marker) is no longer detected.
+  Installed projects are unaffected (they already use `.openstation/`).
+- **`find_root` return type** — Returns `Path | None` instead of
+  `(Path, str)` tuple. The `prefix` parameter is removed from all
+  ~25 public function signatures across `core.py`, `cli.py`,
+  `tasks.py`, `run.py`, `artifacts.py`, and `hooks.py`.
+- **Source guard removed** — `openstation init` no longer refuses to
+  run inside the source repo. `EXIT_SOURCE_GUARD` (exit code 9)
+  removed.
+
+### CLI
+
+- **`vault_path()` helper** — New canonical path builder in `core.py`:
+  `vault_path(root, "artifacts", "tasks")` replaces all `if prefix:`
+  branching (12 occurrences across 5 modules).
+- **`self-update` subcommand** — `openstation self-update` updates
+  the local install cache from the remote repository.
+- **Worktree CWD fix** — Detached `openstation run` in worktrees now
+  correctly uses the original CWD for Claude execution.
+
+### Worktree
+
+- **`find_root` rewrite** — Uses `git rev-parse --show-toplevel` as
+  primary resolution with `--git-common-dir` fallback for linked
+  worktrees. Replaces the walk-up filesystem scan.
+- **Independent vs linked modes** — Documented in `docs/worktrees.md`.
+  Worktrees with their own `.openstation/` are independent; those
+  without fall back to the main repo's vault.
+
+### Docs
+
+- **`docs/worktrees.md`** — New documentation covering primary and
+  linked worktree modes, vault resolution, and agent dispatch.
+- **Verify agent setting** — `settings.json` supports
+  `verify.agent` for project-level verification agent defaults.
+
 ## v0.10.0
 
 Lifecycle hooks, a `verified` status gate, and the `--verify` flag

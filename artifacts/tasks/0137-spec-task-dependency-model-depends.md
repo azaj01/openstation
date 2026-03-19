@@ -2,7 +2,7 @@
 kind: task
 name: 0137-spec-task-dependency-model-depends
 type: spec
-status: ready
+status: backlog
 assignee: architect
 owner: user
 parent: "[[0140-introduce-task-dependencies-depends-on]]"

@@ -621,6 +621,7 @@ def cmd_create(args, root, prefix):
             print(msg, file=sys.stderr)
 
     print(task_name)
+    core.info(f"created {filepath}")
     return core.EXIT_OK
 
 
@@ -769,6 +770,7 @@ def cmd_status(args, root, prefix):
         return core.EXIT_USAGE
 
     print(f"{task_name}: {current} → {new_status}")
+    core.info(f"updated {spec}")
 
     msg = auto_promote_parent(tasks_dir, task_name, new_status)
     if msg:

@@ -1,8 +1,7 @@
-"""Tests for find_root() — vault discovery including git worktree support."""
+"""Tests for find_root() — vault discovery using git toplevel resolution."""
 
 import os
 import subprocess
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -10,58 +9,54 @@ import pytest
 from openstation.core import find_root
 
 
+_GIT_ENV = {
+    **os.environ,
+    "GIT_AUTHOR_NAME": "test",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "test",
+    "GIT_COMMITTER_EMAIL": "t@t",
+}
+
+
+def _git_init(path):
+    """Initialize a git repo with an empty commit."""
+    subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+    subprocess.run(
+        ["git", "commit", "--allow-empty", "-m", "init"],
+        cwd=path, capture_output=True, check=True, env=_GIT_ENV,
+    )
+
+
+def _git_worktree_add(main, wt_path, branch="wt-branch"):
+    """Add a git worktree."""
+    subprocess.run(
+        ["git", "worktree", "add", str(wt_path), "-b", branch],
+        cwd=main, capture_output=True, check=True,
+    )
+
+
 @pytest.fixture
 def project_dir(tmp_path):
-    """Create a project with .openstation/ directory."""
+    """Create a git repo with .openstation/ directory."""
+    _git_init(tmp_path)
     (tmp_path / ".openstation").mkdir()
     return tmp_path
 
 
 @pytest.fixture
 def source_repo_dir(tmp_path):
-    """Create a source repo with agents/ + install.sh."""
+    """Create a git repo with agents/ + install.sh (source repo markers)."""
+    _git_init(tmp_path)
     (tmp_path / "agents").mkdir()
     (tmp_path / "install.sh").touch()
     return tmp_path
 
 
-@pytest.fixture
-def worktree_env(tmp_path):
-    """Create a real git repo with a worktree that shares the main repo's .openstation/.
-
-    Layout:
-      tmp_path/main/       — main git repo with .openstation/
-      tmp_path/worktree/   — git worktree (no .openstation/)
-    """
-    main = tmp_path / "main"
-    main.mkdir()
-
-    # Init a real git repo
-    subprocess.run(["git", "init"], cwd=main, capture_output=True, check=True)
-    subprocess.run(
-        ["git", "commit", "--allow-empty", "-m", "init"],
-        cwd=main, capture_output=True, check=True,
-        env={**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
-             "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"},
-    )
-
-    # Create .openstation/ in main
-    (main / ".openstation").mkdir()
-
-    wt_path = tmp_path / "worktree"
-    subprocess.run(
-        ["git", "worktree", "add", str(wt_path), "-b", "wt-branch"],
-        cwd=main, capture_output=True, check=True,
-    )
-
-    return main, wt_path
+# --- Main repo root ---
 
 
-# --- Normal (non-worktree) behavior ---
-
-
-class TestFindRootNormal:
-    """find_root() works as before in normal projects."""
+class TestFindRootMainRepo:
+    """find_root() from main repo root and subdirectories."""
 
     def test_finds_openstation_dir(self, project_dir):
         root, prefix = find_root(start=str(project_dir))
@@ -80,70 +75,152 @@ class TestFindRootNormal:
         assert root == source_repo_dir
         assert prefix == ""
 
-    def test_returns_none_when_nothing_found(self, tmp_path):
-        root, prefix = find_root(start=str(tmp_path))
-        assert root is None
-        assert prefix is None
+
+# --- Worktree behavior ---
 
 
-# --- No git subprocess when .openstation/ found locally ---
+class TestWorktreeAttachedMode:
+    """Worktree WITHOUT its own .openstation/ → attached mode (uses main repo)."""
 
+    def test_finds_vault_from_worktree(self, tmp_path):
+        main = tmp_path / "main"
+        main.mkdir()
+        _git_init(main)
+        (main / ".openstation").mkdir()
 
-class TestNoGitWhenLocal:
-    """Git subprocess is never invoked when .openstation/ is found locally."""
+        wt_path = tmp_path / "worktree"
+        _git_worktree_add(main, wt_path)
 
-    def test_no_subprocess_when_openstation_found(self, project_dir):
-        with patch("subprocess.run") as mock_run:
-            root, prefix = find_root(start=str(project_dir))
-            assert root == project_dir
-            assert prefix == ".openstation"
-            mock_run.assert_not_called()
-
-
-# --- Worktree detection ---
-
-
-class TestWorktreeDetection:
-    """find_root() resolves .openstation/ from main worktree."""
-
-    def test_finds_vault_from_worktree(self, worktree_env):
-        main, wt = worktree_env
-        root, prefix = find_root(start=str(wt))
+        root, prefix = find_root(start=str(wt_path))
         assert root == main
         assert prefix == ".openstation"
 
-    def test_finds_vault_from_worktree_subdirectory(self, worktree_env):
-        main, wt = worktree_env
-        sub = wt / "src" / "pkg"
+    def test_finds_vault_from_worktree_subdirectory(self, tmp_path):
+        main = tmp_path / "main"
+        main.mkdir()
+        _git_init(main)
+        (main / ".openstation").mkdir()
+
+        wt_path = tmp_path / "worktree"
+        _git_worktree_add(main, wt_path)
+
+        sub = wt_path / "src" / "pkg"
         sub.mkdir(parents=True)
         root, prefix = find_root(start=str(sub))
         assert root == main
         assert prefix == ".openstation"
 
     def test_source_repo_from_worktree(self, tmp_path):
-        """Source repo heuristic (agents/ + install.sh) also works via worktree fallback."""
+        """Source repo markers in main are found via attached mode."""
         main = tmp_path / "main"
         main.mkdir()
-        subprocess.run(["git", "init"], cwd=main, capture_output=True, check=True)
-        subprocess.run(
-            ["git", "commit", "--allow-empty", "-m", "init"],
-            cwd=main, capture_output=True, check=True,
-            env={**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
-                 "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"},
-        )
-        # Source repo markers in main
+        _git_init(main)
         (main / "agents").mkdir()
         (main / "install.sh").touch()
 
         wt_path = tmp_path / "worktree"
-        subprocess.run(
-            ["git", "worktree", "add", str(wt_path), "-b", "wt-src"],
-            cwd=main, capture_output=True, check=True,
-        )
+        _git_worktree_add(main, wt_path, branch="wt-src")
 
         root, prefix = find_root(start=str(wt_path))
         assert root == main
         assert prefix == ""
+
+
+class TestWorktreeIndependentMode:
+    """Worktree WITH its own markers → independent vault (uses worktree root)."""
+
+    def test_worktree_with_openstation_returns_worktree(self, tmp_path):
+        """When a worktree has .openstation/, it's independent."""
+        main = tmp_path / "main"
+        main.mkdir()
+        _git_init(main)
+        (main / ".openstation").mkdir()
+        (main / ".openstation" / ".gitkeep").touch()
+        subprocess.run(["git", "add", ".openstation"], cwd=main, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add openstation"],
+            cwd=main, capture_output=True, check=True, env=_GIT_ENV,
+        )
+
+        wt_path = tmp_path / "worktree"
+        _git_worktree_add(main, wt_path, branch="wt-independent")
+
+        assert (wt_path / ".openstation").is_dir(), "worktree should have .openstation"
+        root, prefix = find_root(start=str(wt_path))
+        # Independent: worktree has markers → returns worktree root
+        assert root == wt_path
+        assert prefix == ".openstation"
+
+    def test_worktree_with_source_markers_returns_worktree(self, tmp_path):
+        """When a worktree has agents/ + install.sh, it's independent."""
+        main = tmp_path / "main"
+        main.mkdir()
+        _git_init(main)
+        (main / "agents").mkdir()
+        (main / "agents" / ".gitkeep").touch()
+        (main / "install.sh").touch()
+        subprocess.run(["git", "add", "agents", "install.sh"], cwd=main, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add source markers"],
+            cwd=main, capture_output=True, check=True, env=_GIT_ENV,
+        )
+
+        wt_path = tmp_path / "worktree"
+        _git_worktree_add(main, wt_path, branch="wt-src-independent")
+
+        assert (wt_path / "agents").is_dir(), "worktree should have agents/"
+        assert (wt_path / "install.sh").is_file(), "worktree should have install.sh"
+        root, prefix = find_root(start=str(wt_path))
+        assert root == wt_path
+        assert prefix == ""
+
+    def test_worktree_subdirectory_independent(self, tmp_path):
+        """find_root from a subdirectory of an independent worktree."""
+        main = tmp_path / "main"
+        main.mkdir()
+        _git_init(main)
+        (main / ".openstation").mkdir()
+        (main / ".openstation" / ".gitkeep").touch()
+        subprocess.run(["git", "add", ".openstation"], cwd=main, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "commit", "-m", "add openstation"],
+            cwd=main, capture_output=True, check=True, env=_GIT_ENV,
+        )
+
+        wt_path = tmp_path / "worktree"
+        _git_worktree_add(main, wt_path, branch="wt-sub")
+
+        sub = wt_path / "src" / "pkg"
+        sub.mkdir(parents=True)
+        root, prefix = find_root(start=str(sub))
+        assert root == wt_path
+        assert prefix == ".openstation"
+
+
+# --- Non-git directories ---
+
+
+class TestNonGitDirectories:
+    """Non-git directories return (None, None) — no longer supported."""
+
+    def test_returns_none_for_non_git_dir(self, tmp_path):
+        root, prefix = find_root(start=str(tmp_path))
+        assert root is None
+        assert prefix is None
+
+    def test_returns_none_for_non_git_with_markers(self, tmp_path):
+        """Even with OS markers, non-git dirs are not supported."""
+        (tmp_path / ".openstation").mkdir()
+        root, prefix = find_root(start=str(tmp_path))
+        assert root is None
+        assert prefix is None
+
+    def test_returns_none_for_git_repo_without_markers(self, tmp_path):
+        """A git repo without OS markers returns (None, None)."""
+        _git_init(tmp_path)
+        root, prefix = find_root(start=str(tmp_path))
+        assert root is None
+        assert prefix is None
 
 
 # --- Graceful degradation ---
@@ -154,13 +231,7 @@ class TestGracefulDegradation:
 
     def test_no_git_binary(self, tmp_path):
         """Returns None, None when git is not installed."""
-        with patch("subprocess.run", side_effect=FileNotFoundError("git not found")):
+        with patch("openstation.core.subprocess.run", side_effect=FileNotFoundError("git not found")):
             root, prefix = find_root(start=str(tmp_path))
             assert root is None
             assert prefix is None
-
-    def test_not_a_git_repo(self, tmp_path):
-        """Returns None, None when CWD is not in a git repo."""
-        root, prefix = find_root(start=str(tmp_path))
-        assert root is None
-        assert prefix is None

@@ -2,7 +2,7 @@
 kind: task
 name: 0140-introduce-task-dependencies-depends-on
 type: feature
-status: ready
+status: backlog
 assignee: 
 owner: user
 created: 2026-03-15

@@ -16,6 +16,10 @@ subtasks:
   - "[[0109-implement-branch-based-task-scoping]]"
   - "[[0108-update-agent-skills-and-docs]]"
   - "[[0138-research-worktree-merge-back-workflow]]"
+  - "[[0162-resolve-all-cli-artifact-operations]]"
+  - "[[0165-rewrite-find-root-to-use]]"
+  - "[[0168-find-root-in-linked-worktree]]"
+  - "[[0170-document-worktree-modes-primary-and]]"
 ---
 
 # Worktree Integration

@@ -105,29 +105,51 @@ def _git_main_worktree_root(start):
         return None
 
 
+def _git_toplevel(start):
+    """Return the git toplevel directory for *start*, or None."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=str(start),
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
+        return Path(result.stdout.strip()).resolve()
+    except (FileNotFoundError, OSError):
+        return None
+
+
 def find_root(start=None):
-    """Walk up from start dir to find an Open Station project root.
+    """Find an Open Station project root using git toplevel resolution.
 
-    Returns (root_path, prefix) where prefix is ".openstation" for
-    installed projects or "" for the source repo.
+    Two-step approach (no walk-up):
+    1. Get git toplevel — if it has OS markers, return it (independent vault)
+    2. Get main worktree root — if it has OS markers, return it (slave mode)
+    3. Otherwise return (None, None)
 
-    Falls back to checking the main git worktree root when the local
-    walk-up finds nothing and CWD is inside a git worktree.
+    In linked worktrees this produces two modes:
+    - **Independent**: worktree has its own markers → step 1 returns worktree root
+    - **Slave**: worktree has no markers → step 2 returns main repo root
+
+    Non-git directories are not supported and return (None, None).
     """
-    d = Path(start or os.getcwd()).resolve()
-    while True:
-        root, prefix = _check_dir(d)
-        if root is not None:
-            return root, prefix
-        parent = d.parent
-        if parent == d:
-            break
-        d = parent
-
-    # Fallback: try main worktree root
     start_path = Path(start or os.getcwd()).resolve()
+
+    # Step 1: git toplevel — independent vault or main repo
+    toplevel = _git_toplevel(start_path)
+    if toplevel is None:
+        return None, None
+
+    root, prefix = _check_dir(toplevel)
+    if root is not None:
+        return root, prefix
+
+    # Step 2: main worktree root — slave mode
     main_root = _git_main_worktree_root(start_path)
     if main_root is not None:
+        main_root = main_root.resolve()
         root, prefix = _check_dir(main_root)
         if root is not None:
             return root, prefix

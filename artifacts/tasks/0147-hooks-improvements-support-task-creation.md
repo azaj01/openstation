@@ -5,7 +5,6 @@ type: feature
 status: backlog
 assignee: architect
 owner: user
-parent: "[[0134-task-lifecycle-hooks]]"
 created: 2026-03-17
 subtasks:
   - "[[0148-spec-taskcreate-hook-category-design]]"

@@ -2,7 +2,7 @@
 kind: task
 name: 0154-detached-openstation-run-in-worktree
 type: bug
-status: verified
+status: failed
 assignee: developer
 owner: user
 created: 2026-03-17

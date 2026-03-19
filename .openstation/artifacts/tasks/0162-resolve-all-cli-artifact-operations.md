@@ -2,7 +2,7 @@
 kind: task
 name: 0162-resolve-all-cli-artifact-operations
 type: research
-status: verified
+status: done
 assignee: researcher
 owner: user
 parent: "[[0122-worktree-integration]]"

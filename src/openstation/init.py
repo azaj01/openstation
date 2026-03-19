@@ -42,22 +42,24 @@ def _discover_commands(source_dir):
         return []
     return sorted(f".openstation/commands/{p.name}" for p in cmd_dir.glob("*.md"))
 
-INIT_SKILLS = [
-    ".openstation/skills/openstation-execute/SKILL.md",
-]
+def _discover_skills(source_dir):
+    """Discover skill directories from the local cache."""
+    skills_dir = Path(source_dir) / ".openstation" / "skills"
+    if not skills_dir.is_dir():
+        return []
+    return sorted(
+        f".openstation/skills/{d.name}/SKILL.md"
+        for d in skills_dir.iterdir()
+        if d.is_dir() and (d / "SKILL.md").is_file()
+    )
 
-INIT_DOCS = [
-    ".openstation/docs/lifecycle.md",
-    ".openstation/docs/task.spec.md",
-]
 
-INIT_DEFAULT_AGENTS = [
-    "architect",
-    "author",
-    "developer",
-    "project-manager",
-    "researcher",
-]
+def _discover_docs(source_dir):
+    """Discover doc files from the local cache."""
+    docs_dir = Path(source_dir) / ".openstation" / "docs"
+    if not docs_dir.is_dir():
+        return []
+    return sorted(f".openstation/docs/{p.name}" for p in docs_dir.glob("*.md"))
 
 
 class _InitStats:
@@ -137,8 +139,6 @@ def _install_agents(source_dir, agents_filter, force, dry_run, stats):
     print("Installing agent templates...")
 
     agent_names = _discover_templates(source_dir)
-    if not agent_names:
-        agent_names = list(INIT_DEFAULT_AGENTS)
 
     if agents_filter:
         requested = [n.strip() for n in agents_filter.split(",")]
@@ -180,7 +180,7 @@ def _install_agents(source_dir, agents_filter, force, dry_run, stats):
         _init_info(f"{link} → {target}", dry_run)
 
 
-def _create_claude_symlinks(dry_run, commands):
+def _create_claude_symlinks(dry_run, commands, skills):
     """Create .claude/ → .openstation/ directory symlinks."""
     print("Creating symlinks...")
 
@@ -233,7 +233,7 @@ def _create_claude_symlinks(dry_run, commands):
     elif sp.is_dir():
         if any(sp.iterdir()):
             _init_warn(".claude/skills/ exists with files — merging")
-            for f in INIT_SKILLS:
+            for f in skills:
                 parts = Path(f).parts
                 # paths are .openstation/skills/<name>/SKILL.md
                 if len(parts) >= 3 and parts[1] == "skills":
@@ -318,7 +318,7 @@ def _create_user_symlinks(source_dir, dry_run, force):
     if not dry_run:
         skills_dir.mkdir(parents=True, exist_ok=True)
 
-    for f in INIT_SKILLS:
+    for f in _discover_skills(str(source)):
         parts = Path(f).parts
         # paths are .openstation/skills/<name>/SKILL.md
         if len(parts) >= 3 and parts[1] == "skills":
@@ -418,9 +418,9 @@ def cmd_init(args):
         _init_info(f, dry_run)
         stats.updated += 1
 
+    skills = _discover_skills(source_dir_str)
     print("Installing skills...")
-    for f in INIT_SKILLS:
-        # f is already .openstation/skills/... — use as both src and dst
+    for f in skills:
         if not dry_run:
             Path(f).parent.mkdir(parents=True, exist_ok=True)
         if not _copy_from_cache(f, f, source_dir_str, dry_run):
@@ -428,9 +428,9 @@ def cmd_init(args):
         _init_info(f, dry_run)
         stats.updated += 1
 
+    docs = _discover_docs(source_dir_str)
     print("Installing docs...")
-    for f in INIT_DOCS:
-        # f is already .openstation/docs/... — use as both src and dst
+    for f in docs:
         if not _copy_from_cache(f, f, source_dir_str, dry_run):
             return core.EXIT_USAGE
         _init_info(f, dry_run)
@@ -441,7 +441,7 @@ def cmd_init(args):
     else:
         _install_agents(source_dir_str, agents_filter, force, dry_run, stats)
 
-    _create_claude_symlinks(dry_run, commands)
+    _create_claude_symlinks(dry_run, commands, skills)
 
     print()
     if is_reinit:

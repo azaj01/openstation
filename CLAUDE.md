@@ -169,4 +169,5 @@ openstation run --task <id> --attached     Run a task interactively
 | `.openstation/docs/storage-query-layer.md` | Storage model, query patterns |
 | `.openstation/docs/settings.md` | Project settings file reference |
 | `.openstation/docs/hooks.md` | Lifecycle hooks configuration |
+| `.openstation/docs/worktrees.md` | Worktree modes (primary vs linked) |
 <!-- openstation:end -->

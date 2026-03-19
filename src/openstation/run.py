@@ -281,6 +281,11 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
         f"{task_path} and work through "
         f"the requirements."
     )
+    if worktree and exec_cwd is not None and exec_cwd.resolve() != root.resolve():
+        prompt += (
+            f" Artifacts are in the main repo at `{root}`;"
+            f" use CLI commands to access them."
+        )
     cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
                         dangerously_skip_permissions=dangerously_skip_permissions,
                         worktree=worktree)
@@ -349,6 +354,11 @@ def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget
         f"{task_path} and work through "
         f"the requirements."
     )
+    if worktree and exec_cwd is not None and Path(exec_cwd).resolve() != root.resolve():
+        prompt += (
+            f" Artifacts are in the main repo at `{root}`;"
+            f" use CLI commands to access them."
+        )
 
     if attached:
         cmd = build_command(agent, budget, turns, prompt, tools, attached=True,

@@ -65,6 +65,25 @@ execution when appropriate:
 | `/openstation.update` | Edit task metadata (not status) |
 | `/openstation.progress` | Append a timestamped progress entry to a task |
 
+## Worktree Awareness
+
+When running in a **linked worktree** (no local `.openstation/`
+or `agents/` markers), the vault lives in the main repo, not
+your working directory.
+
+- `artifacts/`, `docs/`, and `commands/` are in the main repo
+- **Always use CLI commands** (`openstation show/list/create/status`)
+  — they resolve the correct root automatically
+- **Do NOT use filesystem checks** (`ls`, `find`, `git status`)
+  to verify task operations — use `openstation show <task>` instead
+- The `info:` line from `create`/`status` shows the absolute path
+  of the modified file, confirming which vault was used
+- The run prompt includes an artifact location hint when you are
+  in linked mode
+
+See `docs/worktrees.md` for full details on primary vs linked
+modes and how `find_root()` resolves the vault.
+
 ## On Startup
 
 1. Determine your agent name from your agent spec (`name` field in

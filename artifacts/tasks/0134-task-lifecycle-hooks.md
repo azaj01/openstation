@@ -2,7 +2,7 @@
 kind: task
 name: 0134-task-lifecycle-hooks
 type: feature
-status: in-progress
+status: done
 assignee: architect
 owner: user
 created: 2026-03-14
@@ -11,7 +11,6 @@ subtasks:
   - "[[0136-hooks-implementation-implement-hooks-in]]"
   - "[[0142-document-hooks-configuration-and-usage]]"
   - "[[0144-post-transition-hooks]]"
-  - "[[0147-hooks-improvements-support-task-creation]]"
 ---
 
 # Task Lifecycle Hooks

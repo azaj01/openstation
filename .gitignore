@@ -3,4 +3,5 @@
 .DS_Store
 __pycache__/
 *.egg-info/
+src/openstation/_version.py
 .claude/worktrees/

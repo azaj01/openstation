@@ -20,6 +20,8 @@ subtasks:
   - "[[0165-rewrite-find-root-to-use]]"
   - "[[0168-find-root-in-linked-worktree]]"
   - "[[0170-document-worktree-modes-primary-and]]"
+  - "[[0172-spec-openstation-only-convention]]"
+  - "[[0173-implement-openstation-only-convention]]"
 ---
 
 # Worktree Integration
@@ -62,6 +64,11 @@ per-milestone after the previous one lands.
 ### M3 — Agent awareness
 
 8. **0108 — Agent skills** — Update execute skill and agent specs for worktree workflows.
+
+### Vault convention
+
+9. **0172 — Spec** — .openstation-only convention (drop root-level dual-path).
+10. **0173 — Implement** — Mechanical refactor: remove `prefix` parameter, hardcode `.openstation/`.
 
 ## Prior Work
 

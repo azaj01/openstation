@@ -19,12 +19,9 @@ DEFAULT_MAX_TASKS = 1
 
 # --- Agent operations ---------------------------------------------------------
 
-def discover_agents(root, prefix):
+def discover_agents(root):
     """Scan artifacts/agents/*.md and return agent dicts."""
-    if prefix:
-        agents_dir = Path(root) / prefix / "artifacts" / "agents"
-    else:
-        agents_dir = Path(root) / "artifacts" / "agents"
+    agents_dir = core.vault_path(root, "artifacts", "agents")
     agents = []
     if not agents_dir.is_dir():
         return agents
@@ -62,14 +59,14 @@ def discover_agents(root, prefix):
     return agents
 
 
-def resolve_agent_alias(root, prefix, name):
+def resolve_agent_alias(root, name):
     """Resolve an agent name or alias to the canonical agent name.
 
     Returns (canonical_name, error_message). If no alias match is found,
     returns the original name unchanged (so callers can proceed to
     normal not-found handling).
     """
-    agents = discover_agents(root, prefix)
+    agents = discover_agents(root)
 
     # Check if it's already a canonical name
     for a in agents:
@@ -123,16 +120,10 @@ def format_agents_table(agents):
     return "\n".join(lines)
 
 
-def find_agent_spec(root, prefix, agent_name):
+def find_agent_spec(root, agent_name):
     """Locate an agent's markdown spec file. Returns Path or None."""
-    candidates = []
-    if prefix:
-        candidates.append(Path(root) / prefix / "agents" / f"{agent_name}.md")
-    candidates.append(Path(root) / "agents" / f"{agent_name}.md")
-    for p in candidates:
-        if p.exists():
-            return p
-    return None
+    p = core.vault_path(root, "agents", f"{agent_name}.md")
+    return p if p.exists() else None
 
 
 def parse_allowed_tools(spec_path):
@@ -244,7 +235,7 @@ def _stream_and_capture(cmd, cwd, log_file):
 
 # --- Execution ----------------------------------------------------------------
 
-def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
+def run_single_task(root, task_spec, task_name, budget, turns, dry_run,
                     json_output=False, dangerously_skip_permissions=False,
                     worktree=None, exec_cwd=None):
     """Execute one task: resolve agent, build command, launch. Returns (exit_code, session_id)."""
@@ -263,7 +254,7 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
 
     core.detail("agent", agent)
 
-    agent_spec = find_agent_spec(root, prefix, agent)
+    agent_spec = find_agent_spec(root, agent)
     if agent_spec is None:
         core.err(f"Agent spec not found: {agent}")
         core.err("  hint: check agents/ directory for available agent specs")
@@ -275,7 +266,7 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE, None
 
-    task_path = task_spec if worktree else f"artifacts/tasks/{task_name}.md"
+    task_path = task_spec if worktree else f".openstation/artifacts/tasks/{task_name}.md"
     prompt = (
         f"Execute task {task_name}. Read its spec at "
         f"{task_path} and work through "
@@ -303,7 +294,7 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
 
     core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
-    log_dir = root / prefix / "artifacts" / "logs" if prefix else root / "artifacts" / "logs"
+    log_dir = core.vault_path(root, "artifacts", "logs")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{task_name}.jsonl"
 
@@ -317,7 +308,7 @@ def run_single_task(root, prefix, task_spec, task_name, budget, turns, dry_run,
     return rc, session_id
 
 
-def _exec_or_run(root, prefix, tasks_dir, task_name, agent_name_override, budget, turns,
+def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
                   dry_run, json_output=False, attached=False,
                   dangerously_skip_permissions=False,
                   worktree=None, exec_cwd=None):

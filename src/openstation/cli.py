@@ -345,7 +345,7 @@ examples:
     if args.command == "self-update":
         return update.cmd_self_update(args) or 0
 
-    root, prefix = core.find_root()
+    root = core.find_root()
     if root is None:
         core.err("not in an Open Station project")
         core.err("  hint: run from a directory containing .openstation/")
@@ -353,29 +353,29 @@ examples:
 
     # Apply CLI defaults from settings (human context only)
     if not os.environ.get("CLAUDECODE"):
-        settings = hooks.load_settings(root, prefix)
+        settings = hooks.load_settings(root)
         _apply_cli_defaults(args, settings)
 
     if args.command == "list":
-        return tasks.cmd_list(args, root, prefix) or 0
+        return tasks.cmd_list(args, root) or 0
     elif args.command in ("agents", "ag"):
         action = getattr(args, "agents_action", None)
         if action is None or action == "list":
-            return run.cmd_agents_list(args, root, prefix) or 0
+            return run.cmd_agents_list(args, root) or 0
         elif action == "show":
-            return run.cmd_agents_show(args, root, prefix)
+            return run.cmd_agents_show(args, root)
     elif args.command in ("artifacts", "art"):
         action = getattr(args, "artifacts_action", None)
         if action is None or action == "list":
-            return artifacts.cmd_artifacts_list(args, root, prefix) or 0
+            return artifacts.cmd_artifacts_list(args, root) or 0
         elif action == "show":
-            return artifacts.cmd_artifacts_show(args, root, prefix)
+            return artifacts.cmd_artifacts_show(args, root)
     elif args.command == "show":
-        return tasks.cmd_show(args, root, prefix)
+        return tasks.cmd_show(args, root)
     elif args.command == "create":
-        return tasks.cmd_create(args, root, prefix)
+        return tasks.cmd_create(args, root)
     elif args.command == "status":
-        return tasks.cmd_status(args, root, prefix)
+        return tasks.cmd_status(args, root)
     elif args.command == "run":
-        return run.cmd_run(args, root, prefix)
+        return run.cmd_run(args, root)
     return core.EXIT_OK

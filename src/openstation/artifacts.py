@@ -2,7 +2,6 @@
 
 import json
 import os
-from pathlib import Path
 
 from openstation import core
 
@@ -10,20 +9,19 @@ from openstation import core
 ARTIFACT_KINDS = ("agents", "research", "specs")
 
 
-def _artifacts_base(root, prefix):
+def _artifacts_base(root):
     """Return the base artifacts/ Path."""
-    if prefix:
-        return Path(root) / prefix / "artifacts"
-    return Path(root) / "artifacts"
+    from openstation.core import vault_path
+    return vault_path(root, "artifacts")
 
 
-def discover_artifacts(root, prefix, kind=None):
+def discover_artifacts(root, kind=None):
     """Scan artifact subdirectories and return artifact dicts.
 
     When kind is given, only that subdirectory is scanned.
     When kind is None, scans all non-task subdirectories.
     """
-    base = _artifacts_base(root, prefix)
+    base = _artifacts_base(root)
     kinds = (kind,) if kind else ARTIFACT_KINDS
     artifacts = []
 
@@ -60,12 +58,12 @@ def discover_artifacts(root, prefix, kind=None):
     return artifacts
 
 
-def resolve_artifact(root, prefix, query):
+def resolve_artifact(root, query):
     """Resolve an artifact name across research/, specs/, agents/.
 
     Returns (path, error_msg, exit_code).
     """
-    base = _artifacts_base(root, prefix)
+    base = _artifacts_base(root)
     matches = []
 
     for k in ARTIFACT_KINDS:
@@ -124,7 +122,7 @@ def format_artifacts_table(artifacts):
 
 # --- Command handlers ---------------------------------------------------------
 
-def cmd_artifacts_list(args, root, prefix):
+def cmd_artifacts_list(args, root):
     """Handle 'artifacts list' (and bare 'artifacts')."""
     kind = getattr(args, "kind", None)
 
@@ -137,7 +135,7 @@ def cmd_artifacts_list(args, root, prefix):
         core.err("use 'openstation list' for tasks")
         return core.EXIT_USAGE
 
-    artifacts = discover_artifacts(root, prefix, kind=kind)
+    artifacts = discover_artifacts(root, kind=kind)
     artifacts.sort(key=lambda a: (a["kind"], a["name"]))
 
     if getattr(args, "json", False):
@@ -153,10 +151,10 @@ def cmd_artifacts_list(args, root, prefix):
     return core.EXIT_OK
 
 
-def cmd_artifacts_show(args, root, prefix):
+def cmd_artifacts_show(args, root):
     """Handle 'artifacts show <name>'."""
     name = args.name
-    artifact_path, error, code = resolve_artifact(root, prefix, name)
+    artifact_path, error, code = resolve_artifact(root, name)
     if error:
         core.err(error)
         return code

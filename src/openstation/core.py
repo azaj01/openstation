@@ -20,7 +20,6 @@ EXIT_TASK_NOT_READY = 5
 EXIT_INVALID_TRANSITION = 6
 EXIT_NO_CLAUDE = 7
 EXIT_AGENT_ERROR = 8
-EXIT_SOURCE_GUARD = 9
 EXIT_HOOK_FAILED = 10
 
 # --- Lifecycle constants ------------------------------------------------------
@@ -74,15 +73,8 @@ def warn(msg):
 # --- Vault discovery ----------------------------------------------------------
 
 def _check_dir(d):
-    """Check a single directory for Open Station markers.
-
-    Returns (root, prefix) or (None, None).
-    """
-    if (d / "agents").is_dir() and (d / "install.sh").is_file():
-        return d, ""
-    if (d / ".openstation").is_dir():
-        return d, ".openstation"
-    return None, None
+    """Check if a directory contains .openstation/."""
+    return (d / ".openstation").is_dir()
 
 
 def _git_main_worktree_root(start):
@@ -122,46 +114,51 @@ def _git_toplevel(start):
 
 
 def find_root(start=None):
-    """Find an Open Station project root using git toplevel resolution.
+    """Return the project root containing .openstation/, or None.
 
-    Two-step approach (no walk-up):
-    1. Get git toplevel — if it has OS markers, return it (independent vault)
-    2. Get main worktree root — if it has OS markers, return it (slave mode)
-    3. Otherwise return (None, None)
+    Two-step approach:
+    1. git toplevel — if it has .openstation/, return it (independent vault)
+    2. main worktree root — if it has .openstation/, return it (linked mode)
+    3. Otherwise return None
 
-    In linked worktrees this produces two modes:
-    - **Independent**: worktree has its own markers → step 1 returns worktree root
-    - **Slave**: worktree has no markers → step 2 returns main repo root
-
-    Non-git directories are not supported and return (None, None).
+    Non-git directories are not supported and return None.
     """
     start_path = Path(start or os.getcwd()).resolve()
 
     # Step 1: git toplevel — independent vault or main repo
     toplevel = _git_toplevel(start_path)
     if toplevel is None:
-        return None, None
+        return None
 
-    root, prefix = _check_dir(toplevel)
-    if root is not None:
-        return root, prefix
+    if _check_dir(toplevel):
+        return toplevel
 
-    # Step 2: main worktree root — slave mode
+    # Step 2: main worktree root — linked mode
     main_root = _git_main_worktree_root(start_path)
     if main_root is not None:
         main_root = main_root.resolve()
-        root, prefix = _check_dir(main_root)
-        if root is not None:
-            return root, prefix
+        if _check_dir(main_root):
+            return main_root
 
-    return None, None
+    return None
 
 
-def tasks_dir_path(root, prefix):
-    """Return the Path to artifacts/tasks/ for the given root and prefix."""
-    if prefix:
-        return Path(root) / prefix / "artifacts" / "tasks"
-    return Path(root) / "artifacts" / "tasks"
+def vault_path(root, *parts):
+    """Build a path inside the vault: root / .openstation / parts.
+
+    Examples:
+        vault_path(root, "artifacts", "tasks")
+        vault_path(root, "settings.json")
+        vault_path(root, "agents", "researcher.md")
+    """
+    if parts:
+        return Path(root) / ".openstation" / Path(*parts)
+    return Path(root) / ".openstation"
+
+
+def tasks_dir_path(root):
+    """Return the Path to artifacts/tasks/ for the given root."""
+    return vault_path(root, "artifacts", "tasks")
 
 
 # --- Frontmatter parsing -----------------------------------------------------

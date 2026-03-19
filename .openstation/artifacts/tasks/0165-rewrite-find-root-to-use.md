@@ -2,7 +2,7 @@
 kind: task
 name: 0165-rewrite-find-root-to-use
 type: feature
-status: verified
+status: done
 assignee: developer
 owner: user
 parent: "[[0122-worktree-integration]]"

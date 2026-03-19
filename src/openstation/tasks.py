@@ -16,9 +16,9 @@ SUBTASK_PREFIX = "  └─"  # kept for backward compat; see _indent_prefix() fo
 
 # --- Discovery ----------------------------------------------------------------
 
-def discover_tasks(root, prefix):
+def discover_tasks(root):
     """Scan artifacts/tasks/*.md and return task dicts."""
-    tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
+    tasks_dir = core.tasks_dir_path(root)
     tasks = []
     if not tasks_dir.is_dir():
         return tasks
@@ -47,7 +47,7 @@ def discover_tasks(root, prefix):
     return tasks
 
 
-def resolve_task(root, prefix, query):
+def resolve_task(root, query):
     """Resolve a task query to a task name. Returns (name, error_msg, exit_code).
 
     Resolution priority (first match wins):
@@ -55,7 +55,7 @@ def resolve_task(root, prefix, query):
     2. Zero-padded ID prefix match (e.g. "0058" or "58" → "0058-slug")
     3. Slug match (e.g. "implement-foo" matches "0058-implement-foo")
     """
-    tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
+    tasks_dir = core.tasks_dir_path(root)
     if not tasks_dir.is_dir():
         return None, "artifacts/tasks directory not found", 3
 
@@ -422,16 +422,16 @@ def create_task_file(tasks_dir, slug, content):
 
 # --- Command handlers ---------------------------------------------------------
 
-def cmd_list(args, root, prefix):
+def cmd_list(args, root):
     """Handle the list subcommand."""
-    all_tasks = discover_tasks(root, prefix)
+    all_tasks = discover_tasks(root)
     tasks = list(all_tasks)
 
     positional_filter = args.filter
     task_tree_mode = False
     if positional_filter:
         if positional_filter[0].isdigit():
-            task_name, error, code = resolve_task(root, prefix, positional_filter)
+            task_name, error, code = resolve_task(root, positional_filter)
             if error:
                 core.err(error)
                 return code
@@ -463,7 +463,7 @@ def cmd_list(args, root, prefix):
         if not rows:
             print("no matching tasks")
             return core.EXIT_OK
-        tasks_dir = core.tasks_dir_path(root, prefix)
+        tasks_dir = core.tasks_dir_path(root)
         files = [str(tasks_dir / f"{t['name']}.md") for t, _depth in rows]
         editor = os.environ.get("EDITOR", "vim")
         os.execvp(editor, [editor] + files)
@@ -489,14 +489,14 @@ def cmd_list(args, root, prefix):
             print(output)
 
 
-def cmd_show(args, root, prefix):
+def cmd_show(args, root):
     """Handle the show subcommand."""
-    task_name, error, code = resolve_task(root, prefix, args.task)
+    task_name, error, code = resolve_task(root, args.task)
     if error:
         core.err(error)
         return code
 
-    tasks_dir = Path(root) / prefix / "artifacts" / "tasks" if prefix else Path(root) / "artifacts" / "tasks"
+    tasks_dir = core.tasks_dir_path(root)
     spec = tasks_dir / f"{task_name}.md"
 
     if not spec.exists():
@@ -521,7 +521,7 @@ def cmd_show(args, root, prefix):
     return core.EXIT_OK
 
 
-def cmd_create(args, root, prefix):
+def cmd_create(args, root):
     """Handle the create subcommand."""
     description = args.description
     if not description or not description.strip():
@@ -534,12 +534,12 @@ def cmd_create(args, root, prefix):
     explicit_status = args.status
     parent = args.parent or ""
 
-    tasks_dir = core.tasks_dir_path(root, prefix)
+    tasks_dir = core.tasks_dir_path(root)
     tasks_dir.mkdir(parents=True, exist_ok=True)
 
     parent_name = None
     if parent:
-        parent_name, error, code = resolve_task(root, prefix, parent)
+        parent_name, error, code = resolve_task(root, parent)
         if error:
             core.err(f"parent task not found: {parent}")
             return core.EXIT_NOT_FOUND
@@ -696,19 +696,19 @@ def _interactive_status_picker(task_name, current, *, force=False):
         return _numbered_picker(task_name, current, options)
 
 
-def cmd_status(args, root, prefix):
+def cmd_status(args, root):
     """Handle the status subcommand."""
     query = args.task
     new_status = args.new_status
     force = getattr(args, "force", False)
 
     # Resolve task first (needed for both interactive and direct paths)
-    task_name, error, code = resolve_task(root, prefix, query)
+    task_name, error, code = resolve_task(root, query)
     if error:
         core.err(error)
         return code
 
-    tasks_dir = core.tasks_dir_path(root, prefix)
+    tasks_dir = core.tasks_dir_path(root)
     spec = tasks_dir / f"{task_name}.md"
 
     try:
@@ -758,7 +758,7 @@ def cmd_status(args, root, prefix):
     # --- Hook execution (pre-transition) ---
     from openstation import hooks
     hook_err = hooks.run_matched(
-        root, prefix, task_name, current, new_status, spec, phase="pre",
+        root, task_name, current, new_status, spec, phase="pre",
     )
     if hook_err:
         return hook_err
@@ -778,7 +778,7 @@ def cmd_status(args, root, prefix):
 
     # --- Hook execution (post-transition) ---
     hooks.run_matched(
-        root, prefix, task_name, current, new_status, spec, phase="post",
+        root, task_name, current, new_status, spec, phase="post",
     )
 
     return core.EXIT_OK

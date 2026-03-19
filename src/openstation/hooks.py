@@ -18,17 +18,18 @@ _SIGKILL_GRACE = 5
 VALID_PHASES = ("pre", "post")
 
 
-def _settings_path(root: Path, prefix: str) -> Path:
+def _settings_path(root: Path) -> Path:
     """Return the settings file path for the vault."""
-    return root / prefix / "settings.json" if prefix else root / "settings.json"
+    from openstation.core import vault_path
+    return vault_path(root, "settings.json")
 
 
-def load_settings(root: Path, prefix: str) -> dict:
+def load_settings(root: Path) -> dict:
     """Read the full settings.json for the vault.
 
     Returns an empty dict if the file is missing or invalid.
     """
-    path = _settings_path(root, prefix)
+    path = _settings_path(root)
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -45,13 +46,13 @@ def load_settings(root: Path, prefix: str) -> dict:
     return data
 
 
-def load_hooks(root: Path, prefix: str) -> list[dict]:
+def load_hooks(root: Path) -> list[dict]:
     """Read StatusTransition hooks from settings.json.
 
     Returns an empty list if the file is missing, has no
     'hooks' key, or has no 'StatusTransition' key.
     """
-    data = load_settings(root, prefix)
+    data = load_settings(root)
 
     hooks = data.get("hooks", {})
     if not isinstance(hooks, dict):
@@ -159,7 +160,6 @@ def _build_hook_env(
 
 def run_matched(
     root: Path,
-    prefix: str,
     task_name: str,
     old: str,
     new: str,
@@ -178,7 +178,7 @@ def run_matched(
     as warnings (via ``core.err``) but do **not** roll back the
     transition.
     """
-    all_hooks = load_hooks(root, prefix)
+    all_hooks = load_hooks(root)
     matched = match_hooks(all_hooks, old, new, phase=phase)
 
     if not matched:

@@ -133,7 +133,7 @@ examples:
     list_p.add_argument("filter", nargs="?", default=None,
                         help="Task ID/slug or assignee name (auto-detected)")
     list_p.add_argument("--status", default=None,
-                        help="Filter by status: backlog|ready|in-progress|review|verified|done|failed|active|all "
+                        help="Filter by status: backlog|ready|in-progress|review|verified|done|rejected|active|all "
                              "(default: active = ready + in-progress + review + verified)")
     list_p.add_argument("--assignee", default="",
                         help="Filter by assignee (exact match)")
@@ -248,11 +248,11 @@ examples:
   openstation status cli-improvements review
 
 valid transitions:
-  backlog → ready → in-progress → review → done
-                                  review → failed → in-progress""")
+  backlog → ready → in-progress → review → verified → done
+  backlog/ready/in-progress/review → rejected""")
     status_p.add_argument("task", help="Task ID or slug")
     status_p.add_argument("new_status", nargs="?", default=None,
-                          help="Target status (omit for interactive picker): backlog|ready|in-progress|review|done|failed")
+                          help="Target status (omit for interactive picker): backlog|ready|in-progress|review|done|rejected")
     status_p.add_argument("-f", "--force", action="store_true",
                           help="Bypass transition validation (any status → any status)")
 

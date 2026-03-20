@@ -12,7 +12,7 @@ Display tasks from the Open Station vault as a readable table.
 `$ARGUMENTS` — optional space-separated filters in `key:value` format.
 
 Supported filters:
-- `status:<value>` — filter by status (backlog, ready, in-progress, review, done, failed, all)
+- `status:<value>` — filter by status (backlog, ready, in-progress, review, done, rejected, all)
 - `assignee:<value>` — filter by assigned agent
 
 If no arguments provided, show **active** tasks (ready +
@@ -52,7 +52,7 @@ sorted by ID.
 
 After the table, show summary counts:
 ```
-Total: N | backlog: N | ready: N | in-progress: N | review: N | done: N | failed: N
+Total: N | backlog: N | ready: N | in-progress: N | review: N | done: N | rejected: N
 ```
 Only include statuses that have at least one task.
 

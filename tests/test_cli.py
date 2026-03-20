@@ -96,7 +96,7 @@ class TestListCommand(unittest.TestCase):
     def test_list_default_shows_only_active(self):
         make_task(self.root, "0001-alpha", status="ready")
         make_task(self.root, "0002-beta", status="done")
-        make_task(self.root, "0003-gamma", status="failed")
+        make_task(self.root, "0003-gamma", status="rejected")
         make_task(self.root, "0004-delta", status="in-progress")
         make_task(self.root, "0005-epsilon", status="backlog")
         make_task(self.root, "0006-zeta", status="review")
@@ -109,7 +109,7 @@ class TestListCommand(unittest.TestCase):
         self.assertIn("0006", out)   # review — included
         self.assertIn("0007", out)   # verified — included
         self.assertNotIn("0002", out)  # done — excluded
-        self.assertNotIn("0003", out)  # failed — excluded
+        self.assertNotIn("0003", out)  # rejected — excluded
         self.assertNotIn("0005", out)  # backlog — excluded
 
     def test_list_status_backlog(self):
@@ -133,7 +133,7 @@ class TestListCommand(unittest.TestCase):
     def test_list_status_all(self):
         make_task(self.root, "0001-alpha", status="ready")
         make_task(self.root, "0002-beta", status="done")
-        make_task(self.root, "0003-gamma", status="failed")
+        make_task(self.root, "0003-gamma", status="rejected")
 
         out, _, rc = run_cli(["list", "--status", "all"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
@@ -349,13 +349,13 @@ class TestListPullIn(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
 
     def test_default_active_pulls_in_done_subtask(self):
-        """Default active filter pulls in subtasks even if done/backlog/failed."""
+        """Default active filter pulls in subtasks even if done/backlog/rejected."""
         make_task(self.root, "0001-parent", status="ready", assignee="")
         make_task(self.root, "0002-child-done", status="done", assignee="",
                   parent="0001-parent")
         make_task(self.root, "0003-child-backlog", status="backlog", assignee="",
                   parent="0001-parent")
-        make_task(self.root, "0004-child-failed", status="failed", assignee="",
+        make_task(self.root, "0004-child-rejected", status="rejected", assignee="",
                   parent="0001-parent")
 
         out, _, rc = run_cli(["list"], cwd=self.tmpdir)
@@ -363,7 +363,7 @@ class TestListPullIn(unittest.TestCase):
         self.assertIn("0001-parent", out)
         self.assertIn("0002-child-done", out)
         self.assertIn("0003-child-backlog", out)
-        self.assertIn("0004-child-failed", out)
+        self.assertIn("0004-child-rejected", out)
 
     def test_pull_in_nested_descendants(self):
         """Pull-in works recursively through grandchildren."""
@@ -1664,17 +1664,29 @@ class TestStatusCommand(unittest.TestCase):
                 )
                 self.assertEqual(rc, 0, f"Failed: {current} → {target}")
 
-    def test_status_review_to_failed(self):
+    def test_status_review_to_rejected(self):
         make_task(self.root, "0001-alpha", status="review")
-        out, _, rc = run_cli(["status", "0001", "failed"], cwd=self.tmpdir)
+        out, _, rc = run_cli(["status", "0001", "rejected"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
-        self.assertIn("review → failed", out)
+        self.assertIn("review → rejected", out)
 
-    def test_status_failed_to_in_progress(self):
-        make_task(self.root, "0001-alpha", status="failed")
-        out, _, rc = run_cli(["status", "0001", "in-progress"], cwd=self.tmpdir)
+    def test_status_backlog_to_rejected(self):
+        make_task(self.root, "0001-alpha", status="backlog")
+        out, _, rc = run_cli(["status", "0001", "rejected"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
-        self.assertIn("failed → in-progress", out)
+        self.assertIn("backlog → rejected", out)
+
+    def test_status_ready_to_rejected(self):
+        make_task(self.root, "0001-alpha", status="ready")
+        out, _, rc = run_cli(["status", "0001", "rejected"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("ready → rejected", out)
+
+    def test_status_in_progress_to_rejected(self):
+        make_task(self.root, "0001-alpha", status="in-progress")
+        out, _, rc = run_cli(["status", "0001", "rejected"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("in-progress → rejected", out)
 
     def test_status_invalid_transition(self):
         make_task(self.root, "0001-alpha", status="backlog")
@@ -1874,17 +1886,22 @@ class TestInteractiveStatusPicker(unittest.TestCase):
     def test_allowed_from_backlog(self):
         """allowed_from returns correct transitions for backlog."""
         from openstation.tasks import allowed_from
-        self.assertEqual(allowed_from("backlog"), {"ready"})
+        self.assertEqual(allowed_from("backlog"), {"ready", "rejected"})
 
     def test_allowed_from_ready(self):
         """allowed_from returns correct transitions for ready."""
         from openstation.tasks import allowed_from
-        self.assertEqual(allowed_from("ready"), {"in-progress", "backlog"})
+        self.assertEqual(allowed_from("ready"), {"in-progress", "backlog", "rejected"})
 
     def test_allowed_from_done(self):
         """allowed_from returns empty set for terminal status."""
         from openstation.tasks import allowed_from
         self.assertEqual(allowed_from("done"), set())
+
+    def test_allowed_from_rejected(self):
+        """allowed_from returns empty set for rejected (terminal)."""
+        from openstation.tasks import allowed_from
+        self.assertEqual(allowed_from("rejected"), set())
 
 
 # ── Force Flag Tests ────────────────────────────────────────────────
@@ -1949,7 +1966,7 @@ class TestForceFlag(unittest.TestCase):
         self.assertIn("ready", opts)
         self.assertIn("in-progress", opts)
         self.assertIn("review", opts)
-        self.assertIn("failed", opts)
+        self.assertIn("rejected", opts)
         self.assertNotIn("done", opts)
 
     def test_force_hooks_still_fire(self):
@@ -2496,7 +2513,7 @@ class TestHelpExamples(unittest.TestCase):
     def test_list_help_shows_valid_statuses(self):
         out, _, rc = run_cli(["list", "--help"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
-        for status in ("backlog", "ready", "in-progress", "review", "done", "failed"):
+        for status in ("backlog", "ready", "in-progress", "review", "done", "rejected"):
             self.assertIn(status, out)
 
     def test_show_help_has_examples(self):
@@ -2797,7 +2814,7 @@ class TestSummaryBlockOutput(unittest.TestCase):
     def test_summary_block_shows_resume_cmd(self):
         """summary_block should include resume command when tasks remain."""
         _, stderr = _exec_cli_snippet(
-            "summary_block(completed=1, failed=0, pending=2, "
+            "summary_block(completed=1, rejected=0, pending=2, "
             "resume_cmd='openstation run --task 0078', next_task='0080-impl')"
         )
         self.assertIn("1 completed", stderr)
@@ -2809,7 +2826,7 @@ class TestSummaryBlockOutput(unittest.TestCase):
     def test_summary_block_no_resume_when_all_done(self):
         """summary_block should not show resume when nothing pending."""
         _, stderr = _exec_cli_snippet(
-            "summary_block(completed=3, failed=0, pending=0, "
+            "summary_block(completed=3, rejected=0, pending=0, "
             "resume_cmd='openstation run --task 0078', next_task=None)"
         )
         self.assertIn("3 completed", stderr)
@@ -3174,11 +3191,11 @@ class TestVerifiedStatusTransitions(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("verified → done", out)
 
-    def test_verified_to_failed(self):
+    def test_verified_to_rejected_blocked(self):
+        """verified → rejected is not a valid transition."""
         make_task(self.root, "0001-alpha", status="verified")
-        out, _, rc = run_cli(["status", "0001", "failed"], cwd=self.tmpdir)
-        self.assertEqual(rc, 0)
-        self.assertIn("verified → failed", out)
+        _, stderr, rc = run_cli(["status", "0001", "rejected"], cwd=self.tmpdir)
+        self.assertEqual(rc, 6)  # EXIT_INVALID_TRANSITION
 
     def test_review_to_done_blocked(self):
         """review → done must be rejected with a verification hint."""

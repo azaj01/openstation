@@ -87,12 +87,12 @@ class TestMatchHooks:
     def test_wildcard_left(self):
         h = [{"matcher": "*→done", "command": "echo 1"}]
         assert len(hooks.match_hooks(h, "review", "done")) == 1
-        assert len(hooks.match_hooks(h, "review", "failed")) == 0
+        assert len(hooks.match_hooks(h, "review", "rejected")) == 0
 
     def test_wildcard_right(self):
         h = [{"matcher": "review→*", "command": "echo 1"}]
         assert len(hooks.match_hooks(h, "review", "done")) == 1
-        assert len(hooks.match_hooks(h, "review", "failed")) == 1
+        assert len(hooks.match_hooks(h, "review", "rejected")) == 1
         assert len(hooks.match_hooks(h, "in-progress", "review")) == 0
 
     def test_catch_all(self):

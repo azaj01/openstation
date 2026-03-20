@@ -1,8 +1,8 @@
 ---
 kind: task
 name: 0061-generalize-agent-templates-for-any
-status: failed
-assignee: 
+status: rejected
+assignee:
 owner: user
 parent: "[[0055-cli-init-command-separate-project]]"
 created: 2026-03-06

@@ -60,7 +60,7 @@ execution when appropriate:
 | `/openstation.show` | Show full task details |
 | `/openstation.ready` | Promote backlog → ready |
 | `/openstation.done` | Mark verified → done (with artifact promotion) |
-| `/openstation.reject` | Mark review → failed (with reason) |
+| `/openstation.reject` | Mark task → rejected (with reason) |
 | `/openstation.verify` | Verify a task's checklist against evidence |
 | `/openstation.update` | Edit task metadata (not status) |
 | `/openstation.progress` | Append a timestamped progress entry to a task |
@@ -197,7 +197,7 @@ and append-only rules. See the command for full details.
 
 - Include the log path (`artifacts/logs/<task-name>.jsonl`) if
   your session is being logged
-- Add your entry before transitioning to `review` or `failed`
+- Add your entry before transitioning to `review` or `rejected`
 
 ### 8. Create Sub-Tasks (if needed)
 
@@ -264,7 +264,7 @@ If `owner` is your agent name:
 3. If ALL items pass: run `/openstation.verify <task-name>` to
    transition to `verified`, then `/openstation.done <task-name>`
    to complete the task.
-4. If ANY item fails: set `status: failed` and document which
+4. If ANY item fails: set `status: rejected` and document which
    items failed and why (add a note in the task body or as an
    artifact).
 

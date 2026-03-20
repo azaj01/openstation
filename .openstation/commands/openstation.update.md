@@ -11,7 +11,7 @@ For status transitions, use the CLI or the dedicated lifecycle
 commands:
 - `openstation status <task> ready` or `/openstation.ready`
 - `openstation status <task> done` or `/openstation.done`
-- `openstation status <task> failed` or `/openstation.reject`
+- `openstation status <task> rejected` or `/openstation.reject`
 
 ## Input
 
@@ -42,7 +42,7 @@ appropriate redirect:
 |-----------|----------|
 | `status:ready` | "Use `openstation status <task> ready` or `/openstation.ready`." |
 | `status:done` | "Use `openstation status <task> done` or `/openstation.done`." |
-| `status:failed` | "Use `openstation status <task> failed` or `/openstation.reject`." |
+| `status:rejected` | "Use `openstation status <task> rejected` or `/openstation.reject`." |
 | `status:in-progress` | "Use `openstation status <task> in-progress` (agents only)." |
 | `status:review` | "Use `openstation status <task> review` (agents only)." |
 | `status:backlog` | "Demoting a task back to backlog is not supported." |

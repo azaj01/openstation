@@ -2,7 +2,7 @@
 kind: task
 name: 0109-implement-branch-based-task-scoping
 type: implementation
-status: backlog
+status: rejected
 assignee: developer
 owner: user
 parent: "[[0122-worktree-integration]]"

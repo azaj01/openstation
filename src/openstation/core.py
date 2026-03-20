@@ -26,21 +26,22 @@ EXIT_HOOK_FAILED = 10
 
 VALID_TRANSITIONS = {
     ("backlog", "ready"),
+    ("backlog", "rejected"),
     ("ready", "in-progress"),
     ("ready", "backlog"),
+    ("ready", "rejected"),
     ("in-progress", "review"),
+    ("in-progress", "rejected"),
     ("review", "verified"),
-    ("review", "failed"),
+    ("review", "rejected"),
     ("verified", "done"),
-    ("verified", "failed"),
-    ("failed", "in-progress"),
 }
 
-VALID_STATUSES = {"backlog", "ready", "in-progress", "review", "verified", "done", "failed"}
+VALID_STATUSES = {"backlog", "ready", "in-progress", "review", "verified", "done", "rejected"}
 
-_STATUS_RANK = {"backlog": 0, "ready": 1, "in-progress": 2, "review": 3, "verified": 4, "done": 5, "failed": 3}
+_STATUS_RANK = {"backlog": 0, "ready": 1, "in-progress": 2, "review": 3, "verified": 4, "done": 5, "rejected": 3}
 _MIN_PARENT_STATUS = {"ready": "ready", "in-progress": "in-progress", "review": "in-progress",
-                       "verified": "in-progress", "done": "in-progress", "failed": "in-progress"}
+                       "verified": "in-progress", "done": "in-progress", "rejected": "in-progress"}
 
 # --- Module-level state -------------------------------------------------------
 
@@ -409,7 +410,7 @@ def tips_block(session_id=None, task_name=None, verify=False):
         hint(t)
 
 
-def summary_block(completed, failed, pending, resume_cmd=None, next_task=None,
+def summary_block(completed, rejected, pending, resume_cmd=None, next_task=None,
                   session_id=None, task_name=None):
     """Print a run summary block with counts, session ID, and resume hint."""
     if not _quiet:
@@ -417,8 +418,8 @@ def summary_block(completed, failed, pending, resume_cmd=None, next_task=None,
     header("Summary")
     if completed:
         success(f"{completed} completed")
-    if failed:
-        failure(f"{failed} failed")
+    if rejected:
+        failure(f"{rejected} rejected")
     if pending:
         remaining_line(f"{pending} remaining")
     if next_task and not _quiet:

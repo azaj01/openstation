@@ -16,14 +16,15 @@ For task format, field schema, and naming conventions see
 
 ```
 backlog → ready          (use /openstation.ready)
+backlog → rejected       (descoped before starting — use /openstation.reject)
 ready → in-progress      (assigned agent picks up the task)
 ready → backlog          (deprioritize — requirements changed, blocked, etc.)
+ready → rejected         (descoped or superseded — use /openstation.reject)
 in-progress → review     (agent finishes work)
+in-progress → rejected   (abandoned mid-effort — use /openstation.reject)
 review → verified        (/openstation.verify — all checks pass)
-review → failed          (owner rejects — use /openstation.reject)
+review → rejected        (owner rejects — use /openstation.reject)
 verified → done          (/openstation.done — owner accepts)
-verified → failed        (/openstation.reject — owner rejects after re-review)
-failed → in-progress     (agent reworks)
 ```
 
 ### Status Descriptions
@@ -36,7 +37,7 @@ failed → in-progress     (agent reworks)
 | `review` | Work complete, awaiting verification |
 | `verified` | All verification items passed, awaiting owner sign-off |
 | `done` | Owner accepted — verification passed, task complete |
-| `failed` | Owner rejected — verification failed or work insufficient |
+| `rejected` | Task won't be completed — descoped, superseded, or abandoned |
 
 ### Pre-Review Checklist
 
@@ -63,12 +64,12 @@ Before transitioning to `review`, the assignee must ensure:
 - `verified → done` is only allowed via `/openstation.done`, which
   accepts the task and completes it. Tasks must be in `verified`
   status — `/openstation.done` rejects tasks still in `review`.
-- `review → failed` and `verified → failed` are only allowed via
-  `/openstation.reject`, which records the rejection reason and
-  marks the task failed.
+- `backlog/ready/in-progress/review → rejected` is only allowed
+  via `/openstation.reject`, which records the rejection reason
+  and marks the task rejected.
 - Agents must NOT self-verify their own work. After completing
   requirements, set `status: review` and stop. Only the
-  designated `owner` may transition to `done` or `failed`.
+  designated `owner` may transition to `done` or `rejected`.
 
 ## Ownership
 
@@ -76,7 +77,7 @@ The `owner` field names who is responsible for verification.
 
 - Value is an agent name or `user` (default).
 - Only the designated owner may transition a task from `review` →
-  `verified`, `verified` → `done`, or to `failed`.
+  `verified`, `verified` → `done`, or to `rejected`.
 - When `owner: user`, a human operator verifies.
 
 ## Sub-Tasks

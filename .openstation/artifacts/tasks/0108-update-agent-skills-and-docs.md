@@ -2,7 +2,7 @@
 kind: task
 name: 0108-update-agent-skills-and-docs
 type: spec
-status: backlog
+status: rejected
 assignee: author
 owner: user
 parent: "[[0122-worktree-integration]]"

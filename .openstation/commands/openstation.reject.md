@@ -1,11 +1,11 @@
 ---
 name: openstation.reject
-description: Reject a task in review and mark it failed. $ARGUMENTS = task-name [reason...]. Use when user says "reject task", "fail task", "send back", or wants to reject work after review.
+description: Reject a task and mark it rejected. $ARGUMENTS = task-name [reason...]. Use when user says "reject task", "fail task", "send back", "descope", or wants to reject work.
 ---
 
 # Reject Task
 
-Mark a task in `review` as `failed`.
+Mark a task as `rejected` (won't be completed).
 
 ## Input
 
@@ -20,17 +20,17 @@ Examples:
 1. Parse the task name (first argument) and optional reason
    (remaining text) from `$ARGUMENTS`.
 2. Resolve the task file per `docs/task.spec.md` § Task Resolution.
-3. Read the task frontmatter. Verify `status: review` — refuse
-   with an error if the task is not in review. Only
-   `review` → `failed` is a valid transition for this command.
+3. Read the task frontmatter. Verify the task is in `backlog`,
+   `ready`, `in-progress`, or `review` — refuse with an error
+   if the task is in another status.
 4. Set the status using the CLI:
 
    ```bash
-   openstation status <task-name> failed
+   openstation status <task-name> rejected
    ```
 
    **Manual fallback** — if the CLI is unavailable, edit
-   `status: review` → `status: failed` directly in the task
+   `status: <current>` → `status: rejected` directly in the task
    frontmatter.
 
 5. If a reason was provided, append to the task body:

@@ -676,7 +676,7 @@ def cmd_run(args, root):
         if subtasks:
             core.info(f"Found {len(subtasks)} ready subtask(s)")
             completed = 0
-            failed_count = 0
+            rejected_count = 0
             remaining = len(subtasks)
             rc = core.EXIT_OK
             last_session_id = None
@@ -699,19 +699,19 @@ def cmd_run(args, root):
                     completed += 1
                     remaining -= 1
                 else:
-                    core.failure(f"Failed (exit {rc}, {core.format_duration(elapsed)})")
-                    failed_count += 1
+                    core.failure(f"Rejected (exit {rc}, {core.format_duration(elapsed)})")
+                    rejected_count += 1
                     break
 
             next_sub = None
             if remaining > 0:
-                executed_count = completed + failed_count
+                executed_count = completed + rejected_count
                 if executed_count < len(subtasks):
                     next_sub = subtasks[executed_count][1]
 
             core.summary_block(
                 completed=completed,
-                failed=failed_count,
+                rejected=rejected_count,
                 pending=remaining,
                 resume_cmd=f"openstation run --task {task_name}",
                 next_task=next_sub,

@@ -2,7 +2,7 @@
 kind: task
 name: 0163-test-task
 type: feature
-status: failed
+status: rejected
 assignee: developer
 owner: user
 created: 2026-03-18

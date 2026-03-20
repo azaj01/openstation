@@ -144,7 +144,7 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 | `review` | Work complete, awaiting verification |
 | `verified` | All verification checks passed, awaiting owner acceptance |
 | `done` | Verification passed |
-| `failed` | Verification failed |
+| `rejected` | Task won't be completed — descoped, superseded, or abandoned |
 
 See `docs/lifecycle.md` for valid transitions, ownership rules,
 sub-task lifecycle, and artifact routing.

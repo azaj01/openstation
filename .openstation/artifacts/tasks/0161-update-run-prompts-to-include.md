@@ -2,7 +2,7 @@
 kind: task
 name: 0161-update-run-prompts-to-include
 type: feature
-status: failed
+status: rejected
 assignee: developer
 owner: user
 parent: "[[0154-detached-openstation-run-in-worktree]]"

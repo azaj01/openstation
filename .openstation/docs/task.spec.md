@@ -289,9 +289,11 @@ Items are checked (`[x]`) as they are verified.
 | `## Progress`        | Timestamped log of work done across agent sessions. Append-only.                                       |
 | `## Downstream`      | Follow-up work identified during execution (docs needed, behavior changes, refactoring opportunities)  |
 | `## Recommendations` | Actionable suggestions based on findings                                                               |
+| `## Verification Report` | Machine-written by `/openstation.verify`. Contains date, pass/fail table, summary, and fix suggestions. Not authored manually. |
 
 Optional sections appear between Requirements and Verification
-when present.
+when present. `## Verification Report` appears after
+`## Verification` (not between Requirements and Verification).
 
 ## Progressive Disclosure
 
@@ -335,6 +337,7 @@ structure that isn't needed yet.
 7. `## Downstream` (optional — written during execution)
 8. `## Recommendations` (optional — written during execution)
 9. `## Verification` (required)
+10. `## Verification Report` (optional — machine-written by `/openstation.verify`)
 
 ## Examples
 

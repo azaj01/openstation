@@ -47,22 +47,50 @@ Example: `0042-add-login-page` or `add-login-page`
    | 2 | <item>    | ❌ FAIL | <what's missing or wrong> |
    ```
 
-9. If **all items pass**:
-   - Transition the task to `verified`:
+9. **Persist the report in the task file.** Write (or replace) a
+   `## Verification Report` section immediately after the
+   `## Verification` section in the task file. Use the following
+   format:
 
-     ```bash
-     openstation status <task-name> verified
-     ```
+   ```markdown
+   ## Verification Report
 
-     **Manual fallback** — if the CLI is unavailable, edit
-     `status: review` → `status: verified` directly in the task
-     frontmatter.
-   - Confirm to the user that all verification criteria passed and
-     the task is now `verified`.
-   - Tell the user they can run `/openstation.done <task-name>`
-     when ready to accept and complete the task.
+   *Verified: YYYY-MM-DD*
 
-10. If **any items fail**:
+   | # | Criterion | Result | Evidence |
+   |---|-----------|--------|----------|
+   | 1 | <item>    | PASS   | <brief evidence> |
+   | 2 | <item>    | FAIL   | <what's missing> |
+
+   ### Summary
+
+   <N> passed, <M> failed. <outcome sentence>.
+
+   ### What Needs Fixing
+
+   <only present when items fail — bulleted list of what to fix>
+   ```
+
+   If a `## Verification Report` section already exists, **replace
+   it entirely** — there should always be exactly one current
+   report.
+
+10. If **all items pass**:
+    - Transition the task to `verified`:
+
+      ```bash
+      openstation status <task-name> verified
+      ```
+
+      **Manual fallback** — if the CLI is unavailable, edit
+      `status: review` → `status: verified` directly in the task
+      frontmatter.
+    - Confirm to the user that all verification criteria passed and
+      the task is now `verified`.
+    - Tell the user they can run `/openstation.done <task-name>`
+      when ready to accept and complete the task.
+
+11. If **any items fail**:
     - Report which items failed and why.
     - Do **not** transition the task status — it stays in `review`.
     - Suggest what needs to be fixed before re-verification.

@@ -7,20 +7,22 @@ Do not update CHANGELOG.md unless creating a new release.
 
 ## Vault Structure
 
-```
-docs/              — Project documentation (lifecycle, task spec, README)
-artifacts/         — Canonical artifact storage (source of truth)
-  tasks/           —   Task files (canonical location, never move)
-  agents/          —   Agent specs (canonical location)
-  research/        —   Research outputs
-  specs/           —   Specifications & designs
-agents/            — Agent discovery (symlinks → artifacts/agents/)
-skills/            — Agent skills (operational knowledge, not user-invocable)
-commands/          — User-invocable slash commands
-```
+All vault directories live under `.openstation/`:
 
-Note: In target projects, these live under `.openstation/`. In
-this source repo they live at the root.
+```
+.openstation/
+  docs/            — Project documentation (lifecycle, task spec, README)
+  artifacts/       — Canonical artifact storage (source of truth)
+    tasks/         —   Task files (canonical location, never move)
+    agents/        —   Agent specs (canonical location)
+    research/      —   Research outputs
+    specs/         —   Specifications & designs
+  agents/          — Agent discovery (symlinks → artifacts/agents/)
+  skills/          — Agent skills (operational knowledge, not user-invocable)
+  commands/        — User-invocable slash commands
+  templates/       — Task templates
+  settings.json    — Project settings
+```
 
 ## How Docs Connect
 
@@ -126,10 +128,10 @@ promotion routing.
 
 ## Discovery
 
-- `.claude/agents` → `agents/` for `--agent` resolution
-- `.claude/commands` → `commands/` for slash command discovery
-- `skills/` contains agent-only skills (not user-invocable)
-- `commands/` contains user-invocable slash commands
+- `.claude/agents` → `.openstation/agents/` for `--agent` resolution
+- `.claude/commands` → `.openstation/commands/` for slash command discovery
+- `.openstation/skills/` contains agent-only skills (not user-invocable)
+- `.openstation/commands/` contains user-invocable slash commands
 
 ## Query Model
 

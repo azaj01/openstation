@@ -1974,23 +1974,24 @@ def make_local_source(tmpdir):
     """Create a minimal local source repo for --local mode."""
     src = Path(tmpdir) / "source"
     src.mkdir()
+    os_dir = src / ".openstation"
     # Source repo markers
-    (src / "docs").mkdir(parents=True)
-    (src / "docs" / "lifecycle.md").write_text("# Lifecycle\n")
-    (src / "docs" / "task.spec.md").write_text("# Task Spec\n")
-    (src / "commands").mkdir()
+    (os_dir / "docs").mkdir(parents=True)
+    (os_dir / "docs" / "lifecycle.md").write_text("# Lifecycle\n")
+    (os_dir / "docs" / "task.spec.md").write_text("# Task Spec\n")
+    (os_dir / "commands").mkdir()
     for cmd in [
         "openstation.create.md",
         "openstation.done.md", "openstation.list.md",
         "openstation.ready.md", "openstation.reject.md",
         "openstation.show.md", "openstation.update.md",
     ]:
-        (src / "commands" / cmd).write_text(f"# {cmd}\n")
-    (src / "skills" / "openstation-execute").mkdir(parents=True)
-    (src / "skills" / "openstation-execute" / "SKILL.md").write_text("# Skill\n")
-    (src / "templates" / "agents").mkdir(parents=True)
+        (os_dir / "commands" / cmd).write_text(f"# {cmd}\n")
+    (os_dir / "skills" / "openstation-execute").mkdir(parents=True)
+    (os_dir / "skills" / "openstation-execute" / "SKILL.md").write_text("# Skill\n")
+    (os_dir / "templates" / "agents").mkdir(parents=True)
     for agent in ["architect", "author", "developer", "project-manager", "researcher"]:
-        (src / "templates" / "agents" / f"{agent}.md").write_text(
+        (os_dir / "templates" / "agents" / f"{agent}.md").write_text(
             f"---\nkind: agent\nname: {agent}\n"
             f"description: Agent for the project\n"
             f"allowed-tools:\n"
@@ -2225,11 +2226,11 @@ class TestInitUserMode(unittest.TestCase):
 
     def test_user_creates_agent_symlinks(self):
         """--user creates agent symlinks under ~/.claude/agents/."""
-        # The source needs agents/ discovery dir with symlinks
+        # The source needs .openstation/agents/ discovery dir with symlinks
         src = Path(self.local_src)
-        agents_dir = src / "agents"
-        agents_dir.mkdir(exist_ok=True)
-        artifacts_dir = src / "artifacts" / "agents"
+        agents_dir = src / ".openstation" / "agents"
+        agents_dir.mkdir(parents=True, exist_ok=True)
+        artifacts_dir = src / ".openstation" / "artifacts" / "agents"
         artifacts_dir.mkdir(parents=True, exist_ok=True)
         for name in ["researcher", "author"]:
             spec = artifacts_dir / f"{name}.md"

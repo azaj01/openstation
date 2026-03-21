@@ -63,3 +63,7 @@ plan future work.
 - When prioritizing, prefer tasks that unblock other work.
 - When assigning, match task type to agent strengths — don't
   overload a single agent when another is available.
+- **Filing bugs** — when you discover a bug or stale artifact
+  during verification or triage, use `/openstation.create.bug`
+  to file it. It enforces root-cause tracing, scoped requirements,
+  and mechanical verification items.

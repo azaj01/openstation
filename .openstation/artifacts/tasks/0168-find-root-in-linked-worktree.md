@@ -2,7 +2,7 @@
 kind: task
 name: 0168-find-root-in-linked-worktree
 type: bug
-status: review
+status: rejected
 assignee: developer
 owner: user
 parent: "[[0122-worktree-integration]]"
@@ -42,10 +42,32 @@ CLI artifact operations to read/write to the worktree's local
 ## Verification
 
 - [ ] `find_root()` from a linked worktree with OS markers returns main repo root
-- [ ] `find_root()` from main repo root still returns main repo root
+- [x] `find_root()` from main repo root still returns main repo root
 - [ ] `openstation create` from a linked worktree writes to main repo's `artifacts/tasks/`
 - [ ] `openstation list` from a linked worktree shows main repo tasks
 - [ ] Existing tests pass or are updated
+
+## Verification Report
+
+*Verified: 2026-03-20*
+
+| # | Criterion | Result | Evidence |
+|---|-----------|--------|----------|
+| 1 | `find_root()` from linked worktree with OS markers returns main repo root | FAIL | `find_root()` (core.py:128-134) checks toplevel for `.openstation/` first and returns immediately — no toplevel-vs-main comparison exists. `TestWorktreeIndependentMode` asserts `root == wt_path` (worktree root), contradicting requirement #1. |
+| 2 | `find_root()` from main repo root still returns main repo root | PASS | `TestFindRootMainRepo` covers this; code path returns toplevel when `.openstation/` is found. |
+| 3 | `openstation create` from linked worktree writes to main repo's `artifacts/tasks/` | FAIL | Since `find_root()` returns the worktree root (not main root), all CLI operations using it will target the wrong location. |
+| 4 | `openstation list` from linked worktree shows main repo tasks | FAIL | Same root cause — `find_root()` returns worktree root instead of main root. |
+| 5 | Existing tests pass or are updated | FAIL | Tests exist but assert the **wrong behavior**: `TestWorktreeIndependentMode` asserts worktree root is returned when inherited `.openstation/` markers are present, which is the bug described in the task. The "renamed" test class mentioned in Findings was never actually renamed. |
+
+### Summary
+
+1 passed, 4 failed. The fix described in Findings was not applied to the code.
+
+### What Needs Fixing
+
+- **`find_root()` in `src/openstation/core.py`**: Must compare `_git_toplevel()` against `_git_main_worktree_root()` before checking OS markers. When they differ (linked worktree), skip toplevel and use main root (attached mode).
+- **`TestWorktreeIndependentMode` in `tests/test_find_root.py`**: Rename to `TestWorktreeWithInheritedMarkers` and update assertions to expect `main` root (not `wt_path`). The concept of "independent worktree" with inherited `.openstation/` is the bug — inherited markers should always route to the main repo.
+- Re-run all 13 tests after applying the fix to confirm they pass.
 
 ## Findings
 
@@ -78,3 +100,13 @@ so they inherit the fix automatically.
 - 2026-03-19: Fixed `find_root()` to detect linked worktrees by
   comparing toplevel vs main worktree root. Updated tests (13/13
   pass). Moved to review.
+- 2026-03-20: Verification failed 4/5 criteria — rejected.
+  Follow-up task needed.
+
+## Rejection
+
+**Date:** 2026-03-20
+**Reason:** Verification failed 4/5 criteria — the fix described
+in Findings was never applied to the code. `find_root()` still
+returns worktree root instead of main root in linked worktrees.
+See Verification Report above for detailed remediation steps.

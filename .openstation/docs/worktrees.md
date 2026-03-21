@@ -12,20 +12,10 @@ markers.
 
 ## Modes
 
-### Primary Mode
+### Independent Mode
 
-The worktree has its own markers — it owns its vault and
-artifacts.
-
-**Markers checked** (in order, first match wins):
-
-| Marker | Prefix | Context |
-|--------|--------|---------|
-| `agents/` + `install.sh` | `""` | Source repo (development) |
-| `.openstation/` | `".openstation"` | Installed project |
-
-Primary mode means the worktree is self-contained. All paths
-resolve relative to the worktree root.
+The worktree contains `.openstation/` — it owns its vault and
+artifacts. All paths resolve relative to the worktree root.
 
 ### Linked Mode
 
@@ -44,23 +34,23 @@ In linked mode:
 
 ## How `find_root()` Resolves
 
-Two-step resolution with no directory walk-up:
+Two-step resolution with no directory walk-up. Returns
+`Path | None`.
 
 ```
 Step 1: git rev-parse --show-toplevel
-        → Check for markers at toplevel
-        → If found: return (toplevel, prefix)   ← Primary mode
+        → _check_dir(toplevel)
+        → If True: return toplevel              ← Independent mode
 
 Step 2: git rev-parse --git-common-dir
         → Derive main worktree root (parent of .git common dir)
-        → Check for markers at main root
-        → If found: return (main_root, prefix)  ← Linked mode
+        → _check_dir(main_root)
+        → If True: return main_root             ← Linked mode
 
-Neither: return (None, None)                    ← Not an OS project
+Neither: return None                            ← Not an OS project
 ```
 
-Non-git directories are not supported and always return
-`(None, None)`.
+Non-git directories are not supported and always return `None`.
 
 ## Architecture
 
@@ -73,8 +63,8 @@ Non-git directories are not supported and always return
 
 ### Key Abstractions
 
-- **`_check_dir(d)`** — checks a single directory for markers,
-  returns `(root, prefix)` or `(None, None)`
+- **`_check_dir(d)`** — checks whether `d / ".openstation"` exists,
+  returns `bool`
 - **`_git_toplevel(start)`** — runs `git rev-parse --show-toplevel`,
   returns the worktree root (or main repo root if not in a worktree)
 - **`_git_main_worktree_root(start)`** — runs
@@ -98,7 +88,7 @@ works in the worktree while CLI commands find the shared vault.
 
 ## CLI Behavior by Mode
 
-| Command | Primary Mode | Linked Mode |
+| Command | Independent Mode | Linked Mode |
 |---------|-------------|-------------|
 | `openstation list` | Reads tasks from local vault | Reads tasks from main repo vault |
 | `openstation show` | Resolves against local tasks dir | Resolves against main repo tasks dir |

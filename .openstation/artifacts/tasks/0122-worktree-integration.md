@@ -2,7 +2,7 @@
 kind: task
 name: 0122-worktree-integration
 type: feature
-status: in-progress
+status: done
 assignee:
 owner: user
 created: 2026-03-13

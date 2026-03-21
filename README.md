@@ -1,5 +1,7 @@
 # Open Station
 
+[![CI](https://github.com/leonprou/openstation/actions/workflows/ci.yml/badge.svg)](https://github.com/leonprou/openstation/actions/workflows/ci.yml)
+
   A markdown-first, minimalistic and somewhere opinionated task management for coding AI agents.
 
   Markdowns are first-class citizens — tasks, specs, workflows, and agents are all

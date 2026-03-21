@@ -6,6 +6,18 @@
         "command": "bin/hooks/auto-commit",
         "phase": "post",
         "timeout": 120
+      },
+      {
+        "matcher": "in-progress→ready",
+        "command": "bin/hooks/suspend",
+        "phase": "post",
+        "timeout": 120
+      },
+      {
+        "matcher": "in-progress→backlog",
+        "command": "bin/hooks/suspend",
+        "phase": "post",
+        "timeout": 120
       }
     ]
   },

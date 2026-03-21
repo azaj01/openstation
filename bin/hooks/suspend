@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# Suspend hook — saves uncommitted work and appends a ## Suspended
+# section to the task body.
+#
+# Intended as a post-transition hook on in-progress→ready and
+# in-progress→backlog. Prompts the user to save work to a
+# suspend/<task-name> branch, then records the suspension in the
+# task file.
+#
+# Required environment (set by the hooks engine):
+#   OS_TASK_NAME  — task name (e.g. 0042-cli-improvements)
+#   OS_TASK_FILE  — absolute path to the task file
+#   OS_VAULT_ROOT — absolute path to the vault root
+#   OS_OLD_STATUS — status before transition (should be in-progress)
+#   OS_NEW_STATUS — target status (ready or backlog)
+#
+# Exit 0 on success.
+set -euo pipefail
+
+# ── Guard: required env vars ────────────────────────────────
+for var in OS_TASK_NAME OS_TASK_FILE OS_VAULT_ROOT OS_OLD_STATUS OS_NEW_STATUS; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "suspend: missing required env var $var" >&2
+    exit 1
+  fi
+done
+
+# ── Guard: only fire on in-progress → ready|backlog ────────
+if [[ "$OS_OLD_STATUS" != "in-progress" ]]; then
+  exit 0
+fi
+if [[ "$OS_NEW_STATUS" != "ready" && "$OS_NEW_STATUS" != "backlog" ]]; then
+  exit 0
+fi
+
+cd "$OS_VAULT_ROOT"
+
+TASK_ID="${OS_TASK_NAME%%-*}"
+SUSPEND_BRANCH="suspend/${OS_TASK_NAME}"
+BRANCH_REF="—"
+REASON="—"
+
+# ── Prompt: optional reason ─────────────────────────────────
+if [[ -t 0 ]]; then
+  printf "Reason for suspending (enter to skip): "
+  read -r user_reason || true
+  if [[ -n "${user_reason:-}" ]]; then
+    REASON="$user_reason"
+  fi
+fi
+
+# ── Check for uncommitted changes ───────────────────────────
+has_changes=false
+if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null || [[ -n "$(git ls-files --others --exclude-standard 2>/dev/null)" ]]; then
+  has_changes=true
+fi
+
+# ── Prompt: save work to branch? ────────────────────────────
+save_work=false
+if [[ "$has_changes" == "true" && -t 0 ]]; then
+  printf "Save uncommitted work to a branch? (y/n) "
+  read -r answer || true
+  if [[ "${answer:-}" =~ ^[Yy] ]]; then
+    save_work=true
+  fi
+elif [[ "$has_changes" == "false" && -t 0 ]]; then
+  echo "suspend: no uncommitted changes, skipping branch creation"
+fi
+
+# ── Save work to suspend branch ─────────────────────────────
+if [[ "$save_work" == "true" ]]; then
+  ORIGINAL_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || git rev-parse HEAD)"
+
+  # Check if suspend branch already exists
+  if git show-ref --verify --quiet "refs/heads/$SUSPEND_BRANCH" 2>/dev/null; then
+    echo "warning: branch $SUSPEND_BRANCH already exists, skipping branch creation" >&2
+    BRANCH_REF="\`$SUSPEND_BRANCH\`"
+  else
+    git checkout -b "$SUSPEND_BRANCH" --quiet
+
+    # Auto-commit via claude if available
+    if command -v claude >/dev/null 2>&1; then
+      PROMPT="You are a suspend-commit agent. Your job is to commit uncommitted work for a suspended task.
+
+## Context
+
+Task: $OS_TASK_NAME
+Task file: $OS_TASK_FILE
+
+## Instructions
+
+1. Read the task file to understand what work was in progress.
+
+2. Run \`git status\` and \`git diff\` to see all uncommitted changes.
+   If the diff is very large (>500 lines), use \`git diff --stat\` first.
+
+3. Stage all task-related files with \`git add <file1> <file2> ...\`.
+   Use explicit file paths — never \`git add -A\` or \`git add .\`.
+
+4. If NO files are related to this task, print
+   \"suspend: no task-related changes found\" and exit
+   without committing.
+
+5. Create a commit:
+   \`\`\`bash
+   git commit -m \"\$(cat <<'EOF'
+   wip($TASK_ID): suspend $OS_TASK_NAME
+
+   Work in progress — task suspended.
+   EOF
+   )\"
+   \`\`\`
+
+6. Print the commit hash and exit.
+
+## Rules
+
+- Do NOT push to any remote.
+- Do NOT amend existing commits.
+- Do NOT use interactive git commands.
+- Do NOT modify any files — only stage and commit.
+- If in doubt about whether a file belongs, include it."
+
+      claude -p "$PROMPT" --allowedTools 'Bash(git:*),Read,Glob,Grep' 2>/dev/null || true
+    else
+      # Fallback: simple git add + commit for task-related changes
+      echo "suspend: claude not found, skipping auto-commit" >&2
+    fi
+
+    BRANCH_REF="\`$SUSPEND_BRANCH\`"
+
+    # Switch back to original branch
+    git checkout "$ORIGINAL_BRANCH" --quiet
+  fi
+fi
+
+# ── Append ## Suspended section to task body ─────────────────
+TODAY="$(date +%Y-%m-%d)"
+
+ENTRY="**Date:** $TODAY
+**Target:** $OS_NEW_STATUS
+**Reason:** $REASON
+**Branch:** $BRANCH_REF"
+
+# Check if ## Suspended section already exists
+if grep -q '^## Suspended' "$OS_TASK_FILE"; then
+  # Append new entry with separator
+  APPEND=$'\n---\n\n'"$ENTRY"
+  # Insert before ## Findings, ## Downstream, ## Recommendations,
+  # ## Verification — whichever comes first after ## Suspended
+  python3 -c "
+import sys
+
+task_file = sys.argv[1]
+append_text = sys.argv[2]
+
+with open(task_file, 'r') as f:
+    content = f.read()
+
+# Find the ## Suspended section
+suspended_idx = content.find('## Suspended')
+if suspended_idx == -1:
+    sys.exit(1)
+
+# Find the next H2 section after ## Suspended
+rest = content[suspended_idx + len('## Suspended'):]
+import re
+match = re.search(r'\n## (?!Suspended)', rest)
+if match:
+    insert_pos = suspended_idx + len('## Suspended') + match.start()
+    new_content = content[:insert_pos] + append_text + '\n' + content[insert_pos:]
+else:
+    # No next section — append at end
+    new_content = content.rstrip() + append_text + '\n'
+
+with open(task_file, 'w') as f:
+    f.write(new_content)
+" "$OS_TASK_FILE" "$APPEND"
+else
+  # Insert new ## Suspended section in the right place
+  # (after ## Progress, before ## Findings or ## Verification)
+  python3 -c "
+import sys
+import re
+
+task_file = sys.argv[1]
+entry = sys.argv[2]
+
+with open(task_file, 'r') as f:
+    content = f.read()
+
+section = '\n## Suspended\n\n' + entry + '\n'
+
+# Try to insert before ## Findings
+findings_match = re.search(r'\n## Findings', content)
+if findings_match:
+    pos = findings_match.start()
+    new_content = content[:pos] + section + content[pos:]
+else:
+    # Try before ## Verification
+    verify_match = re.search(r'\n## Verification', content)
+    if verify_match:
+        pos = verify_match.start()
+        new_content = content[:pos] + section + content[pos:]
+    else:
+        # Append at end
+        new_content = content.rstrip() + section
+
+with open(task_file, 'w') as f:
+    f.write(new_content)
+" "$OS_TASK_FILE" "$ENTRY"
+fi
+
+# ── Confirmation ─────────────────────────────────────────────
+echo "suspend: ${OS_TASK_NAME} suspended → ${OS_NEW_STATUS}"
+if [[ "$BRANCH_REF" != "—" ]]; then
+  echo "suspend: work saved to branch ${SUSPEND_BRANCH}"
+fi
+if [[ "$REASON" != "—" ]]; then
+  echo "suspend: reason: ${REASON}"
+fi

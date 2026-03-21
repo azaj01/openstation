@@ -1688,6 +1688,24 @@ class TestStatusCommand(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("in-progress → rejected", out)
 
+    def test_status_in_progress_to_ready(self):
+        make_task(self.root, "0001-alpha", status="in-progress")
+        out, _, rc = run_cli(["status", "0001", "ready"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("in-progress → ready", out)
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: ready", content)
+
+    def test_status_in_progress_to_backlog(self):
+        make_task(self.root, "0001-alpha", status="in-progress")
+        out, _, rc = run_cli(["status", "0001", "backlog"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("in-progress → backlog", out)
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: backlog", content)
+
     def test_status_invalid_transition(self):
         make_task(self.root, "0001-alpha", status="backlog")
         _, stderr, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)
@@ -3032,6 +3050,100 @@ class TestTypeField(unittest.TestCase):
         task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
         content = task_file.read_text()
         self.assertIn("type: feature", content)
+
+    def test_create_with_body_inline(self):
+        body = "## Requirements\n\nDo something.\n\n## Verification\n\n- [ ] Done"
+        out, _, rc = run_cli(
+            ["create", "body test", "--body", body],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("## Requirements", content)
+        self.assertIn("Do something.", content)
+        self.assertIn("- [ ] Done", content)
+        # Should NOT contain the skeleton placeholder
+        self.assertNotIn("(placeholder)", content)
+
+    def test_create_with_body_file(self):
+        body_path = Path(self.tmpdir) / "body.md"
+        body_path.write_text("## Requirements\n\nFrom file.\n\n## Verification\n\n- [ ] Filed")
+        out, _, rc = run_cli(
+            ["create", "file body test", "--body-file", str(body_path)],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("From file.", content)
+        self.assertIn("- [ ] Filed", content)
+        self.assertNotIn("(placeholder)", content)
+
+    def test_create_with_body_stdin(self):
+        body = "## Requirements\n\nFrom stdin.\n\n## Verification\n\n- [ ] Piped"
+        run_env = dict(os.environ)
+        existing = run_env.get("PYTHONPATH", "")
+        run_env["PYTHONPATH"] = SRC_DIR + (os.pathsep + existing if existing else "")
+        result = subprocess.run(
+            [sys.executable, "-m", "openstation", "create", "stdin test", "--body", "-"],
+            capture_output=True,
+            text=True,
+            input=body,
+            cwd=self.tmpdir,
+            env=run_env,
+        )
+        self.assertEqual(result.returncode, 0)
+        task_name = result.stdout.strip()
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("From stdin.", content)
+        self.assertIn("- [ ] Piped", content)
+        self.assertNotIn("(placeholder)", content)
+
+    def test_create_without_body_preserves_skeleton(self):
+        out, _, rc = run_cli(["create", "no body task"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        self.assertIn("## Requirements", content)
+        self.assertIn("no body task", content)
+        self.assertIn("- [ ] (placeholder)", content)
+
+    def test_create_body_replaces_only_markdown_not_frontmatter(self):
+        body = "## Requirements\n\nCustom body."
+        out, _, rc = run_cli(
+            ["create", "fm check", "--body", body, "--assignee", "dev"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        task_name = out.strip()
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / f"{task_name}.md"
+        content = task_file.read_text()
+        # Frontmatter is intact
+        self.assertIn("kind: task", content)
+        self.assertIn(f"name: {task_name}", content)
+        self.assertIn("assignee: dev", content)
+        # Body is replaced
+        self.assertIn("Custom body.", content)
+        self.assertNotIn("(placeholder)", content)
+
+    def test_create_body_file_missing(self):
+        _, err, rc = run_cli(
+            ["create", "bad file", "--body-file", "/nonexistent/body.md"],
+            cwd=self.tmpdir,
+        )
+        self.assertNotEqual(rc, 0)
+
+    def test_create_body_and_body_file_mutually_exclusive(self):
+        _, err, rc = run_cli(
+            ["create", "both", "--body", "x", "--body-file", "y"],
+            cwd=self.tmpdir,
+        )
+        self.assertNotEqual(rc, 0)
 
     def test_list_type_filter(self):
         make_task(self.root, "0001-feat-one", status="ready")

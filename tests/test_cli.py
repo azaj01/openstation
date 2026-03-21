@@ -1706,6 +1706,15 @@ class TestStatusCommand(unittest.TestCase):
         content = task_file.read_text()
         self.assertIn("status: backlog", content)
 
+    def test_status_review_to_in_progress(self):
+        make_task(self.root, "0001-alpha", status="review")
+        out, _, rc = run_cli(["status", "0001", "in-progress"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("review → in-progress", out)
+        task_file = self.root / ".openstation" / "artifacts" / "tasks" / "0001-alpha.md"
+        content = task_file.read_text()
+        self.assertIn("status: in-progress", content)
+
     def test_status_invalid_transition(self):
         make_task(self.root, "0001-alpha", status="backlog")
         _, stderr, rc = run_cli(["status", "0001", "done"], cwd=self.tmpdir)

@@ -92,5 +92,14 @@ Example: `0042-add-login-page` or `add-login-page`
 
 11. If **any items fail**:
     - Report which items failed and why.
-    - Do **not** transition the task status — it stays in `review`.
+    - Transition the task to `in-progress` so the assignee can
+      rework the failing items:
+
+      ```bash
+      openstation status <task-name> in-progress
+      ```
+
+      **Manual fallback** — if the CLI is unavailable, edit
+      `status: review` → `status: in-progress` directly in the
+      task frontmatter.
     - Suggest what needs to be fixed before re-verification.

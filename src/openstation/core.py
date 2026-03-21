@@ -34,6 +34,7 @@ VALID_TRANSITIONS = {
     ("in-progress", "rejected"),
     ("in-progress", "ready"),
     ("in-progress", "backlog"),
+    ("review", "in-progress"),
     ("review", "verified"),
     ("review", "rejected"),
     ("verified", "done"),

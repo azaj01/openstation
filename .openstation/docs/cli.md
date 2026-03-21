@@ -197,6 +197,7 @@ backlog → ready → in-progress → review → done
                    ready → backlog
                    in-progress → ready      (suspend)
                    in-progress → backlog    (suspend)
+                                  review → in-progress (rework)
                                   review → failed → in-progress
 ```
 

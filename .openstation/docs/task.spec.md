@@ -287,6 +287,7 @@ Items are checked (`[x]`) as they are verified.
 | `## Context`         | Background information, links to related tasks or research                                             |
 | `## Subtasks`        | Decomposition into sub-tasks (H3 per group with numbered items)                                        |
 | `## Progress`        | Timestamped log of work done across agent sessions. Append-only.                                       |
+| `## Suspended`       | Suspension record written by `/openstation.suspend`. Contains date, target status, reason, and branch.  |
 | `## Downstream`      | Follow-up work identified during execution (docs needed, behavior changes, refactoring opportunities)  |
 | `## Recommendations` | Actionable suggestions based on findings                                                               |
 | `## Verification Report` | Machine-written by `/openstation.verify`. Contains date, pass/fail table, summary, and fix suggestions. Not authored manually. |
@@ -333,11 +334,18 @@ structure that isn't needed yet.
 3. `## Requirements` (required)
 4. `## Subtasks` (optional)
 5. `## Progress` (optional — append-only, written during execution)
-6. `## Findings` (required — written during execution)
-7. `## Downstream` (optional — written during execution)
-8. `## Recommendations` (optional — written during execution)
-9. `## Verification` (required)
-10. `## Verification Report` (optional — machine-written by `/openstation.verify`)
+6. `## Suspended` (optional — written by `/openstation.suspend`)
+7. `## Findings` (required — written during execution)
+8. `## Downstream` (optional — written during execution)
+9. `## Recommendations` (optional — written during execution)
+10. `## Verification` (required)
+11. `## Verification Report` (optional — machine-written by `/openstation.verify`)
+
+## Decomposition
+
+For sizing heuristics, split-vs-keep criteria, subtask vs
+independent task guidance, and parent task patterns, see
+`docs/decomposition.md`.
 
 ## Examples
 

@@ -21,6 +21,8 @@ ready → in-progress      (assigned agent picks up the task)
 ready → backlog          (deprioritize — requirements changed, blocked, etc.)
 ready → rejected         (descoped or superseded — use /openstation.reject)
 in-progress → review     (agent finishes work)
+in-progress → ready      (suspend — /openstation.suspend)
+in-progress → backlog    (suspend — /openstation.suspend backlog)
 in-progress → rejected   (abandoned mid-effort — use /openstation.reject)
 review → verified        (/openstation.verify — all checks pass)
 review → rejected        (owner rejects — use /openstation.reject)
@@ -64,6 +66,9 @@ Before transitioning to `review`, the assignee must ensure:
 - `verified → done` is only allowed via `/openstation.done`, which
   accepts the task and completes it. Tasks must be in `verified`
   status — `/openstation.done` rejects tasks still in `review`.
+- `in-progress → ready/backlog` is only allowed via
+  `/openstation.suspend`, which transitions the task and records
+  the suspension context (reason, branch) in `## Suspended`.
 - `backlog/ready/in-progress/review → rejected` is only allowed
   via `/openstation.reject`, which records the rejection reason
   and marks the task rejected.

@@ -35,8 +35,7 @@ Generate a new task spec from a description.
    - **Decomposition** (only if warranted) — if requirements
      clearly span multiple independent domains, suggest sub-tasks
      inline. Otherwise omit entirely. Apply the sizing heuristics
-     and split-vs-keep criteria from `docs/task.spec.md`
-     § Decomposition Guidelines.
+     and split-vs-keep criteria from `docs/decomposition.md`.
 
    End the message with: **"Approve, or tell me what to change."**
 

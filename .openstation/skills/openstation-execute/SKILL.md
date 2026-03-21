@@ -60,6 +60,7 @@ execution when appropriate:
 | `/openstation.show` | Show full task details |
 | `/openstation.ready` | Promote backlog → ready |
 | `/openstation.done` | Mark verified → done (with artifact promotion) |
+| `/openstation.suspend` | Suspend in-progress → ready/backlog |
 | `/openstation.reject` | Mark task → rejected (with reason) |
 | `/openstation.verify` | Verify a task's checklist against evidence |
 | `/openstation.update` | Edit task metadata (not status) |
@@ -108,6 +109,11 @@ modes and how `find_root()` resolves the vault.
 - Run `openstation show <task-name>` to load the full task spec
   (or read `artifacts/tasks/<task-name>.md` directly). Note
   requirements and verification checklist.
+- If the task has a `## Suspended` section, it was previously
+  in-progress and paused. Read the branch reference and suspension
+  reason. Use `git diff main...suspend/<task-name>` to understand
+  what was done before. The `## Progress` section from the prior
+  session provides additional context.
 - If the task has a `parent` field, read the parent task for
   background context.
 - Transition the task to in-progress:
@@ -129,6 +135,9 @@ are true:
 - Work spans **2+ agent roles** (e.g., code + docs, spec + research)
 - Task requires creating or modifying **4+ files**
 - Requirements reference **2+ unrelated domains** (e.g., CLI + skills + lifecycle)
+
+See `docs/decomposition.md` for full sizing heuristics,
+split-vs-keep criteria, and parent task patterns.
 
 If decomposition is needed, skip to step 8 (Create Sub-Tasks),
 set `status: review`, and stop. The owner will promote the

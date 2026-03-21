@@ -521,6 +521,33 @@ def cmd_show(args, root):
     return core.EXIT_OK
 
 
+def _resolve_body(args):
+    """Resolve body content from --body or --body-file flags.
+
+    Returns the body string (empty string means use default skeleton),
+    or None on error (error already printed to stderr).
+    """
+    body_flag = getattr(args, "body", None)
+    body_file = getattr(args, "body_file", None)
+
+    if body_flag is not None:
+        if body_flag == "-":
+            if sys.stdin.isatty():
+                core.err("--body - requires piped stdin")
+                return None
+            return sys.stdin.read()
+        return body_flag
+
+    if body_file is not None:
+        try:
+            return Path(body_file).read_text(encoding="utf-8")
+        except OSError as e:
+            core.err(f"cannot read --body-file: {e}")
+            return None
+
+    return ""  # no body flag — use default skeleton
+
+
 def cmd_create(args, root):
     """Handle the create subcommand."""
     description = args.description
@@ -565,6 +592,12 @@ def cmd_create(args, root):
     title = core.title_from_description(description)
     today = datetime.date.today().isoformat()
 
+    # Resolve body content from --body or --body-file
+    body_text = _resolve_body(args)
+    if body_text is None:
+        # _resolve_body printed the error
+        return core.EXIT_USAGE
+
     fm_lines = [
         "---",
         "kind: task",
@@ -579,19 +612,24 @@ def cmd_create(args, root):
     fm_lines.append(f"created: {today}")
     fm_lines.append("---")
 
-    body_lines = [
-        "",
-        f"# {title}",
-        "",
-        "## Requirements",
-        "",
-        description.strip(),
-        "",
-        "## Verification",
-        "",
-        "- [ ] (placeholder)",
-        "",
-    ]
+    if body_text:
+        # User-provided body replaces the skeleton
+        body_lines = ["", f"# {title}", "", body_text.rstrip(), ""]
+    else:
+        # Default skeleton
+        body_lines = [
+            "",
+            f"# {title}",
+            "",
+            "## Requirements",
+            "",
+            description.strip(),
+            "",
+            "## Verification",
+            "",
+            "- [ ] (placeholder)",
+            "",
+        ]
 
     content_template = "\n".join(fm_lines) + "\n" + "\n".join(body_lines)
 

@@ -34,7 +34,9 @@ Generate a new task spec from a description.
      whether requirements are concrete enough to execute.
    - **Decomposition** (only if warranted) — if requirements
      clearly span multiple independent domains, suggest sub-tasks
-     inline. Otherwise omit entirely.
+     inline. Otherwise omit entirely. Apply the sizing heuristics
+     and split-vs-keep criteria from `docs/task.spec.md`
+     § Decomposition Guidelines.
 
    End the message with: **"Approve, or tell me what to change."**
 
@@ -44,19 +46,27 @@ Generate a new task spec from a description.
    approved.
 
 4. **Create the task file.** Run `openstation agents list` to
-   confirm the agent name, then create via the CLI:
+   confirm the agent name, then create via the CLI with `--body`
+   to include the full body in one step:
 
    ```bash
    openstation create "<description>" \
      --assignee <from draft> \
      --owner <from draft, default: user> \
      --status <backlog or ready, from draft> \
-     [--parent <parent-task-name>]
+     [--parent <parent-task-name>] \
+     --body "## Requirements
+
+   <Approved requirements from draft>
+
+   ## Verification
+
+   - [ ] <Approved verification items from draft>"
    ```
 
    The CLI handles ID assignment, slug generation, atomic file
-   creation, and parent linking (appends to the parent's
-   `subtasks` frontmatter list).
+   creation, parent linking, and body content — no manual editing
+   needed.
 
    The command prints the created task name (e.g., `0055-my-task`).
 
@@ -66,37 +76,25 @@ Generate a new task spec from a description.
    - Generate a kebab-case slug (max 5 words).
    - Create `artifacts/tasks/<ID>-<slug>.md` directly.
 
-5. **Fill in the body** — the CLI creates frontmatter and a
-   skeleton body. Edit the generated file to add the approved
-   Requirements and Verification sections from the draft:
-
-   ```markdown
-   # <Title from description>
-
-   ## Requirements
-
-   <Approved requirements from draft>
-
-   ## Verification
-
-   - [ ] <Approved verification items from draft>
-   ```
-
-   Do not rewrite the frontmatter — the CLI already set it
-   correctly in step 4.
-
-6. **Sub-task handling** — if sub-tasks were included in the
+5. **Sub-task handling** — if sub-tasks were included in the
    approved draft, create each sub-task using:
 
    ```bash
    openstation create "<sub-task description>" \
      --assignee <agent> --owner <owner> \
-     --parent <parent-task-name>
+     --parent <parent-task-name> \
+     --body "## Requirements
+
+   <Sub-task requirements>
+
+   ## Verification
+
+   - [ ] <Sub-task verification items>"
    ```
 
    The CLI automatically adds `parent` frontmatter to the
-   sub-task and appends to the parent's `subtasks` list.
-   Edit each sub-task's body with its specific requirements.
+   sub-task, appends to the parent's `subtasks` list, and
+   includes the full body — no manual editing needed.
 
    Add an entry to the parent's `## Subtasks` body section.
 
@@ -104,4 +102,4 @@ Generate a new task spec from a description.
    sub-task file manually with `parent: "[[<parent>]]"`
    frontmatter and update the parent's `subtasks` list.
 
-7. Confirm the file(s) were created and show the path(s).
+6. Confirm the file(s) were created and show the path(s).

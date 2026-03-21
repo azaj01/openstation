@@ -228,7 +228,10 @@ examples:
 examples:
   openstation create "add login page"
   openstation create "fix auth bug" --assignee developer --status ready
-  openstation create "child task" --parent 0042""")
+  openstation create "child task" --parent 0042
+  openstation create "desc" --body "## Requirements\\n..."
+  openstation create "desc" --body-file body.md
+  echo "## Requirements..." | openstation create "desc" --body -""")
     create_p.add_argument("description", help="Task description (free text)")
     create_p.add_argument("--assignee", default="", help="Agent name to assign")
     create_p.add_argument("--owner", default="user", help="Who verifies (default: user)")
@@ -238,6 +241,11 @@ examples:
                           help="Task type: feature|research|spec|implementation|documentation (default: feature)")
     create_p.add_argument("--parent", default="",
                           help="Parent task name (wikilink added automatically)")
+    body_group = create_p.add_mutually_exclusive_group()
+    body_group.add_argument("--body", default=None,
+                            help="Markdown body content (replaces skeleton). Use '-' to read from stdin.")
+    body_group.add_argument("--body-file", default=None, metavar="PATH",
+                            help="Read markdown body from a file path")
 
     # status
     status_p = sub.add_parser("status", help="Change a task's status", formatter_class=fmt, epilog="""\

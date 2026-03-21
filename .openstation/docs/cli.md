@@ -127,6 +127,7 @@ Create a new task file in `artifacts/tasks/`.
 ```
 openstation create DESCRIPTION [--assignee NAME] [--owner NAME]
                    [--status STATUS] [--type TYPE] [--parent TASK]
+                   [--body BODY | --body-file PATH]
 ```
 
 ### Arguments
@@ -144,6 +145,8 @@ openstation create DESCRIPTION [--assignee NAME] [--owner NAME]
 | `--status STATUS` | see below | Initial status: `backlog` or `ready` only |
 | `--type TYPE`     | `feature` | Task type: `feature`, `research`, `spec`, `implementation`, `documentation` |
 | `--parent TASK`   | —         | Parent task ID/slug. Wikilink added to child's `parent` field and parent's `subtasks` list automatically. |
+| `--body BODY`     | —         | Markdown body content (replaces skeleton). Use `--body -` to read from stdin. |
+| `--body-file PATH`| —         | Read markdown body from a file. Mutually exclusive with `--body`. |
 
 **Status default logic:** If `--parent` is set and no `--status` given, inherits the parent's status when the parent is `backlog` or `ready`; otherwise defaults to `backlog`. Without `--parent`, defaults to `backlog`.
 
@@ -155,6 +158,9 @@ openstation create DESCRIPTION [--assignee NAME] [--owner NAME]
 openstation create "add login page"
 openstation create "fix auth bug" --assignee developer --status ready
 openstation create "child task" --parent 0042
+openstation create "desc" --body "## Requirements\n\nDo X.\n\n## Verification\n\n- [ ] X done"
+openstation create "desc" --body-file spec-body.md
+echo "## Requirements..." | openstation create "desc" --body -
 ```
 
 Prints the created task name (e.g. `0113-add-login-page`) to stdout.
@@ -189,6 +195,8 @@ openstation status TASK [NEW_STATUS]
 ```
 backlog → ready → in-progress → review → done
                    ready → backlog
+                   in-progress → ready      (suspend)
+                   in-progress → backlog    (suspend)
                                   review → failed → in-progress
 ```
 

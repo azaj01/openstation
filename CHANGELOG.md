@@ -1,5 +1,56 @@
 # Changelog
 
+## v0.12.0
+
+Suspend and rework flows, the `rejected` status rename, and
+worktree-aware agent dispatch. Tasks can now be suspended back
+to ready/backlog, verification failures send tasks back to
+in-progress for rework, and `failed` is replaced by `rejected`
+across the lifecycle.
+
+### Breaking
+
+- **`failed` → `rejected`** — The `failed` status is renamed to
+  `rejected` everywhere (lifecycle, CLI, commands, docs). Existing
+  tasks with `status: failed` must be updated to `status: rejected`.
+
+### CLI
+
+- **`suspend` subcommand** — `openstation suspend <task>` moves a
+  task from `in-progress` back to `ready` (default) or `backlog`.
+  Includes `/openstation.suspend` command and skill documentation.
+- **`create --body` flag** — `openstation create "<desc>" --body
+  "<content>"` sets the task body content inline, skipping the
+  default template scaffold.
+- **`review → in-progress` transition** — Failed verification now
+  sends tasks back to `in-progress` for rework instead of leaving
+  them stuck in `review`. The `/openstation.verify` command updated
+  to use this transition automatically.
+
+### Lifecycle
+
+- **Rework loop** — `review → in-progress` is now a valid
+  transition, enabling iterative verification without manual
+  `--force` overrides.
+- **Suspend transitions** — `in-progress → ready` and
+  `in-progress → backlog` documented and supported via the
+  `suspend` subcommand.
+
+### Worktree
+
+- **Worktree integration** — Agent dispatch supports worktree
+  execution with proper vault resolution across primary and linked
+  worktrees.
+
+### Internal
+
+- **Dynamic init discovery** — `openstation init` now discovers
+  docs, skills, and templates dynamically instead of maintaining
+  a hardcoded file list.
+- **Verification report persistence** — Verification results are
+  persisted as a `## Verification Report` section in the task file
+  after `/openstation.verify` runs.
+
 ## v0.11.0
 
 Unified vault convention — all vault files now live under

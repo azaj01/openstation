@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.13.0
+
+Autonomous task chaining and worktree artifact resolution.
+Promotes a task to `ready` and hooks drive it through the
+entire lifecycle without human intervention. Linked worktree
+agents can now reliably find vault artifacts via the
+`OPENSTATION_HOME` environment variable.
+
+### Features
+
+- **Autonomous task chaining hooks** — Four post-transition hooks
+  (`auto-start`, `auto-verify`, `auto-accept`, chain-next) enable
+  fully autonomous execution. Promote a task to `ready` and it
+  runs through `in-progress → review → verified → done`
+  automatically. Includes `bin/os-dispatch` orchestrator and
+  `autonomous.enabled` setting toggle.
+- **`OPENSTATION_HOME` env var** — `openstation run` now sets
+  `OPENSTATION_HOME` (absolute path to `.openstation/`) before
+  launching agent sessions. Agents use it to resolve vault
+  artifacts in all modes — fixes linked worktree agents failing
+  to find tasks via relative Search/Glob patterns.
+
+### Skill
+
+- **Execute skill updated** — New `## Environment` section
+  documents `OPENSTATION_HOME`. Worktree awareness section
+  rewritten to use the env var instead of mode-specific caveats.
+  Fallback discovery path uses `$OPENSTATION_HOME/artifacts/tasks/`
+  instead of broken relative pattern.
+
+### Internal
+
+- **Run prompt improved** — All launch paths (detached, attached,
+  verify, by-agent) include the `OPENSTATION_HOME` value in the
+  prompt, replacing the linked-mode-only hint.
+
 ## v0.12.0
 
 Suspend and rework flows, the `rejected` status rename, and

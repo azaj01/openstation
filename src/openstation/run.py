@@ -266,17 +266,16 @@ def run_single_task(root, task_spec, task_name, budget, turns, dry_run,
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE, None
 
+    os_home = str(root / ".openstation")
     task_path = task_spec if worktree else f".openstation/artifacts/tasks/{task_name}.md"
     prompt = (
         f"Execute task {task_name}. Read its spec at "
         f"{task_path} and work through "
         f"the requirements."
+        f" Vault artifacts are at $OPENSTATION_HOME ({os_home})."
+        f" Use CLI commands or absolute paths from this variable"
+        f" — do not use Search/Glob with relative patterns."
     )
-    if worktree and exec_cwd is not None and exec_cwd.resolve() != root.resolve():
-        prompt += (
-            f" Artifacts are in the main repo at `{root}`;"
-            f" use CLI commands to access them."
-        )
     cmd = build_command(agent, budget, turns, prompt, tools, output_format="stream-json",
                         dangerously_skip_permissions=dangerously_skip_permissions,
                         worktree=worktree)
@@ -292,6 +291,7 @@ def run_single_task(root, task_spec, task_name, budget, turns, dry_run,
             print(core.shlex_join(cmd))
         return core.EXIT_OK, None
 
+    os.environ["OPENSTATION_HOME"] = os_home
     core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
 
     log_dir = core.vault_path(root, "artifacts", "logs")
@@ -339,17 +339,18 @@ def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE
 
+    os_home = str(root / ".openstation")
     task_path = str(spec) if worktree else f"artifacts/tasks/{task_name}.md"
     prompt = (
         f"Execute task {task_name}. Read its spec at "
         f"{task_path} and work through "
         f"the requirements."
+        f" Vault artifacts are at $OPENSTATION_HOME ({os_home})."
+        f" Use CLI commands or absolute paths from this variable"
+        f" — do not use Search/Glob with relative patterns."
     )
-    if worktree and exec_cwd is not None and Path(exec_cwd).resolve() != root.resolve():
-        prompt += (
-            f" Artifacts are in the main repo at `{root}`;"
-            f" use CLI commands to access them."
-        )
+
+    os.environ["OPENSTATION_HOME"] = os_home
 
     if attached:
         cmd = build_command(agent, budget, turns, prompt, tools, attached=True,
@@ -584,6 +585,8 @@ def cmd_run(args, root):
         if worktree is True:
             worktree = task_name
 
+        os.environ["OPENSTATION_HOME"] = str(root / ".openstation")
+
         prompt = f"/openstation.verify {task_name}"
         cmd = build_command(verify_agent, budget, turns, prompt, tools,
                             attached=attached,
@@ -748,6 +751,8 @@ def cmd_run(args, root):
             core.err(f"No allowed-tools found in agent spec: {agent_spec}")
             core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
             return core.EXIT_USAGE
+
+        os.environ["OPENSTATION_HOME"] = str(root / ".openstation")
 
         if attached:
             cmd = build_command(agent_name, budget, turns, None, tools, attached=True,

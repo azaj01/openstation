@@ -68,22 +68,37 @@ execution when appropriate:
 
 ## Worktree Awareness
 
-When running in a **linked worktree** (no local `.openstation/`
-or `agents/` markers), the vault lives in the main repo, not
-your working directory.
+Use `$OPENSTATION_HOME` to build absolute paths for any filesystem
+access to vault artifacts. This works in all modes (linked worktree,
+independent worktree, and non-worktree).
 
-- `artifacts/`, `docs/`, and `commands/` are in the main repo
-- **Always use CLI commands** (`openstation show/list/create/status`)
-  — they resolve the correct root automatically
-- **Do NOT use filesystem checks** (`ls`, `find`, `git status`)
-  to verify task operations — use `openstation show <task>` instead
+- **Prefer CLI commands** (`openstation show/list/create/status`)
+  for discovery and status transitions — they resolve the correct
+  root automatically
+- For direct file reads, use `$OPENSTATION_HOME/artifacts/tasks/`,
+  `$OPENSTATION_HOME/docs/`, etc. — never relative paths
 - The `info:` line from `create`/`status` shows the absolute path
   of the modified file, confirming which vault was used
-- The run prompt includes an artifact location hint when you are
-  in linked mode
 
 See `docs/worktrees.md` for full details on primary vs linked
 modes and how `find_root()` resolves the vault.
+
+## Environment
+
+`OPENSTATION_HOME` — absolute path to the `.openstation/` vault
+directory. Set automatically by `openstation run` before launching
+the agent session. Use it to build absolute paths to vault
+artifacts:
+
+- `$OPENSTATION_HOME/artifacts/tasks/` — task files
+- `$OPENSTATION_HOME/artifacts/agents/` — agent specs
+- `$OPENSTATION_HOME/docs/` — project documentation
+- `$OPENSTATION_HOME/commands/` — slash commands
+
+This variable works in all modes (linked worktree, independent
+worktree, and non-worktree). Prefer CLI commands for discovery
+and status transitions; use `$OPENSTATION_HOME` paths when you
+need direct filesystem access.
 
 ## On Startup
 
@@ -95,8 +110,8 @@ modes and how `find_root()` resolves the vault.
    body structure, editing guardrails).
 4. Run `openstation list --status ready --assignee <your-name>` to find
    assigned ready tasks. If the CLI is unavailable, fall back to
-   scanning `artifacts/tasks/*.md` for files where `assignee` matches
-   your name AND `status` is `ready`.
+   scanning `$OPENSTATION_HOME/artifacts/tasks/*.md` for files where
+   `assignee` matches your name AND `status` is `ready`.
 5. If multiple ready tasks exist, pick the one with the earliest
    `created` date.
 6. If no ready tasks exist, report: "No ready tasks assigned to

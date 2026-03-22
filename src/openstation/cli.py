@@ -331,6 +331,8 @@ examples:
                         help="Show what would be done without writing")
     init_p.add_argument("--force", action="store_true",
                         help="Overwrite user-owned files too")
+    init_p.add_argument("-w", "--worktree", action="store_true",
+                        help="Fix .claude/ symlinks in a linked worktree")
 
     # self-update
     selfupdate_p = sub.add_parser("self-update", help="Update Open Station to latest version",
@@ -349,6 +351,8 @@ examples:
 
     # init and self-update operate on CWD / install cache, don't need find_root()
     if args.command == "init":
+        if getattr(args, "worktree", False):
+            return init.cmd_init_worktree(args) or 0
         return init.cmd_init(args) or 0
     if args.command == "self-update":
         return update.cmd_self_update(args) or 0

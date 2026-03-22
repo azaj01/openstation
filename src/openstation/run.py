@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from openstation import core
+from openstation import init as os_init
 from openstation import tasks
 
 DEFAULT_BUDGET = 5
@@ -663,6 +664,12 @@ def cmd_run(args, root):
         if worktree is True:
             worktree = task_name
 
+        # Check for dangling .claude/ symlinks (worktree hint)
+        if worktree:
+            broken = os_init.check_dangling_claude_symlinks()
+            if broken:
+                core.hint("hint: run 'openstation init --worktree' to fix .claude/ symlinks")
+
         core.header(f"openstation run --task {task_name}")
         core.info(f"Task collection: {task_name}")
 
@@ -739,6 +746,12 @@ def cmd_run(args, root):
         # Derive worktree name when --worktree given without a value
         if worktree is True:
             worktree = agent_name
+
+        # Check for dangling .claude/ symlinks (worktree hint)
+        if worktree:
+            broken = os_init.check_dangling_claude_symlinks()
+            if broken:
+                core.hint("hint: run 'openstation init --worktree' to fix .claude/ symlinks")
 
         agent_spec = find_agent_spec(root, agent_name)
         if agent_spec is None:

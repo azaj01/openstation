@@ -101,6 +101,33 @@ the difference is transparent. The `info:` line from `create`
 and `status` shows the absolute path of the modified file,
 confirming which vault was used.
 
+## Setup: Fixing `.claude/` Symlinks
+
+`.claude/` is checked into git with relative symlinks
+(`agents -> ../.openstation/agents`, etc.). In a linked worktree,
+`.openstation/` doesn't exist locally (it's gitignored), so these
+symlinks are dangling. Claude Code cannot discover agents, commands,
+or skills.
+
+After creating a linked worktree, run:
+
+```bash
+openstation init --worktree
+```
+
+This rewrites `.claude/{agents,commands,skills}` as absolute
+symlinks pointing to the main repo's `.openstation/` directory.
+
+The command:
+
+- Only runs in a linked worktree — refuses in the main repo or
+  non-git directories
+- Skips symlinks that already resolve correctly
+- Does not touch non-symlink entries (e.g. `settings.json`)
+
+`openstation run --worktree` prints a hint if dangling symlinks
+are detected, reminding you to run the command.
+
 ## Agent Guidelines
 
 - **Always use CLI commands** for task operations — they resolve

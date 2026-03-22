@@ -345,6 +345,122 @@ def _create_user_symlinks(source_dir, dry_run, force):
     return core.EXIT_OK
 
 
+CLAUDE_SYMLINK_NAMES = ["agents", "commands", "skills"]
+
+
+def _is_linked_worktree():
+    """Return (is_linked, main_root) or (False, None).
+
+    A linked worktree is one where CWD is a git worktree but
+    .openstation/ does NOT exist locally — the vault lives in the
+    main repo.
+    """
+    cwd = Path.cwd()
+    # Must be inside a git repo
+    toplevel = core._git_toplevel(cwd)
+    if toplevel is None:
+        return False, None
+    # If .openstation/ exists locally, this is not a linked worktree
+    if (toplevel / ".openstation").is_dir():
+        return False, None
+    # Check main worktree root
+    main_root = core._git_main_worktree_root(cwd)
+    if main_root is None:
+        return False, None
+    main_root = main_root.resolve()
+    if main_root == toplevel:
+        # Same root — not a worktree, just a repo without .openstation/
+        return False, None
+    if (main_root / ".openstation").is_dir():
+        return True, main_root
+    return False, None
+
+
+def _fix_claude_symlinks(main_root, dry_run=False):
+    """Rewrite .claude/ symlinks to absolute paths pointing at main repo.
+
+    Returns the number of symlinks fixed.
+    """
+    claude_dir = Path(".claude")
+    if not claude_dir.is_dir():
+        claude_dir.mkdir(parents=True, exist_ok=True)
+
+    fixed = 0
+    for name in CLAUDE_SYMLINK_NAMES:
+        link = claude_dir / name
+        expected_target = main_root / ".openstation" / name
+
+        # Skip non-symlink entries (e.g. real directories or files)
+        if link.exists() and not link.is_symlink():
+            _init_skip(f".claude/{name} is not a symlink — skipping")
+            continue
+
+        # If it's a symlink, check if it already points to the right place
+        if link.is_symlink():
+            try:
+                current_target = link.resolve()
+                if current_target == expected_target.resolve():
+                    _init_skip(f".claude/{name} → already correct")
+                    continue
+            except OSError:
+                pass  # dangling symlink — proceed to fix
+
+        # Fix: remove old symlink and create absolute one
+        if link.is_symlink():
+            if not dry_run:
+                link.unlink()
+        if not dry_run:
+            link.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(str(expected_target), str(link))
+        _init_info(f".claude/{name} → {expected_target}", dry_run)
+        fixed += 1
+
+    return fixed
+
+
+def check_dangling_claude_symlinks():
+    """Check if .claude/ has dangling symlinks. Returns list of broken names."""
+    claude_dir = Path(".claude")
+    if not claude_dir.is_dir():
+        return []
+    broken = []
+    for name in CLAUDE_SYMLINK_NAMES:
+        link = claude_dir / name
+        if link.is_symlink() and not link.exists():
+            broken.append(name)
+    return broken
+
+
+def cmd_init_worktree(args):
+    """Handle 'init --worktree': fix .claude/ symlinks in a linked worktree."""
+    dry_run = getattr(args, "dry_run", False)
+
+    is_linked, main_root = _is_linked_worktree()
+    if not is_linked:
+        _init_err(
+            "Not in a linked worktree.\n"
+            "  This command rewrites .claude/ symlinks for linked worktrees\n"
+            "  where .openstation/ lives in the main repo.\n"
+            "  hint: use 'openstation init' for the main repo."
+        )
+        return core.EXIT_USAGE
+
+    print()
+    print("\033[1mOpen Station — worktree symlink fix\033[0m")
+    print()
+
+    fixed = _fix_claude_symlinks(main_root, dry_run)
+
+    print()
+    if fixed > 0:
+        print(f"\033[1;32mFixed {fixed} symlink(s).\033[0m")
+    else:
+        print("\033[1;32mAll symlinks already correct.\033[0m")
+    print()
+
+    return core.EXIT_OK
+
+
 def cmd_init(args):
     """Handle the init subcommand."""
     no_agents = args.no_agents

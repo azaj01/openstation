@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Auto-verify — dispatch verification when a task enters review.
+set -euo pipefail
+
+# ── Guards ──────────────────────────────────────────────────
+for var in OS_TASK_NAME OS_TASK_FILE OS_VAULT_ROOT; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "auto-verify: missing required env var $var" >&2
+    exit 1
+  fi
+done
+
+# ── Opt-in check ────────────────────────────────────────────
+ENABLED=$(python3 -c "
+import json, sys
+try:
+    data = json.load(open('${OS_VAULT_ROOT}/.openstation/settings.json'))
+except Exception: data = {}
+print(data.get('autonomous', {}).get('enabled', False))
+" 2>/dev/null || echo "False")
+
+if [[ "$ENABLED" != "True" ]]; then
+  exit 0
+fi
+
+# ── Depth guard ─────────────────────────────────────────────
+DEPTH="${OS_HOOK_DEPTH:-0}"
+MAX_DEPTH="${OS_MAX_HOOK_DEPTH:-5}"
+if (( DEPTH >= MAX_DEPTH )); then
+  echo "auto-verify: hook depth $DEPTH >= max $MAX_DEPTH, stopping" >&2
+  exit 0
+fi
+export OS_HOOK_DEPTH=$((DEPTH + 1))
+
+# ── Dispatch ────────────────────────────────────────────────
+"${OS_VAULT_ROOT}/bin/os-dispatch" "os-verify-${OS_TASK_NAME}" \
+  openstation run --task "$OS_TASK_NAME" --verify --attached

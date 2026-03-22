@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# os-dispatch — spawn a command in a named tmux window or nohup fallback.
+# Usage: os-dispatch <window-name> <command...>
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "usage: os-dispatch <window-name> <command...>" >&2
+  exit 1
+fi
+
+WINDOW_NAME="$1"; shift
+
+if tmux info >/dev/null 2>&1; then
+  tmux new-window -n "$WINDOW_NAME" \
+    -e "CLAUDECODE=" \
+    -e "OS_HOOK_DEPTH=${OS_HOOK_DEPTH:-0}" \
+    "$@"
+else
+  LOG_DIR="${OS_VAULT_ROOT:-.}/.openstation/logs"
+  mkdir -p "$LOG_DIR"
+  (env -u CLAUDECODE nohup "$@" \
+    > "$LOG_DIR/dispatch-${WINDOW_NAME}.log" 2>&1 &)
+  echo "os-dispatch: tmux unavailable, launched via nohup (log: $LOG_DIR/dispatch-${WINDOW_NAME}.log)"
+fi

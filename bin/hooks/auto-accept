@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Auto-accept — transition verified tasks to done.
+set -euo pipefail
+
+# ── Guards ──────────────────────────────────────────────────
+for var in OS_TASK_NAME OS_VAULT_ROOT; do
+  if [[ -z "${!var:-}" ]]; then
+    echo "auto-accept: missing required env var $var" >&2
+    exit 1
+  fi
+done
+
+# ── Opt-in check ────────────────────────────────────────────
+ENABLED=$(python3 -c "
+import json, sys
+try:
+    data = json.load(open('${OS_VAULT_ROOT}/.openstation/settings.json'))
+except Exception: data = {}
+print(data.get('autonomous', {}).get('enabled', False))
+" 2>/dev/null || echo "False")
+
+if [[ "$ENABLED" != "True" ]]; then
+  exit 0
+fi
+
+# ── Depth guard ─────────────────────────────────────────────
+DEPTH="${OS_HOOK_DEPTH:-0}"
+MAX_DEPTH="${OS_MAX_HOOK_DEPTH:-5}"
+if (( DEPTH >= MAX_DEPTH )); then
+  echo "auto-accept: hook depth $DEPTH >= max $MAX_DEPTH, stopping" >&2
+  exit 0
+fi
+export OS_HOOK_DEPTH=$((DEPTH + 1))
+
+# ── Direct CLI call (no Claude needed) ──────────────────────
+openstation status "$OS_TASK_NAME" done

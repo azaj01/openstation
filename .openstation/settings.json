@@ -2,6 +2,24 @@
   "hooks": {
     "StatusTransition": [
       {
+        "matcher": "*→ready",
+        "command": "bin/hooks/auto-start",
+        "phase": "post",
+        "timeout": 10
+      },
+      {
+        "matcher": "*→review",
+        "command": "bin/hooks/auto-verify",
+        "phase": "post",
+        "timeout": 10
+      },
+      {
+        "matcher": "*→verified",
+        "command": "bin/hooks/auto-accept",
+        "phase": "post",
+        "timeout": 30
+      },
+      {
         "matcher": "*→done",
         "command": "bin/hooks/auto-commit",
         "phase": "post",
@@ -20,6 +38,9 @@
         "timeout": 120
       }
     ]
+  },
+  "autonomous": {
+    "enabled": true
   },
   "defaults": {
     "show": { "editor": true }

@@ -791,18 +791,22 @@ class TestRunDryRun(unittest.TestCase):
         self.root = make_source_vault(self.tmpdir)
         make_agent_spec(self.root, "researcher")
 
-    def test_by_agent_detached_dry_run(self):
+    def test_by_agent_dry_run(self):
+        """By-agent mode defaults to attached (interactive)."""
         out, _, rc = run_cli(["run", "researcher", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("claude", out)
         self.assertIn("--agent researcher", out)
         self.assertIn("--allowedTools", out)
         self.assertIn("Read", out)
-        self.assertIn("--max-budget-usd 5", out)
-        self.assertIn("--max-turns 50", out)
-        self.assertIn("--output-format text", out)
+        # By-agent is always attached — no budget/turns/output-format/-p
+        self.assertNotIn("--max-budget-usd", out)
+        self.assertNotIn("--max-turns", out)
+        self.assertNotIn("--output-format", out)
+        self.assertNotIn(" -p ", out)
 
-    def test_by_agent_attached_dry_run(self):
+    def test_by_agent_attached_flag_is_noop(self):
+        """--attached on by-agent is redundant but accepted."""
         out, _, rc = run_cli(["run", "researcher", "--attached", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("claude", out)
@@ -814,14 +818,15 @@ class TestRunDryRun(unittest.TestCase):
         self.assertNotIn("--output-format", out)
         self.assertNotIn(" -p ", out)
 
-    def test_by_agent_custom_budget_turns(self):
-        out, _, rc = run_cli(
+    def test_by_agent_custom_budget_turns_warns(self):
+        """--budget and --turns warn in by-agent mode (always attached)."""
+        _, stderr, rc = run_cli(
             ["run", "researcher", "--budget", "10", "--turns", "100", "--dry-run"],
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 0)
-        self.assertIn("--max-budget-usd 10", out)
-        self.assertIn("--max-turns 100", out)
+        self.assertIn("--budget is ignored in attached mode", stderr)
+        self.assertIn("--turns is ignored in attached mode", stderr)
 
     def test_by_task_dry_run(self):
         make_task(self.root, "0001-alpha", status="ready", assignee="researcher")
@@ -842,6 +847,24 @@ class TestRunDryRun(unittest.TestCase):
         out, _, rc = run_cli(["run", "developer", "--dry-run"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
         self.assertIn("Bash(ls *)", out)
+
+    def test_by_agent_quiet_errors(self):
+        """--quiet in by-agent mode errors (always attached)."""
+        _, stderr, rc = run_cli(
+            ["run", "researcher", "--quiet", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 1)
+        self.assertIn("Quiet mode not supported in attached mode", stderr)
+
+    def test_by_agent_max_tasks_warns(self):
+        """--max-tasks in by-agent mode warns (always attached)."""
+        _, stderr, rc = run_cli(
+            ["run", "researcher", "--max-tasks", "5", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("--max-tasks is ignored in attached mode", stderr)
 
 
 class TestRunArgValidation(unittest.TestCase):
@@ -2578,18 +2601,14 @@ class TestRunDryRunJson(unittest.TestCase):
         self.assertEqual(data["task"], "0001-alpha")
         self.assertEqual(data["agent"], "researcher")
 
-    def test_by_agent_dry_run_json(self):
-        """--dry-run --json in by-agent mode emits structured JSON."""
-        import json
-        out, _, rc = run_cli(
+    def test_by_agent_dry_run_json_errors(self):
+        """--json in by-agent mode errors (by-agent is always attached)."""
+        _, stderr, rc = run_cli(
             ["run", "researcher", "--dry-run", "--json"],
             cwd=self.tmpdir,
         )
-        self.assertEqual(rc, 0)
-        data = json.loads(out)
-        self.assertIn("command", data)
-        self.assertIn("agent", data)
-        self.assertEqual(data["agent"], "researcher")
+        self.assertEqual(rc, 1)
+        self.assertIn("JSON output not supported in attached mode", stderr)
 
 
 # ── Help Text Tests ──────────────────────────────────────────────────

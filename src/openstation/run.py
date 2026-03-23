@@ -628,8 +628,14 @@ def cmd_run(args, root):
         core.tips_block(session_id=session_id, task_name=task_name)
         return rc
 
+    # By-agent mode is always attached (interactive) — --attached is
+    # accepted but redundant.  Detached-only flags are invalid in any
+    # attached context (explicit --attached **or** by-agent mode).
+    is_by_agent = bool(agent_name and not task_ref)
+    effectively_attached = attached or is_by_agent
+
     # --- Attached mode incompatibility checks ---
-    if attached:
+    if effectively_attached:
         if json_output:
             core.err("JSON output not supported in attached mode")
             return core.EXIT_USAGE
@@ -736,7 +742,7 @@ def cmd_run(args, root):
                                 dangerously_skip_permissions=skip_perms,
                                 worktree=worktree, exec_cwd=exec_cwd)
     else:
-        # --- BY-AGENT MODE ---
+        # --- BY-AGENT MODE (always attached/interactive) ---
         # Resolve alias to canonical agent name
         agent_name, alias_err = resolve_agent_alias(root, agent_name)
         if alias_err:
@@ -767,46 +773,15 @@ def cmd_run(args, root):
 
         os.environ["OPENSTATION_HOME"] = str(root / ".openstation")
 
-        if attached:
-            cmd = build_command(agent_name, budget, turns, None, tools, attached=True,
-                                dangerously_skip_permissions=skip_perms,
-                                worktree=worktree)
-            if dry_run:
-                if json_output:
-                    print(json.dumps({
-                        "command": cmd,
-                        "agent": agent_name,
-                    }, indent=2))
-                else:
-                    print(core.shlex_join(cmd))
-                return core.EXIT_OK
-            core.header(f"openstation run {agent_name} --attached")
-            core.detail("Agent", agent_name)
-            core.detail("Mode", "attached")
-            os.chdir(str(exec_cwd))
-            os.execvp(cmd[0], cmd)
-            return core.EXIT_OK  # unreachable
-
-        prompt = "Execute your ready tasks."
-        cmd = build_command(agent_name, budget, turns, prompt, tools, output_format="text",
+        cmd = build_command(agent_name, budget, turns, None, tools, attached=True,
                             dangerously_skip_permissions=skip_perms,
                             worktree=worktree)
-
         if dry_run:
-            if json_output:
-                print(json.dumps({
-                    "command": cmd,
-                    "agent": agent_name,
-                }, indent=2))
-            else:
-                print(core.shlex_join(cmd))
+            print(core.shlex_join(cmd))
             return core.EXIT_OK
-
         core.header(f"openstation run {agent_name}")
         core.detail("Agent", agent_name)
-        print(file=sys.stderr)
-        core.hint(f"Launching {core.shlex_join(cmd[:4])}...")
-
+        core.detail("Mode", "attached")
         os.chdir(str(exec_cwd))
         os.execvp(cmd[0], cmd)
         return core.EXIT_OK  # unreachable

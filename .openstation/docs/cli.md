@@ -241,13 +241,13 @@ A positional argument starting with a digit is treated as a task ID (equivalent 
 
 ### Modes
 
-**Detached (default):** The agent runs autonomously via `-p` (non-interactive) with stream-json capture. Supports budget, turns, and log capture.
+**By-agent (always attached/interactive):** Launches the named agent in an interactive Claude session. Uses `os.execvp` to replace the process. The `--attached` flag is accepted but redundant. Detached-only flags (`--budget`, `--turns`, `--max-tasks`, `--quiet`, `--json`) are rejected or warned.
 
-**Attached (`--attached`):** Launches an interactive Claude session with task context pre-loaded. Uses `os.execvp` to replace the process. No log capture — Claude's built-in session persistence (`--resume`) provides replay.
+**By-task:** Resolves the task, finds ready subtasks (if any), and executes them sequentially with `stream-json` output. If no subtasks exist, executes the task directly. The agent is read from the task's `assignee` field. Supports both detached (default) and attached (`--attached`) modes.
 
-**By-agent:** Launches the named agent with the prompt "Execute your ready tasks." Uses `text` output format in detached mode.
+**Attached (`--attached`):** Launches an interactive Claude session with task context pre-loaded. Uses `os.execvp` to replace the process. No log capture — Claude's built-in session persistence (`--resume`) provides replay. In by-task mode, this must be explicitly requested. In by-agent mode, this is always the behavior.
 
-**By-task:** Resolves the task, finds ready subtasks (if any), and executes them sequentially with `stream-json` output. If no subtasks exist, executes the task directly. The agent is read from the task's `assignee` field.
+**Detached (by-task only):** The agent runs autonomously via `-p` (non-interactive) with stream-json capture. Supports budget, turns, and log capture. Only available in by-task mode.
 
 **Verify (`--verify`):** Launches task verification. Requires `--task` and task must be in `review` status. Pre-loads `/openstation.verify <task-id>` as the prompt. Works with `--attached` and `--worktree`.
 
@@ -278,6 +278,11 @@ Agent resolution order (highest to lowest priority):
 
 | Combination | Behavior |
 |-------------|----------|
+| by-agent + `--json` | Error: "JSON output not supported in attached mode" |
+| by-agent + `--quiet` | Error: "Quiet mode not supported in attached mode" |
+| by-agent + `--budget` | Warning to stderr, flag ignored |
+| by-agent + `--turns` | Warning to stderr, flag ignored |
+| by-agent + `--max-tasks` | Warning to stderr, flag ignored |
 | `--attached` + `--json` | Error: "JSON output not supported in attached mode" |
 | `--attached` + `--quiet` | Error: "Quiet mode not supported in attached mode" |
 | `--attached` + `--budget` | Warning to stderr, flag ignored |
@@ -291,9 +296,10 @@ Agent resolution order (highest to lowest priority):
 ### Examples
 
 ```bash
-openstation run researcher --attached       # interactive agent session
+openstation run researcher                  # interactive agent session (always attached)
+openstation run researcher --attached       # same (--attached is redundant for by-agent)
 openstation run --task 0042 --attached      # interactive task session
-openstation run --task 0042                 # autonomous (detached)
+openstation run --task 0042                 # autonomous (detached) task execution
 openstation run --task 0042 --worktree --attached  # in a worktree (auto-named)
 openstation run --task 0042 --worktree my-feature --attached  # explicit worktree name
 openstation run --task 0042 --attached --dry-run  # preview attached command

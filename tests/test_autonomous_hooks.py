@@ -79,8 +79,36 @@ class TestOsDispatch(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("usage:", result.stderr)
 
-    def test_nohup_fallback_when_no_tmux(self):
-        """When tmux is unavailable, os-dispatch falls back to nohup."""
+    def test_nohup_fallback_when_no_tmux_binary(self):
+        """When tmux binary is absent, os-dispatch falls back to nohup."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            _make_settings(tmpdir)
+            # Build a PATH that excludes tmux by only including dirs
+            # with basic utilities but not tmux
+            stub_bin = Path(tmpdir) / "stub-bin"
+            stub_bin.mkdir()
+            # Symlink essential commands needed by the script
+            for cmd in ("env", "nohup", "mkdir", "bash"):
+                src = subprocess.run(
+                    ["which", cmd], capture_output=True, text=True
+                ).stdout.strip()
+                if src:
+                    (stub_bin / cmd).symlink_to(src)
+            env = {
+                "PATH": str(stub_bin),
+                "HOME": os.environ.get("HOME", ""),
+                "OS_VAULT_ROOT": str(tmpdir),
+            }
+            result = subprocess.run(
+                ["bash", str(self.script), "test-win", "true"],
+                capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("tmux not found", result.stdout)
+
+    def test_nohup_message_only_when_no_tmux_binary(self):
+        """nohup fallback message should not appear when tmux exists but server is down."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = Path(tmpdir)
             _make_settings(tmpdir)
@@ -88,19 +116,40 @@ class TestOsDispatch(unittest.TestCase):
                 "PATH": os.environ.get("PATH", ""),
                 "HOME": os.environ.get("HOME", ""),
                 "OS_VAULT_ROOT": str(tmpdir),
-                # Ensure no TMUX session
-                "TMUX": "",
             }
-            # Remove TMUX to ensure no tmux session
-            env.pop("TMUX", None)
-            # Use a command that exits quickly
             result = subprocess.run(
                 ["bash", str(self.script), "test-win", "true"],
                 capture_output=True, text=True, env=env,
             )
-            # Should succeed (via nohup fallback or tmux)
-            # We just check it doesn't exit 1 (args error)
-            self.assertNotEqual(result.returncode, 1)
+            # tmux is on PATH, so nohup message must not appear
+            self.assertNotIn("tmux not found", result.stdout)
+            self.assertNotIn("nohup", result.stdout)
+
+    def test_no_attach_flag_accepted(self):
+        """os-dispatch accepts --no-attach without error."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            _make_settings(tmpdir)
+            env = {
+                "PATH": os.environ.get("PATH", ""),
+                "HOME": os.environ.get("HOME", ""),
+                "OS_VAULT_ROOT": str(tmpdir),
+            }
+            result = subprocess.run(
+                ["bash", str(self.script), "--no-attach", "test-win", "true"],
+                capture_output=True, text=True, env=env,
+            )
+            # Should not fail on args parsing
+            self.assertNotIn("usage:", result.stderr)
+
+    def test_no_attach_flag_before_window_name(self):
+        """--no-attach must come before window name; args after it parse correctly."""
+        result = subprocess.run(
+            ["bash", str(self.script), "--no-attach"],
+            capture_output=True, text=True, env=os.environ.copy(),
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("usage:", result.stderr)
 
 
 # ── auto-start ───────────────────────────────────────────────
@@ -181,6 +230,27 @@ class TestAutoStart(unittest.TestCase):
             # but it should NOT contain our guard messages
             self.assertNotIn("hook depth", stderr)
             self.assertNotIn("no assignee", stderr)
+
+    def test_passes_no_attach_to_os_dispatch(self):
+        """auto-start must pass --no-attach to os-dispatch so tier 2 doesn't block the hook."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            _make_settings(tmpdir, autonomous_enabled=True)
+            task_file = _make_task_file(tmpdir, assignee="developer")
+            # Create a stub os-dispatch that logs its args
+            bin_dir = tmpdir / "bin"
+            bin_dir.mkdir()
+            stub = bin_dir / "os-dispatch"
+            stub.write_text(
+                '#!/usr/bin/env bash\necho "ARGS: $*"\nexit 0\n'
+            )
+            stub.chmod(0o755)
+            env = _base_env(tmpdir, task_file)
+            env["OS_HOOK_DEPTH"] = "0"
+            env["OS_MAX_HOOK_DEPTH"] = "5"
+            stdout, _, rc = _run_script(self.script, env=env)
+            self.assertEqual(rc, 0)
+            self.assertIn("--no-attach", stdout)
 
 
 # ── auto-verify ──────────────────────────────────────────────

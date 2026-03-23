@@ -50,5 +50,5 @@ if [[ -z "$ASSIGNEE" ]]; then
 fi
 
 # ── Dispatch ────────────────────────────────────────────────
-"${OS_VAULT_ROOT}/bin/os-dispatch" "os-${OS_TASK_NAME}" \
+"${OS_VAULT_ROOT}/bin/os-dispatch" --no-attach "os-${OS_TASK_NAME}" \
   openstation run --task "$OS_TASK_NAME" --attached

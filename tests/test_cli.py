@@ -279,34 +279,33 @@ class TestListGroupedOutput(unittest.TestCase):
         self.assertIn("0001-parent", out)
         self.assertIn("0002-child", out)  # pulled in despite status=done
 
-    def test_orphan_subtask_shown_as_top_level(self):
-        """Subtask whose parent is filtered out appears as top-level row."""
+    def test_child_match_pulls_in_parent_for_context(self):
+        """Subtask whose parent doesn't match filter pulls in parent for tree context."""
         make_task(self.root, "0001-parent", status="done", assignee="")
         make_task(self.root, "0002-child", status="ready", assignee="researcher",
                   parent="0001-parent")
 
         out, _, rc = run_cli(["list", "--status", "ready"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
-        self.assertNotIn("0001-parent", out)
+        self.assertIn("0001-parent", out)
         self.assertIn("0002-child", out)
-        # Should appear as top-level (ID in normal position, no tree prefix)
+        # Child should appear indented under parent
         child_line = next(l for l in out.splitlines() if "0002-child" in l)
-        self.assertNotIn("\u2514\u2500", child_line)
-        self.assertTrue(child_line.strip().startswith("0002"))
+        self.assertIn("\u2514\u2500", child_line)
 
-    def test_assignee_filter_with_grouped_view(self):
-        """Assignee filter works correctly with grouped subtasks."""
+    def test_assignee_filter_pulls_in_parent_for_context(self):
+        """Assignee filter pulls in parent for tree context."""
         make_task(self.root, "0001-parent", status="ready", assignee="researcher")
         make_task(self.root, "0002-child", status="ready", assignee="author",
                   parent="0001-parent")
 
-        # Filter by author — parent filtered out, child becomes top-level
+        # Filter by author — parent pulled in for context, child indented
         out, _, rc = run_cli(["list", "--assignee", "author"], cwd=self.tmpdir)
         self.assertEqual(rc, 0)
-        self.assertNotIn("0001-parent", out)
+        self.assertIn("0001-parent", out)
         self.assertIn("0002-child", out)
         child_line = next(l for l in out.splitlines() if "0002-child" in l)
-        self.assertNotIn("\u2514\u2500", child_line)
+        self.assertIn("\u2514\u2500", child_line)
 
     def test_multi_level_nesting_indented(self):
         """Grandchild tasks appear with deeper indentation than children."""
@@ -410,6 +409,76 @@ class TestListPullIn(unittest.TestCase):
         self.assertEqual(rc, 0)
         child_line = next(l for l in out.splitlines() if "0002-child" in l)
         self.assertIn("\u2514\u2500", child_line)
+
+
+class TestListAncestorPullIn(unittest.TestCase):
+    """Test ancestor pull-in: filtered children pull in their parents for tree context."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.root = make_source_vault(self.tmpdir)
+
+    def test_single_parent_pulled_in(self):
+        """A matching child pulls in its non-matching parent."""
+        make_task(self.root, "0010-parent", status="in-progress", assignee="architect")
+        make_task(self.root, "0013-child", status="ready", assignee="developer",
+                  parent="0010-parent")
+
+        out, _, rc = run_cli(["list", "--assignee", "developer"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0010-parent", out)
+        self.assertIn("0013-child", out)
+        # Child is indented under parent
+        child_line = next(l for l in out.splitlines() if "0013-child" in l)
+        self.assertIn("\u2514\u2500", child_line)
+
+    def test_multi_level_ancestry_pulled_in(self):
+        """Grandchild pulls in both parent and grandparent."""
+        make_task(self.root, "0001-grandparent", status="in-progress", assignee="architect")
+        make_task(self.root, "0002-parent", status="in-progress", assignee="architect",
+                  parent="0001-grandparent")
+        make_task(self.root, "0003-child", status="ready", assignee="developer",
+                  parent="0002-parent")
+
+        out, _, rc = run_cli(["list", "--assignee", "developer"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-grandparent", out)
+        self.assertIn("0002-parent", out)
+        self.assertIn("0003-child", out)
+
+    def test_no_parent_tasks_unaffected(self):
+        """Tasks without parents are not affected by ancestor pull-in."""
+        make_task(self.root, "0001-standalone", status="ready", assignee="developer")
+        make_task(self.root, "0002-other", status="ready", assignee="architect")
+
+        out, _, rc = run_cli(["list", "--assignee", "developer"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-standalone", out)
+        self.assertNotIn("0002-other", out)
+
+    def test_ancestor_shows_actual_status(self):
+        """Pulled-in ancestors display their real status, not the filter status."""
+        make_task(self.root, "0001-parent", status="in-progress", assignee="architect")
+        make_task(self.root, "0002-child", status="review", assignee="developer",
+                  parent="0001-parent")
+
+        out, _, rc = run_cli(["list", "--status", "review"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        parent_line = next(l for l in out.splitlines() if "0001-parent" in l)
+        self.assertIn("in-progress", parent_line)
+
+    def test_non_ancestor_non_descendant_excluded(self):
+        """Tasks that are neither ancestors nor descendants of matches are excluded."""
+        make_task(self.root, "0001-parent", status="in-progress", assignee="architect")
+        make_task(self.root, "0002-child", status="ready", assignee="developer",
+                  parent="0001-parent")
+        make_task(self.root, "0003-unrelated", status="ready", assignee="architect")
+
+        out, _, rc = run_cli(["list", "--assignee", "developer"], cwd=self.tmpdir)
+        self.assertEqual(rc, 0)
+        self.assertIn("0001-parent", out)  # ancestor pulled in
+        self.assertIn("0002-child", out)   # direct match
+        self.assertNotIn("0003-unrelated", out)  # no relation
 
 
 class TestListPositionalFilter(unittest.TestCase):

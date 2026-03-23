@@ -260,6 +260,28 @@ def pull_in_subtasks(filtered_tasks, all_tasks):
     return result
 
 
+def pull_in_ancestors(filtered_tasks, all_tasks):
+    """Include ancestors of *filtered_tasks* so tree context is preserved."""
+    by_name = {t["name"]: t for t in all_tasks}
+    result_names = {t["name"] for t in filtered_tasks}
+    result = list(filtered_tasks)
+
+    for t in list(filtered_tasks):
+        current = t
+        while True:
+            parent_name = current.get("parent", "")
+            if not parent_name or parent_name in result_names:
+                break
+            parent_task = by_name.get(parent_name)
+            if not parent_task:
+                break
+            result_names.add(parent_name)
+            result.append(parent_task)
+            current = parent_task
+
+    return result
+
+
 # --- Lifecycle ----------------------------------------------------------------
 
 def validate_transition(current, target):
@@ -457,6 +479,7 @@ def cmd_list(args, root):
         tasks = [t for t in tasks if t.get("type", "feature") == args.type]
 
     tasks = pull_in_subtasks(tasks, all_tasks)
+    tasks = pull_in_ancestors(tasks, all_tasks)
     rows = group_tasks_for_display(tasks)
 
     if getattr(args, "editor", False):

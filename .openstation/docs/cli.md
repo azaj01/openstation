@@ -16,6 +16,7 @@ name: cli-reference
 | `run`     | Launch an agent on tasks                     |
 | `artifacts` | Browse non-task artifacts (research, specs, agents) |
 | `agents`  | Manage and inspect agent specs               |
+| `hooks`   | Inspect and trigger lifecycle hooks           |
 | `init`    | Initialize Open Station in current directory |
 | `self-update` | Update Open Station to latest version    |
 
@@ -411,6 +412,69 @@ openstation agents list --quiet             # one name per line
 openstation agents show researcher          # print full agent spec
 openstation agents show researcher --json   # frontmatter + body as JSON
 openstation agents show researcher --editor    # open in editor
+```
+
+---
+
+## `hooks`
+
+Inspect and trigger lifecycle hooks configured in `settings.json`.
+
+### Synopsis
+
+```
+openstation hooks [list]
+openstation hooks show <index|matcher>
+openstation hooks run <task> <old-status> <new-status> [--phase PHASE] [--dry-run]
+```
+
+Bare `openstation hooks` (no sub-action) defaults to `list`.
+
+### Sub-Actions
+
+#### `hooks list` (default)
+
+Display all configured `StatusTransition` hooks in a table showing
+index, matcher, phase, timeout, and command.
+
+If no hooks are configured, prints an informational message.
+
+#### `hooks show <index|matcher>`
+
+Display a single hook entry with full details (index, matcher,
+command, phase, timeout).
+
+The query can be a 0-based numeric index or a matcher pattern
+(e.g. `*→done` or `*->done`). If the matcher matches multiple
+entries, an ambiguity error is reported.
+
+Exit code 3 if hook not found. Exit code 4 if ambiguous.
+
+#### `hooks run <task> <old-status> <new-status>`
+
+Manually trigger matching hooks for a simulated transition against
+a real task. Sets `OS_*` environment variables as documented in
+`docs/hooks.md`.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--phase PHASE` | `all` | Which phase hooks to fire: `pre`, `post`, or `all` |
+| `--dry-run` | — | Show matched hooks without executing them |
+
+Pre-hook failures return exit code 10 (`EXIT_HOOK_FAILED`).
+Post-hook failures are reported but return exit code 0.
+Invalid status values return exit code 1.
+
+### Examples
+
+```bash
+openstation hooks                                          # list all hooks
+openstation hooks list                                     # same as bare 'hooks'
+openstation hooks show 0                                   # show hook at index 0
+openstation hooks show "*→done"                            # show hook by matcher
+openstation hooks run 0042 in-progress review              # trigger matching hooks
+openstation hooks run 0042 in-progress review --dry-run    # preview without executing
+openstation hooks run 0042 ready in-progress --phase pre   # only pre-hooks
 ```
 
 ---

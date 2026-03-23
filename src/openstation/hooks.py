@@ -197,3 +197,140 @@ def run_matched(
                 core.err(f"warning: {err_msg}")
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# CLI subcommands: hooks list / show / run
+# ---------------------------------------------------------------------------
+
+def _format_hook_row(idx: int, hook: dict) -> tuple[str, str, str, str, str]:
+    """Return (index, matcher, command, phase, timeout) strings for a hook."""
+    return (
+        str(idx),
+        hook.get("matcher", ""),
+        hook.get("command", ""),
+        hook.get("phase", "pre"),
+        str(hook.get("timeout", DEFAULT_TIMEOUT)),
+    )
+
+
+def cmd_hooks_list(_args, root) -> int:
+    """Print all configured StatusTransition hooks."""
+    entries = load_hooks(root)
+    if not entries:
+        print("No hooks configured in settings.json")
+        return core.EXIT_OK
+
+    # Table header
+    hdr = f"{'#':<4} {'Matcher':<28} {'Phase':<6} {'Timeout':<8} {'Command'}"
+    print(hdr)
+    print("─" * len(hdr))
+    for i, hook in enumerate(entries):
+        idx, matcher, command, phase, timeout = _format_hook_row(i, hook)
+        print(f"{idx:<4} {matcher:<28} {phase:<6} {timeout + 's':<8} {command}")
+    return core.EXIT_OK
+
+
+def cmd_hooks_show(args, root) -> int:
+    """Display a single hook entry with full details."""
+    entries = load_hooks(root)
+    if not entries:
+        core.err("no hooks configured in settings.json")
+        return core.EXIT_NOT_FOUND
+
+    query = args.hook_query
+
+    # Try numeric index first
+    try:
+        idx = int(query)
+        if 0 <= idx < len(entries):
+            _print_hook_detail(idx, entries[idx])
+            return core.EXIT_OK
+        core.err(f"hook index {idx} out of range (0–{len(entries) - 1})")
+        return core.EXIT_NOT_FOUND
+    except ValueError:
+        pass
+
+    # Try matcher match
+    found = [(i, h) for i, h in enumerate(entries)
+             if _normalize_matcher(h.get("matcher", "")) == _normalize_matcher(query)]
+    if not found:
+        core.err(f"no hook matching '{query}'")
+        return core.EXIT_NOT_FOUND
+    if len(found) > 1:
+        core.err(f"ambiguous matcher '{query}' — matches indices: "
+                 + ", ".join(str(i) for i, _ in found))
+        return core.EXIT_AMBIGUOUS
+    _print_hook_detail(found[0][0], found[0][1])
+    return core.EXIT_OK
+
+
+def _print_hook_detail(idx: int, hook: dict) -> None:
+    """Print full details for a single hook."""
+    print(f"Index:   {idx}")
+    print(f"Matcher: {hook.get('matcher', '')}")
+    print(f"Command: {hook.get('command', '')}")
+    print(f"Phase:   {hook.get('phase', 'pre')}")
+    print(f"Timeout: {hook.get('timeout', DEFAULT_TIMEOUT)}s")
+
+
+def cmd_hooks_run(args, root) -> int:
+    """Manually trigger matching hooks for a simulated transition."""
+    from openstation.tasks import resolve_task
+
+    task_query = args.task
+    old_status = args.old_status
+    new_status = args.new_status
+    phase_filter = getattr(args, "phase", "all")
+    dry_run = getattr(args, "dry_run", False)
+
+    # Validate statuses
+    if old_status not in core.VALID_STATUSES:
+        core.err(f"invalid old status: {old_status}")
+        return core.EXIT_USAGE
+    if new_status not in core.VALID_STATUSES:
+        core.err(f"invalid new status: {new_status}")
+        return core.EXIT_USAGE
+
+    # Resolve task
+    name, err_msg, exit_code = resolve_task(root, task_query)
+    if name is None:
+        core.err(err_msg)
+        return exit_code
+
+    task_file = core.tasks_dir_path(root) / f"{name}.md"
+
+    # Load and match hooks
+    all_hooks = load_hooks(root)
+    phases = ["pre", "post"] if phase_filter == "all" else [phase_filter]
+    matched = []
+    for ph in phases:
+        for hook in match_hooks(all_hooks, old_status, new_status, phase=ph):
+            matched.append((ph, hook))
+
+    if not matched:
+        print(f"No hooks match {old_status}→{new_status}")
+        return core.EXIT_OK
+
+    if dry_run:
+        print(f"Dry run: {old_status}→{new_status} for task {name}")
+        print(f"{'#':<4} {'Phase':<6} {'Matcher':<28} {'Command'}")
+        print("─" * 60)
+        for ph, hook in matched:
+            print(f"{all_hooks.index(hook):<4} {ph:<6} "
+                  f"{hook.get('matcher', ''):<28} {hook.get('command', '')}")
+        return core.EXIT_OK
+
+    # Execute hooks
+    env = _build_hook_env(root, name, old_status, new_status, task_file)
+    for ph, hook in matched:
+        cmd = hook.get("command", "")
+        print(f"Running [{ph}] {cmd}")
+        ok, err_msg = _run_hook(hook, env)
+        if not ok:
+            core.err(err_msg)
+            if ph == "pre":
+                return core.EXIT_HOOK_FAILED
+            # post-hook failure: warn and continue
+
+    return core.EXIT_OK

@@ -28,7 +28,7 @@ def _command_key(args):
     elif cmd == "art":
         cmd = "artifacts"
 
-    for attr in ("agents_action", "artifacts_action"):
+    for attr in ("agents_action", "artifacts_action", "hooks_action"):
         action = getattr(args, attr, None)
         if action:
             return f"{cmd}.{action}"
@@ -311,6 +311,35 @@ examples:
                        default=False,
                        help="Pass --dangerously-skip-permissions to claude")
 
+    # hooks (with sub-actions: list, show, run)
+    hooks_p = sub.add_parser("hooks", help="Inspect and trigger lifecycle hooks", formatter_class=fmt, epilog="""\
+examples:
+  openstation hooks                          # list all hooks (default)
+  openstation hooks list                     # same as bare 'hooks'
+  openstation hooks show 0                   # show hook at index 0
+  openstation hooks show "*→done"            # show hook by matcher
+  openstation hooks run 0042 in-progress review           # trigger matching hooks
+  openstation hooks run 0042 in-progress review --dry-run # preview without executing
+  openstation hooks run 0042 ready in-progress --phase pre  # only pre-hooks""")
+    hooks_sub = hooks_p.add_subparsers(dest="hooks_action")
+
+    # hooks list (also the default when no sub-action given)
+    hooks_sub.add_parser("list", help="List all configured hooks")
+
+    # hooks show
+    hooks_show_p = hooks_sub.add_parser("show", help="Show a single hook entry")
+    hooks_show_p.add_argument("hook_query", help="Hook index (0-based) or matcher pattern")
+
+    # hooks run
+    hooks_run_p = hooks_sub.add_parser("run", help="Manually trigger hooks for a transition")
+    hooks_run_p.add_argument("task", help="Task ID or slug")
+    hooks_run_p.add_argument("old_status", help="Status before transition")
+    hooks_run_p.add_argument("new_status", help="Target status")
+    hooks_run_p.add_argument("--phase", default="all", choices=["pre", "post", "all"],
+                             help="Which phase hooks to fire (default: all)")
+    hooks_run_p.add_argument("--dry-run", action="store_true",
+                             help="Show matched hooks without executing")
+
     # init
     init_p = sub.add_parser("init", help="Initialize Open Station in current directory",
                             formatter_class=fmt, epilog="""\
@@ -368,7 +397,16 @@ examples:
         settings = hooks.load_settings(root)
         _apply_cli_defaults(args, settings)
 
-    if args.command == "list":
+    if args.command == "hooks":
+        action = getattr(args, "hooks_action", None)
+        if action is None or action == "list":
+            return hooks.cmd_hooks_list(args, root) or 0
+        elif action == "show":
+            return hooks.cmd_hooks_show(args, root)
+        elif action == "run":
+            return hooks.cmd_hooks_run(args, root)
+        return core.EXIT_OK
+    elif args.command == "list":
         return tasks.cmd_list(args, root) or 0
     elif args.command in ("agents", "ag"):
         action = getattr(args, "agents_action", None)

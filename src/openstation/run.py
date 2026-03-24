@@ -660,9 +660,9 @@ def cmd_run(args, root):
         spec = tdir / f"{task_name}.md"
 
         if not force:
-            ok, status = tasks.assert_task_ready(spec, task_name)
+            ok, status = tasks.assert_task_runnable(spec, task_name)
             if not ok:
-                core.err(f"Task {task_name} has status '{status}' (expected 'ready')")
+                core.err(f"Task {task_name} has status '{status}' (expected 'ready' or 'in-progress')")
                 core.err(f"  hint: current status is '{status}'; use --force to override")
                 return core.EXIT_TASK_NOT_READY
 
@@ -679,18 +679,18 @@ def cmd_run(args, root):
         core.header(f"openstation run --task {task_name}")
         core.info(f"Task collection: {task_name}")
 
-        subtasks = tasks.find_ready_subtasks(tdir, task_name, force=force)
+        subtasks = tasks.find_runnable_subtasks(tdir, task_name, force=force)
 
         if attached and subtasks:
             core.err(
                 f"Attached mode requires a single task. "
-                f"This task has {len(subtasks)} ready subtask(s). "
+                f"This task has {len(subtasks)} runnable subtask(s). "
                 f"Use --task <subtask-id> to target one."
             )
             return core.EXIT_USAGE
 
         if subtasks:
-            core.info(f"Found {len(subtasks)} ready subtask(s)")
+            core.info(f"Found {len(subtasks)} runnable subtask(s)")
             completed = 0
             rejected_count = 0
             remaining = len(subtasks)

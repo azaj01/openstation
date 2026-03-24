@@ -918,7 +918,7 @@ class TestRunArgValidation(unittest.TestCase):
         )
         self.assertEqual(rc, 1)
         self.assertIn("Attached mode requires a single task", stderr)
-        self.assertIn("1 ready subtask", stderr)
+        self.assertIn("1 runnable subtask", stderr)
 
     def test_attached_by_task_dry_run(self):
         make_agent_spec(self.root, "researcher")
@@ -993,18 +993,45 @@ class TestRunTaskValidation(unittest.TestCase):
         self.assertEqual(rc, 3)
         self.assertIn("not found", stderr)
 
-    def test_task_not_ready(self):
+    def test_task_in_progress_accepted(self):
         make_task(self.root, "0001-alpha", status="in-progress", assignee="researcher")
+        out, _, rc = run_cli(
+            ["run", "--task", "0001", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("claude", out)
+
+    def test_task_not_runnable(self):
+        make_task(self.root, "0001-alpha", status="review", assignee="researcher")
         _, stderr, rc = run_cli(
             ["run", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 5)
-        self.assertIn("has status 'in-progress'", stderr)
-        self.assertIn("expected 'ready'", stderr)
+        self.assertIn("has status 'review'", stderr)
+        self.assertIn("expected 'ready' or 'in-progress'", stderr)
 
-    def test_task_not_ready_with_force(self):
-        make_task(self.root, "0001-alpha", status="in-progress", assignee="researcher")
+    def test_task_backlog_rejected(self):
+        make_task(self.root, "0001-alpha", status="backlog", assignee="researcher")
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 5)
+        self.assertIn("expected 'ready' or 'in-progress'", stderr)
+
+    def test_task_done_rejected(self):
+        make_task(self.root, "0001-alpha", status="done", assignee="researcher")
+        _, stderr, rc = run_cli(
+            ["run", "--task", "0001", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 5)
+        self.assertIn("expected 'ready' or 'in-progress'", stderr)
+
+    def test_task_not_runnable_with_force(self):
+        make_task(self.root, "0001-alpha", status="review", assignee="researcher")
         out, _, rc = run_cli(
             ["run", "--task", "0001", "--force", "--dry-run"],
             cwd=self.tmpdir,
@@ -1247,7 +1274,7 @@ class TestRunSubtasks(unittest.TestCase):
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 0)
-        self.assertIn("1 ready subtask", stderr)
+        self.assertIn("1 runnable subtask", stderr)
         self.assertIn("0002-child", out)
 
     def test_max_tasks_limits_execution(self):
@@ -1262,7 +1289,7 @@ class TestRunSubtasks(unittest.TestCase):
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 0)
-        self.assertIn("2 ready subtask", stderr)
+        self.assertIn("2 runnable subtask", stderr)
         # Only first subtask should appear in dry-run output
         self.assertIn("0002-child-a", out)
         self.assertNotIn("0003-child-b", out)
@@ -1278,10 +1305,10 @@ class TestRunSubtasks(unittest.TestCase):
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 0)
-        self.assertIn("1 ready subtask", stderr)
+        self.assertIn("1 runnable subtask", stderr)
         self.assertIn("0002-child", out)
 
-    def test_subtask_only_ready_collected(self):
+    def test_subtask_only_runnable_collected(self):
         make_task(self.root, "0001-parent", status="ready", assignee="researcher",
                   subtasks=["0002-ready", "0003-done"])
         make_task(self.root, "0002-ready", status="ready", assignee="researcher")
@@ -1292,8 +1319,23 @@ class TestRunSubtasks(unittest.TestCase):
             cwd=self.tmpdir,
         )
         self.assertEqual(rc, 0)
-        self.assertIn("1 ready subtask", stderr)
+        self.assertIn("1 runnable subtask", stderr)
         self.assertIn("0002-ready", out)
+        self.assertNotIn("0003-done", out)
+
+    def test_subtask_in_progress_collected(self):
+        make_task(self.root, "0001-parent", status="in-progress", assignee="researcher",
+                  subtasks=["0002-wip", "0003-done"])
+        make_task(self.root, "0002-wip", status="in-progress", assignee="researcher")
+        make_task(self.root, "0003-done", status="done", assignee="researcher")
+
+        out, stderr, rc = run_cli(
+            ["run", "--task", "0001-parent", "--dry-run"],
+            cwd=self.tmpdir,
+        )
+        self.assertEqual(rc, 0)
+        self.assertIn("1 runnable subtask", stderr)
+        self.assertIn("0002-wip", out)
         self.assertNotIn("0003-done", out)
 
 
@@ -2801,9 +2843,9 @@ class TestRecoveryHints(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertIn("hint", stderr)
 
-    def test_task_not_ready_has_hint(self):
+    def test_task_not_runnable_has_hint(self):
         make_agent_spec(self.root, "researcher")
-        make_task(self.root, "0001-alpha", status="in-progress", assignee="researcher")
+        make_task(self.root, "0001-alpha", status="review", assignee="researcher")
         _, stderr, rc = run_cli(
             ["run", "--task", "0001", "--dry-run"],
             cwd=self.tmpdir,

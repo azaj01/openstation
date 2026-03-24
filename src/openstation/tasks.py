@@ -87,10 +87,11 @@ def resolve_task(root, query):
     return None, f"task not found: {query}\n  hint: run 'openstation list' to see available tasks", core.EXIT_NOT_FOUND
 
 
-def find_ready_subtasks(tasks_dir, task_name, force=False):
-    """Read the subtasks field from a task's frontmatter and return ready ones.
+def find_runnable_subtasks(tasks_dir, task_name, force=False):
+    """Read the subtasks field from a task's frontmatter and return runnable ones.
 
     Returns a list of (subtask_path, subtask_name) tuples.
+    Runnable means status is 'ready' or 'in-progress'.
     When force=True, returns all subtasks regardless of status.
     """
     tasks_dir = Path(tasks_dir)
@@ -114,20 +115,20 @@ def find_ready_subtasks(tasks_dir, task_name, force=False):
             except OSError:
                 continue
             fm = core.parse_frontmatter(sub_text)
-            if fm.get("status") == "ready":
+            if fm.get("status") in ("ready", "in-progress"):
                 results.append((sub_spec, sub_name))
     return results
 
 
-def assert_task_ready(spec_path, task_name):
-    """Validate that a task's status is 'ready'. Returns (ok, status)."""
+def assert_task_runnable(spec_path, task_name):
+    """Validate that a task's status is 'ready' or 'in-progress'. Returns (ok, status)."""
     try:
         text = Path(spec_path).read_text(encoding="utf-8")
     except OSError:
         return False, "missing"
     fm = core.parse_frontmatter(text)
     status = fm.get("status", "")
-    return status == "ready", status
+    return status in ("ready", "in-progress"), status
 
 
 # --- Formatting ---------------------------------------------------------------
@@ -470,7 +471,8 @@ def cmd_list(args, root):
     if status_filter == "active":
         tasks = [t for t in tasks if t["status"] in ("ready", "in-progress", "review", "verified")]
     elif status_filter != "all":
-        tasks = [t for t in tasks if t["status"] == status_filter]
+        statuses = set(status_filter.split(","))
+        tasks = [t for t in tasks if t["status"] in statuses]
 
     if args.assignee:
         tasks = [t for t in tasks if t["assignee"] == args.assignee]

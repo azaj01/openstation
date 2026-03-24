@@ -43,7 +43,7 @@ Key commands:
 
 | Command | Purpose |
 |---------|---------|
-| `openstation list --status ready --assignee <you>` | Find your tasks |
+| `openstation list --status ready,in-progress --assignee <you>` | Find your tasks |
 | `openstation show <task>` | Read a task spec |
 | `openstation status <task> <new-status>` | Transition lifecycle state |
 | `openstation create "<desc>" [--parent <p>]` | Create a task or sub-task |
@@ -108,14 +108,14 @@ need direct filesystem access.
    transitions, ownership, artifact routing, guardrails).
 3. Read `docs/task.spec.md` for task format (fields, naming,
    body structure, editing guardrails).
-4. Run `openstation list --status ready --assignee <your-name>` to find
-   assigned ready tasks. If the CLI is unavailable, fall back to
+4. Run `openstation list --status ready,in-progress --assignee <your-name>`
+   to find assigned tasks. If the CLI is unavailable, fall back to
    scanning `$OPENSTATION_HOME/artifacts/tasks/*.md` for files where
-   `assignee` matches your name AND `status` is `ready`.
-5. If multiple ready tasks exist, pick the one with the earliest
-   `created` date.
-6. If no ready tasks exist, report: "No ready tasks assigned to
-   agent [name]." and stop.
+   `assignee` matches your name AND `status` is `ready` or `in-progress`.
+5. If multiple tasks exist, pick the one with the earliest
+   `created` date (prefer `in-progress` over `ready` to resume work).
+6. If no tasks exist, report: "No ready or in-progress tasks assigned
+   to agent [name]." and stop.
 
 ## Executing a Task
 

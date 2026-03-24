@@ -108,6 +108,7 @@ owner: user             # Required. Who verifies. Default: "user".
 parent:                 # Optional. "[[parent-task-name]]" (wikilink).
 subtasks:               # Optional. List of "[[sub-task-name]]" (wikilinks).
 artifacts:              # Optional. List of "[[artifact-path]]" (wikilinks).
+allowed-tools:          # Optional. Extra tool patterns for this task.
 created: YYYY-MM-DD     # Required. Date the task was created.
 ---
 ```
@@ -132,6 +133,7 @@ created: YYYY-MM-DD     # Required. Date the task was created.
 | `parent` | string | no | empty | `"[[parent-task-name]]"` wikilink (for sub-tasks) |
 | `subtasks` | list | no | empty | `"[[sub-task-name]]"` wikilinks (for parent tasks) |
 | `artifacts` | list | no | empty | `"[[artifact-path]]"` wikilinks to produced artifacts |
+| `allowed-tools` | list | no | empty | Extra tool patterns merged with the agent's tools at launch |
 | `created` | date | yes | — | ISO 8601 date (`YYYY-MM-DD`) |
 
 ### Status Values
@@ -211,6 +213,26 @@ artifacts:
 
 See `docs/storage-query-layer.md` §§ 3c, 4 for artifact
 associations and routing.
+
+### Allowed Tools Field
+
+The `allowed-tools` list specifies additional tool patterns that
+the agent needs for this specific task. These are merged with
+the agent's own `allowed-tools` at launch time (agent tools
+first, then task tools, deduplicated). The format is the same
+as the agent spec's `allowed-tools` field.
+
+```yaml
+allowed-tools:
+  - "Bash(docker *)"
+  - "Bash(npm *)"
+  - WebFetch
+```
+
+Use this when a task requires tools beyond the agent's default
+set. For one-off additions, the `--tools` CLI flag on
+`openstation run` can also append tools at launch time (highest
+priority — after agent + task tools).
 
 ### Artifact Provenance Fields
 

@@ -151,6 +151,46 @@ def parse_allowed_tools(spec_path):
     return tools
 
 
+def merge_tools(*tool_lists):
+    """Merge multiple tool lists, preserving order and deduplicating.
+
+    Later lists have higher priority (appear after earlier ones).
+    Returns a deduplicated list preserving first-seen order.
+    """
+    seen = set()
+    merged = []
+    for tools in tool_lists:
+        for t in tools:
+            if t not in seen:
+                seen.add(t)
+                merged.append(t)
+    return merged
+
+
+# Patterns that indicate an agent stalled waiting for tool approval
+_TOOL_STALL_PATTERNS = [
+    r"approve the tool",
+    r"need your approval",
+    r"approve tool permissions",
+    r"waiting for.*tool.*approv",
+    r"tool.*permission.*request",
+    r"requires? your permission",
+    r"please approve",
+    r"approve.*to proceed",
+]
+_TOOL_STALL_RE = re.compile("|".join(_TOOL_STALL_PATTERNS), re.IGNORECASE)
+
+
+def detect_tool_stall(result_text):
+    """Check if result text indicates the agent stalled on tool approval.
+
+    Returns True if a tool-permission request pattern is detected.
+    """
+    if not result_text:
+        return False
+    return bool(_TOOL_STALL_RE.search(result_text))
+
+
 def build_command(agent_name, budget, turns, prompt, tools,
                   output_format="json", attached=False,
                   dangerously_skip_permissions=False,
@@ -238,7 +278,7 @@ def _stream_and_capture(cmd, cwd, log_file):
 
 def run_single_task(root, task_spec, task_name, budget, turns, dry_run,
                     json_output=False, dangerously_skip_permissions=False,
-                    worktree=None, exec_cwd=None):
+                    worktree=None, exec_cwd=None, extra_tools=None):
     """Execute one task: resolve agent, build command, launch. Returns (exit_code, session_id)."""
     task_spec = Path(task_spec)
 
@@ -261,11 +301,14 @@ def run_single_task(root, task_spec, task_name, budget, turns, dry_run,
         core.err("  hint: check agents/ directory for available agent specs")
         return core.EXIT_NOT_FOUND, None
 
-    tools = parse_allowed_tools(agent_spec)
-    if not tools:
+    agent_tools = parse_allowed_tools(agent_spec)
+    if not agent_tools:
         core.err(f"No allowed-tools found in agent spec: {agent_spec}")
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE, None
+
+    task_tools = parse_allowed_tools(task_spec)
+    tools = merge_tools(agent_tools, task_tools, extra_tools or [])
 
     os_home = str(root / ".openstation")
     task_path = task_spec if worktree else f".openstation/artifacts/tasks/{task_name}.md"
@@ -306,13 +349,17 @@ def run_single_task(root, task_spec, task_name, budget, turns, dry_run,
         core.detail("session", session_id)
     if result_text:
         print(result_text, file=sys.stderr)
+    if detect_tool_stall(result_text):
+        core.warn("Agent appears to have stalled waiting for tool approval.")
+        core.warn("  hint: add needed tools to the task's 'allowed-tools' field,")
+        core.warn("        or use --tools on the command line.")
     return rc, session_id
 
 
 def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
                   dry_run, json_output=False, attached=False,
                   dangerously_skip_permissions=False,
-                  worktree=None, exec_cwd=None):
+                  worktree=None, exec_cwd=None, extra_tools=None):
     """Execute a single task with stream-json capture."""
     tasks_dir = Path(tasks_dir)
     spec = tasks_dir / f"{task_name}.md"
@@ -334,11 +381,14 @@ def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
         core.err("  hint: check agents/ directory for available agent specs")
         return core.EXIT_NOT_FOUND
 
-    tools = parse_allowed_tools(agent_spec)
-    if not tools:
+    agent_tools = parse_allowed_tools(agent_spec)
+    if not agent_tools:
         core.err(f"No allowed-tools found in agent spec: {agent_spec}")
         core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
         return core.EXIT_USAGE
+
+    task_tools = parse_allowed_tools(spec)
+    tools = merge_tools(agent_tools, task_tools, extra_tools or [])
 
     os_home = str(root / ".openstation")
     task_path = str(spec) if worktree else f"artifacts/tasks/{task_name}.md"
@@ -406,6 +456,10 @@ def _exec_or_run(root, tasks_dir, task_name, agent_name_override, budget, turns,
 
     if result_text:
         print(result_text, file=sys.stderr)
+    if detect_tool_stall(result_text):
+        core.warn("Agent appears to have stalled waiting for tool approval.")
+        core.warn("  hint: add needed tools to the task's 'allowed-tools' field,")
+        core.warn("        or use --tools on the command line.")
     print(file=sys.stderr)
     core.detail("log", str(log_file.relative_to(root)))
     if session_id:
@@ -517,6 +571,7 @@ def cmd_run(args, root):
     json_output = getattr(args, "json", False)
     skip_perms = getattr(args, "dangerously_skip_permissions", False)
     worktree = getattr(args, "worktree", None)
+    cli_tools = getattr(args, "tools", None) or []
 
     # --- --verify mode ---
     if verify:
@@ -577,11 +632,14 @@ def cmd_run(args, root):
             core.err("  hint: check agents/ directory for available agent specs")
             return core.EXIT_NOT_FOUND
 
-        tools = parse_allowed_tools(agent_spec)
-        if not tools:
+        agent_tools = parse_allowed_tools(agent_spec)
+        if not agent_tools:
             core.err(f"No allowed-tools found in agent spec: {agent_spec}")
             core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
             return core.EXIT_USAGE
+
+        task_tools = parse_allowed_tools(spec)
+        tools = merge_tools(agent_tools, task_tools, cli_tools)
 
         if worktree is True:
             worktree = task_name
@@ -706,7 +764,8 @@ def cmd_run(args, root):
                 rc, sid = run_single_task(root, sub_spec, sub_name, budget, turns,
                                           dry_run, json_output=json_output,
                                           dangerously_skip_permissions=skip_perms,
-                                          worktree=worktree, exec_cwd=exec_cwd)
+                                          worktree=worktree, exec_cwd=exec_cwd,
+                                          extra_tools=cli_tools)
                 elapsed = time.time() - start
                 if sid:
                     last_session_id = sid
@@ -740,7 +799,8 @@ def cmd_run(args, root):
             return _exec_or_run(root, tdir, task_name, agent_name, budget, turns,
                                 dry_run, json_output=json_output, attached=attached,
                                 dangerously_skip_permissions=skip_perms,
-                                worktree=worktree, exec_cwd=exec_cwd)
+                                worktree=worktree, exec_cwd=exec_cwd,
+                                extra_tools=cli_tools)
     else:
         # --- BY-AGENT MODE (always attached/interactive) ---
         # Resolve alias to canonical agent name
@@ -765,11 +825,13 @@ def cmd_run(args, root):
             core.err("  hint: check agents/ directory for available agent specs")
             return core.EXIT_NOT_FOUND
 
-        tools = parse_allowed_tools(agent_spec)
-        if not tools:
+        agent_tools = parse_allowed_tools(agent_spec)
+        if not agent_tools:
             core.err(f"No allowed-tools found in agent spec: {agent_spec}")
             core.err("  hint: add an 'allowed-tools:' list to the agent's frontmatter")
             return core.EXIT_USAGE
+
+        tools = merge_tools(agent_tools, cli_tools)
 
         os.environ["OPENSTATION_HOME"] = str(root / ".openstation")
 

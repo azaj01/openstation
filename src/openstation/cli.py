@@ -310,6 +310,8 @@ examples:
     run_p.add_argument("--dangerously-skip-permissions", "-dsp", action="store_true",
                        default=False,
                        help="Pass --dangerously-skip-permissions to claude")
+    run_p.add_argument("--tools", nargs="+", default=None, metavar="PATTERN",
+                       help="Extra tool patterns to allow (appended after agent + task tools)")
 
     # hooks (with sub-actions: list, show, run)
     hooks_p = sub.add_parser("hooks", help="Inspect and trigger lifecycle hooks", formatter_class=fmt, epilog="""\

@@ -12,15 +12,10 @@ done
 
 # ── Opt-in check ────────────────────────────────────────────
 # Only fire if autonomous chaining is enabled in settings
-ENABLED=$(python3 -c "
-import json, sys
-try:
-    data = json.load(open('${OS_VAULT_ROOT}/.openstation/settings.json'))
-except Exception: data = {}
-print(data.get('autonomous', {}).get('enabled', False))
-" 2>/dev/null || echo "False")
+SETTINGS="${OS_VAULT_ROOT}/.openstation/settings.json"
+ENABLED=$(jq -r '.autonomous.enabled // false' "$SETTINGS" 2>/dev/null || echo "false")
 
-if [[ "$ENABLED" != "True" ]]; then
+if [[ "$ENABLED" != "true" ]]; then
   exit 0
 fi
 
@@ -35,14 +30,8 @@ export OS_HOOK_DEPTH=$((DEPTH + 1))
 
 # ── Assignee guard ──────────────────────────────────────────
 # Skip if no assignee is set (nothing to run)
-ASSIGNEE=$(python3 -c "
-import yaml, sys
-with open('${OS_TASK_FILE}') as f:
-    content = f.read()
-fm = content.split('---')[1] if '---' in content else ''
-data = yaml.safe_load(fm) or {}
-print(data.get('assignee') or '')
-" 2>/dev/null || echo "")
+# Extract assignee from YAML frontmatter without Python overhead
+ASSIGNEE=$(sed -n '/^---$/,/^---$/{ /^assignee:/{ s/^assignee:[[:space:]]*//; p; q; } }' "$OS_TASK_FILE" 2>/dev/null || echo "")
 
 if [[ -z "$ASSIGNEE" ]]; then
   echo "auto-start: task $OS_TASK_NAME has no assignee, skipping" >&2
@@ -51,4 +40,4 @@ fi
 
 # ── Dispatch ────────────────────────────────────────────────
 "${OS_VAULT_ROOT}/bin/os-dispatch" --no-attach "os-${OS_TASK_NAME}" \
-  openstation run --task "$OS_TASK_NAME" --attached
+  openstation run --task "$OS_TASK_NAME"

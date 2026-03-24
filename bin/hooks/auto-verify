@@ -11,15 +11,10 @@ for var in OS_TASK_NAME OS_TASK_FILE OS_VAULT_ROOT; do
 done
 
 # ── Opt-in check ────────────────────────────────────────────
-ENABLED=$(python3 -c "
-import json, sys
-try:
-    data = json.load(open('${OS_VAULT_ROOT}/.openstation/settings.json'))
-except Exception: data = {}
-print(data.get('autonomous', {}).get('enabled', False))
-" 2>/dev/null || echo "False")
+SETTINGS="${OS_VAULT_ROOT}/.openstation/settings.json"
+ENABLED=$(jq -r '.autonomous.enabled // false' "$SETTINGS" 2>/dev/null || echo "false")
 
-if [[ "$ENABLED" != "True" ]]; then
+if [[ "$ENABLED" != "true" ]]; then
   exit 0
 fi
 
@@ -34,4 +29,4 @@ export OS_HOOK_DEPTH=$((DEPTH + 1))
 
 # ── Dispatch ────────────────────────────────────────────────
 "${OS_VAULT_ROOT}/bin/os-dispatch" "os-verify-${OS_TASK_NAME}" \
-  openstation run --task "$OS_TASK_NAME" --verify --attached
+  openstation run --task "$OS_TASK_NAME" --verify

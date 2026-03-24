@@ -5,17 +5,11 @@
         "matcher": "*→ready",
         "command": "bin/hooks/auto-start",
         "phase": "post",
-        "timeout": 10
+        "timeout": 30
       },
       {
         "matcher": "*→review",
         "command": "bin/hooks/auto-verify",
-        "phase": "post",
-        "timeout": 10
-      },
-      {
-        "matcher": "*→verified",
-        "command": "bin/hooks/auto-accept",
         "phase": "post",
         "timeout": 30
       },

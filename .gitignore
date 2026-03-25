@@ -4,3 +4,4 @@ __pycache__/
 *.egg-info/
 src/openstation/_version.py
 .claude/worktrees/
+.openstation/artifacts/logs/

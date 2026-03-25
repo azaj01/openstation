@@ -168,7 +168,15 @@ def tasks_dir_path(root):
 # --- Frontmatter parsing -----------------------------------------------------
 
 def parse_frontmatter(text):
-    """Parse YAML frontmatter from text using simple str.partition."""
+    """Parse YAML frontmatter from text using simple str.partition.
+
+    Edge cases handled:
+
+    - Comment lines (starting with # after stripping) are skipped.
+    - Indented lines (list continuations) are skipped; use
+      :func:`parse_frontmatter_list` to read those.
+    - Surrounding single or double quotes are stripped from values.
+    """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return {}
@@ -176,9 +184,19 @@ def parse_frontmatter(text):
     for line in lines[1:]:
         if line.strip() == "---":
             break
+        # Skip YAML comment lines
+        if line.lstrip().startswith("#"):
+            continue
+        # Skip indented lines (list items / continuation lines)
+        if line and line[0] in (" ", "\t"):
+            continue
         key, sep, value = line.partition(":")
         if sep:
-            fields[key.strip()] = value.strip()
+            v = value.strip()
+            # Strip surrounding quotes (single or double)
+            if len(v) >= 2 and v[0] in ('"', "'") and v[-1] == v[0]:
+                v = v[1:-1]
+            fields[key.strip()] = v
     return fields
 
 

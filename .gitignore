@@ -5,3 +5,4 @@ __pycache__/
 src/openstation/_version.py
 .claude/worktrees/
 .openstation/artifacts/logs/
+.openstation/logs/

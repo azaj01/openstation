@@ -2,7 +2,7 @@
 kind: task
 name: 0179-fix-project-manager-skipping-agent
 type: documentation
-status: ready
+status: backlog
 assignee: author
 owner: user
 created: 2026-03-20

@@ -2,7 +2,7 @@
 kind: task
 name: 0132-research-lifecycle-transition-friction-from
 type: feature
-status: in-progress
+status: rejected
 assignee: researcher
 owner: user
 created: 2026-03-13

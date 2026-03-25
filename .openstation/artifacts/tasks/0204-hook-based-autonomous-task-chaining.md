@@ -2,7 +2,7 @@
 kind: task
 name: 0204-hook-based-autonomous-task-chaining
 type: feature
-status: review
+status: in-progress
 assignee: 
 owner: user
 created: 2026-03-22
@@ -71,11 +71,38 @@ resolved** — either by Claude Code itself or via a workaround.
 
 ## Verification
 
-- [ ] `*→ready` hook auto-starts task execution
-- [ ] `*→review` hook auto-launches verification
+- [x] `*→ready` hook auto-starts task execution
+- [x] `*→review` hook auto-launches verification
 - [ ] `*→verified` hook auto-transitions to done
 - [ ] `*→done` hook chains to next ready subtask in parent
 - [ ] Full chain works end-to-end: promote to ready → autonomous through done
-- [ ] Loop prevention tested (no infinite hook recursion)
+- [x] Loop prevention tested (no infinite hook recursion)
 - [ ] Verify rejection triggers rework without breaking the chain
 - [ ] Works for both standalone tasks and subtask trees
+
+## Verification Report
+
+*Verified: 2026-03-24*
+
+| # | Criterion | Result | Evidence |
+|---|-----------|--------|----------|
+| 1 | `*→ready` hook auto-starts task execution | PASS | `bin/hooks/auto-start` exists (+x), registered in settings.json as `*→ready` post-hook, dispatches via `os-dispatch` with `--no-attach`, tests in `TestAutoStart` (7 tests) |
+| 2 | `*→review` hook auto-launches verification | PASS | `bin/hooks/auto-verify` exists (+x), registered in settings.json as `*→review` post-hook, dispatches with `--verify`, tests in `TestAutoVerify` (3 tests) |
+| 3 | `*→verified` hook auto-transitions to done | FAIL | `bin/hooks/auto-accept` script exists and works correctly (calls `openstation status done`), BUT **not registered** in settings.json — no `*→verified` matcher. Hook would never fire. Also `autonomous.enabled` is `true` in settings.json but test `test_autonomous_section_exists` asserts `False`. |
+| 4 | `*→done` hook chains to next ready subtask | FAIL | No chain-next script in `bin/hooks/`. No `*→done` chaining hook in settings.json (only `auto-commit`). Grep confirms no implementation exists. |
+| 5 | Full chain end-to-end | FAIL | Breaks at `verified→done` (auto-accept not wired) and `done→next` (no chain-next). Cannot complete ready→done autonomously. |
+| 6 | Loop prevention tested | PASS | `OS_HOOK_DEPTH` guard in all 3 hooks. Tests: `test_noop_when_depth_exceeds_max` for all hooks, `test_noop_at_exact_max_depth` for auto-start. Max depth default 5. |
+| 7 | Verify rejection triggers rework | FAIL | No test for review→in-progress→review cycle. No evidence this edge case was verified. |
+| 8 | Works for standalone and subtask trees | FAIL | No chain-next means subtask trees don't chain. No tests differentiate standalone vs subtask behavior. |
+
+### Summary
+
+3 passed, 5 failed. The auto-start, auto-verify hooks and loop prevention are solid. The auto-accept hook exists but isn't wired in settings.json, chain-next is unimplemented, and edge-case scenarios lack coverage.
+
+### What Needs Fixing
+
+- **Register auto-accept hook**: Add `{"matcher": "*→verified", "command": "bin/hooks/auto-accept", "phase": "post", "timeout": 30}` to settings.json
+- **Fix `autonomous.enabled` default**: Settings.json has `true` but test expects `false` — one of them is wrong
+- **Implement chain-next hook** (`*→done`): Script to find parent, identify next ready subtask, dispatch it — or descope from verification criteria
+- **Add rework cycle test**: Verify review→in-progress doesn't loop and re-entering review re-fires auto-verify
+- **Add standalone vs subtask test**: Confirm hooks work for both task types
